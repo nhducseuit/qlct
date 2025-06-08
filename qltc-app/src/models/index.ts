@@ -1,16 +1,3 @@
-export interface Category {
-  id: string; // UUID, unique
-  name: string;
-  parentId?: string | null; // For sub-categories
-  icon?: string; // Icon name from Tabler Icons
-  color?: string; // Hex color code, optional for parent category
-  isPinned: boolean; // Default: false, for "Chọn nhanh"
-  order: number; // For sorting
-  isHidden: boolean; // Default: false, to hide category
-  defaultSplitRatio?: string; // e.g., "50/50", "Chồng:100", "Vợ:100"
-  budgetLimit?: number | null; // Optional budget limit
-}
-
 export interface Transaction {
   id: string; // UUID, unique
   categoryId: string; // Foreign key to Category
@@ -20,7 +7,7 @@ export interface Transaction {
   type: 'income' | 'expense';
   payer?: string | null; // userId of the user who made the payment/received income. Null if not applicable or system-level.
   isShared: boolean; // Default: false
-  splitRatio?: string | null; // e.g., "50/50", overrides category's defaultSplitRatio if present
+  splitRatio?: SplitRatioItem[] | null; // Updated to match backend and NewTransactionData
   userId?: string; // Added: Foreign key to User, set by backend
   createdAt?: string; // Added: ISO 8601 string, set by backend
   updatedAt?: string; // Added: ISO 8601 string, set by backend
@@ -31,10 +18,10 @@ export interface NewTransactionData {
   categoryId: string;
   date: string; // Or Date, depending on what your store expects before conversion
   amount: number;
-  note: string;
+  note?: string | null;
   payer: string | null; // userId
   isShared: boolean;
-  splitRatio: string | null;
+  splitRatio: SplitRatioItem[] | null;
   type: 'income' | 'expense';
 }
 
@@ -48,3 +35,35 @@ export interface TransactionUpdatePayload {
 
 // And for split ratio options if you want to strongly type them
 // export type SplitRatioOption = "50/50" | "Chồng:100" | "Vợ:100" | string; // string for custom
+// src/models/index.ts (example)
+export interface SplitRatioItem {
+  memberId: string; // Corresponds to HouseholdMember ID
+  percentage: number;
+}
+
+export interface Category {
+  id: string;
+  name: string;
+  parentId?: string | null;
+  icon?: string | null;
+  color?: string | null;
+  isPinned: boolean;
+  order: number;
+  isHidden: boolean;
+  budgetLimit?: number | null;
+  defaultSplitRatio?: SplitRatioItem[] | null; // Ensure this matches
+  userId: string; // Assuming backend sends this
+  createdAt: string; // Or Date
+  updatedAt: string; // Or Date
+  // children?: Category[]; // Dynamically added for UI if needed
+}
+
+export interface HouseholdMember {
+  id: string;
+  name: string;
+  isActive: boolean;
+  order?: number | null; // Make order optional and nullable to match backend
+  userId: string;
+  createdAt: string; // Or Date
+  updatedAt: string; // Or Date
+}

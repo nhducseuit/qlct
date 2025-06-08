@@ -1,66 +1,64 @@
 /**
- * Mock Category API Service
+ * Category API Service
  *
- * This service simulates an API backend for categories.
- * For now, it interacts directly with Dexie (db.ts) as if it were the backend database.
- * In a real scenario, these functions would make HTTP requests to a remote server.
- *
- * It also introduces the concept of `userId` for data scoping, though Dexie
- * currently doesn't store `userId` with categories, so actual filtering by userId
- * is not implemented here. This is a placeholder for future backend integration.
+ * This service makes HTTP requests to the backend API for categories.
  */
-import {
-  getAllCategoriesDB,
-  addCategoryDB,
-  updateCategoryDB,
-  deleteCategoryDB,
-  // getCategoryByIdDB, // Not strictly needed if store handles it
-} from 'src/services/db';
-import type { Category } from 'src/models';
+import apiClient from './api'; // Import the configured Axios instance
+import type { Category, SplitRatioItem } from 'src/models';
 
-export const fetchCategoriesAPI = async (userId: string): Promise<Category[]> => {
-  console.log(`[CategoryApiService] fetchCategoriesAPI called for userId: ${userId}`);
-  // In a real API, userId would be used to fetch user-specific categories.
-  // Here, we return all categories as Dexie isn't user-scoped yet.
-  return getAllCategoriesDB();
+// Define DTO types for request payloads, aligning with backend DTOs
+// Ensure these types are consistent with your backend's CreateCategoryDto and UpdateCategoryDto
+export interface CreateCategoryPayload {
+  name: string;
+  parentId?: string | null;
+  icon?: string | null;
+  color?: string | null;
+  isPinned?: boolean;
+  order?: number;
+  isHidden?: boolean;
+  budgetLimit?: number | null;
+  defaultSplitRatio?: SplitRatioItem[] | null;
+}
+
+export type UpdateCategoryPayload = Partial<CreateCategoryPayload>;
+
+export const fetchCategoriesAPI = async (): Promise<Category[]> => {
+  console.log('[CategoryApiService] fetchCategoriesAPI called');
+  const response = await apiClient.get<Category[]>('/categories');
+  return response.data;
 };
 
-export const addCategoryAPI = async (userId: string, categoryData: Category): Promise<Category> => {
-  console.log(`[CategoryApiService] addCategoryAPI called for userId: ${userId}`, categoryData);
-  // In a real API, categoryData might be augmented with userId before saving.
-  // Dexie's addCategoryDB doesn't take userId.
-  await addCategoryDB(categoryData);
-  return categoryData; // Return the added category, as an API might
+export const addCategoryAPI = async (categoryData: CreateCategoryPayload): Promise<Category> => {
+  console.log('[CategoryApiService] addCategoryAPI called', categoryData);
+  const response = await apiClient.post<Category>('/categories', categoryData);
+  return response.data;
 };
 
 export const updateCategoryAPI = async (
-  userId: string,
   categoryId: string,
-  updates: Partial<Omit<Category, 'id'>>
-): Promise<number> => {
-  console.log(`[CategoryApiService] updateCategoryAPI called for userId: ${userId}, categoryId: ${categoryId}`, updates);
-  // Real API would ensure user has permission to update this categoryId.
-  return updateCategoryDB(categoryId, updates);
+  updates: UpdateCategoryPayload,
+): Promise<Category> => {
+  console.log(`[CategoryApiService] updateCategoryAPI called for categoryId: ${categoryId}`, updates);
+  const response = await apiClient.patch<Category>(`/categories/${categoryId}`, updates);
+  return response.data;
 };
 
-export const deleteCategoryAPI = async (userId: string, categoryId: string): Promise<number> => {
-  console.log(`[CategoryApiService] deleteCategoryAPI called for userId: ${userId}, categoryId: ${categoryId}`);
-  // Real API would ensure user has permission to delete this categoryId.
-  return deleteCategoryDB(categoryId);
+export const deleteCategoryAPI = async (categoryId: string): Promise<Category> => {
+  console.log(`[CategoryApiService] deleteCategoryAPI called for categoryId: ${categoryId}`);
+  // Backend returns the deleted category object upon successful deletion
+  const response = await apiClient.delete<Category>(`/categories/${categoryId}`);
+  return response.data;
 };
 
 export const reorderCategoriesAPI = async (
-  userId: string,
   operations: { categoryId: string; order: number }[]
 ): Promise<void> => {
-  console.log(`[CategoryApiService] reorderCategoriesAPI called for userId: ${userId}`, operations);
-  // In a real API, this might be a batch update or specific reorder endpoint.
-  // For now, we'll update them one by one.
-  // This is a simplified mock; a real backend might handle this more atomically.
+  // Note: Backend currently supports updating order via PATCH /categories/:id one by one.
+  // A batch update endpoint could be more efficient for reordering multiple items.
+  console.log('[CategoryApiService] reorderCategoriesAPI called', operations);
   const promises = operations.map(op =>
-    updateCategoryDB(op.categoryId, { order: op.order })
+    apiClient.patch<Category>(`/categories/${op.categoryId}`, { order: op.order })
   );
   await Promise.all(promises);
-  // A real API might return a success status or the updated items.
-  // For this mock, void is fine as the store will reload.
+  // This function could return Promise<Category[]> if the updated categories are needed by the caller.
 };

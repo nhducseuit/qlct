@@ -1,0 +1,5 @@
+# d:\sources\qlct\qltc-backend\.dockerignore
+node_modules
+dist
+npm-debug.log
+.env

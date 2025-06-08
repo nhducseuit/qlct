@@ -60,17 +60,29 @@ const isDevMode = computed(() => import.meta.env.DEV);
 
 const linksList: EssentialLinkProps[] = [
   {
-    title: 'Nhập liệu',
-    caption: 'Thêm thu/chi',
+    title: 'Thêm chi tiêu / thu nhập',
+    caption: 'Thêm chi tiêu / thu nhập',
     icon: 'sym_o_edit_square', // Hoặc 'edit_note'
-    link: { name: 'home' }
+    link: { name: 'QuickEntry' }
   },
   {
-    title: 'Quản lý Danh mục',
-    caption: 'Thiết lập danh mục thu/chi',
+    title: 'Danh sách ghi chú thu/chi',
+    caption: 'Danh sách ghi chú thu/chi',
+    icon: 'receipt_long', // Or 'list_alt', 'request_quote'
+    link: { name: 'Transactions' }
+  },
+  {
+    title: 'Quản lý Danh mục thu/chi',
+    caption: 'Quản lý danh mục thu/chi',
     icon: 'sym_o_category', // Hoặc 'category'
     link: { name: 'categoriesManagement' }
-  }
+  },
+  {
+    title: 'Thành viên',
+    caption: 'Quản lý thành viên gia đình',
+    icon: 'sym_o_groups', // Or 'people'
+    link: { name: 'HouseholdMembers' }
+  },
 ];
 
 const leftDrawerOpen = ref(false);

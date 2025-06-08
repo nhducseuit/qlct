@@ -1,13 +1,5 @@
 import { defineStore } from 'pinia';
-import { ref } from 'vue';
-// import {
-//   getAllTransactionsDB,
-//   addTransactionDB,
-//   updateTransactionDB,
-//   deleteTransactionDB,
-//   getTransactionsByDateRangeDB,
-//   getTransactionsByCategoryIdDB,
-// } from 'src/services/db'; // Will be replaced by apiService calls
+import { ref, onMounted } from 'vue';
 import {
   fetchTransactionsAPI,
   addTransactionAPI,
@@ -15,41 +7,46 @@ import {
   deleteTransactionAPI,
   fetchTransactionsByDateRangeAPI,
   fetchTransactionsByCategoryAPI,
-} from 'src/services/transactionApiService'; // Import the new mock API service
-import type { NewTransactionData, Transaction, TransactionUpdatePayload } from 'src/models'; // Import TransactionUpdatePayload
-import { v4 as uuidv4 } from 'uuid';
+  type CreateTransactionPayload,
+  type UpdateTransactionPayload,
+} from 'src/services/transactionApiService';
+import type { NewTransactionData, Transaction } from 'src/models'; // Ensure SplitRatioItem is part of models
 import { useQuasar } from 'quasar';
-import { dayjs } from 'src/boot/dayjs'; // Import dayjs đã được cấu hình
+import { dayjs } from 'src/boot/dayjs';
 import { useAuthStore } from './authStore';
-import { connectSocket, disconnectSocket } from 'src/services/socketService'; // NEW
+import { connect } from 'src/services/socketService'; // Renamed connectSocket to connect
+import { AxiosError } from 'axios';
+import type { Socket } from 'socket.io-client';
 
 export const useTransactionStore = defineStore('transactions', () => {
   const $q = useQuasar();
   const transactions = ref<Transaction[]>([]);
-  const authStore = useAuthStore(); // Initialize authStore instance
-  const socketInitialized = ref(false); // NEW: Flag to track socket listener setup
+  const authStore = useAuthStore();
+  let storeSocket: Socket | null = null; // Renamed to avoid confusion with global socket
 
-  const addTransaction = async (transactionData: Omit<NewTransactionData, 'id' | 'date'> & { date: string | Date }) => {
-    // Ensure date is in ISO 8601 string format
+  const addTransaction = async (transactionData: NewTransactionData) => {
+    if (!authStore.isAuthenticated) {
+      $q.notify({ type: 'negative', message: 'Lỗi người dùng, không thể thêm giao dịch.' });
+      throw new Error('User not authenticated');
+    }
+
+    // Ensure date is in ISO 8601 string format for the backend
     const isoDate = dayjs(transactionData.date).toISOString();
 
-    const newTransaction: Transaction = {
-      id: uuidv4(),
-      ...transactionData,
+    const payload: CreateTransactionPayload = {
+      categoryId: transactionData.categoryId,
+      amount: transactionData.amount,
       date: isoDate,
-      // With exactOptionalPropertyTypes, if note is present, it must be string or null.
-      // If transactionData.note is undefined, omit it. If it's null, keep as null.
-      ...(transactionData.note !== undefined && { note: transactionData.note }),
+      note: transactionData.note ?? null, // Convert undefined to null
+      type: transactionData.type,
+      payer: transactionData.payer,
+      isShared: transactionData.isShared,
+      splitRatio: transactionData.splitRatio,
     };
-    try {
-      const userId = authStore.user?.id;
-      if (!userId) {
-        $q.notify({ type: 'negative', message: 'Lỗi người dùng, không thể thêm giao dịch.' });
-        return;
-      }
 
-      await addTransactionAPI(userId, newTransaction);
-      await loadTransactions(); // Refresh list
+    try {
+      await addTransactionAPI(payload);
+      // UI update will be handled by WebSocket event
       $q.notify({ type: 'positive', message: 'Đã thêm giao dịch mới.' });
     } catch (error) {
       console.error('Failed to add transaction:', error);
@@ -58,25 +55,32 @@ export const useTransactionStore = defineStore('transactions', () => {
         message: 'Thêm giao dịch thất bại.',
         icon: 'report_problem',
       });
+      throw error;
     }
   };
 
-  const updateTransaction = async (id: string, updates: Partial<Omit<Transaction, 'id'>>) => {
-    // Ensure date is in ISO 8601 string format if it's being updated
-    if (updates.date) {
-      updates.date = dayjs(updates.date).toISOString();
+  const updateTransaction = async (id: string, updates: UpdateTransactionPayload) => {
+    if (!authStore.isAuthenticated) {
+      $q.notify({ type: 'negative', message: 'Lỗi người dùng, không thể cập nhật giao dịch.' });
+      throw new Error('User not authenticated');
     }
 
-    try {
-      const userId = authStore.user?.id;
-      if (!userId) {
-        $q.notify({ type: 'negative', message: 'Lỗi người dùng, không thể cập nhật giao dịch.' });
-        return;
-      }
+    // Ensure date is in ISO 8601 string format if it's being updated
+    const payloadForApi: UpdateTransactionPayload = { ...updates };
+    if (payloadForApi.date) {
+      payloadForApi.date = dayjs(payloadForApi.date).toISOString();
+    }
 
-      const updatedTransaction = await updateTransactionAPI(userId, id, updates);
-      if (updatedTransaction) { // Check if an updated transaction was returned
-        await loadTransactions(); // Refresh list
+    // Sanitize payload: remove backend-managed fields that shouldn't be in an update DTO
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars, @typescript-eslint/no-explicit-any
+    const { id: _id, userId: _userId, createdAt: _createdAt, updatedAt: _updatedAt, ...finalPayload } = payloadForApi as any;
+
+
+    try {
+      console.log(`[TransactionStore] Updating transaction ${id} with payload:`, JSON.parse(JSON.stringify(finalPayload)));
+      const updatedTransaction = await updateTransactionAPI(id, finalPayload);
+      if (updatedTransaction) {
+        // UI update will be handled by WebSocket event
         $q.notify({ type: 'positive', message: 'Đã cập nhật giao dịch.' });
       } else {
         $q.notify({ type: 'warning', message: 'Không tìm thấy giao dịch để cập nhật hoặc không có gì thay đổi.' });
@@ -88,44 +92,50 @@ export const useTransactionStore = defineStore('transactions', () => {
         message: 'Cập nhật giao dịch thất bại.',
         icon: 'report_problem',
       });
+      throw error;
     }
   };
 
   const deleteTransaction = async (id: string) => {
+    if (!authStore.isAuthenticated) {
+      $q.notify({ type: 'negative', message: 'Lỗi người dùng, không thể xóa giao dịch.' });
+      throw new Error('User not authenticated');
+    }
     try {
-      const userId = authStore.user?.id;
-      if (!userId) {
-        $q.notify({ type: 'negative', message: 'Lỗi người dùng, không thể xóa giao dịch.' });
-        return;
-      }
-
-      const result = await deleteTransactionAPI(userId, id);
-      if (result && result.message) { // Check if the delete was successful based on backend response
-        await loadTransactions(); // Refresh list
+      const result = await deleteTransactionAPI(id);
+      if (result && result.message) {
+        // UI update will be handled by WebSocket event
         $q.notify({ type: 'positive', message: 'Đã xóa giao dịch.' });
       } else {
         $q.notify({ type: 'warning', message: 'Không tìm thấy giao dịch để xóa.' });
       }
     } catch (error) {
       console.error('Failed to delete transaction:', error);
+      let errorMessage = 'Xóa giao dịch thất bại.';
+      if (error instanceof AxiosError && error.response?.data?.message) {
+        errorMessage = String(error.response.data.message);
+      } else if (error instanceof Error) {
+        errorMessage = error.message;
+      }
       $q.notify({
         color: 'negative',
-        message: 'Xóa giao dịch thất bại.',
+        message: errorMessage,
         icon: 'report_problem',
       });
+      throw error; // Re-throw to allow components to handle if needed
     }
   };
 
   const loadTransactions = async () => {
-    if (!authStore.isAuthenticated || !authStore.user?.id) {
+    if (!authStore.isAuthenticated) {
       console.log('[TransactionStore] User not authenticated, skipping transaction load.');
-      transactions.value = []; // Clear transactions if user is not authenticated
+      transactions.value = [];
       return;
     }
-    const userId = authStore.user.id;
-
     try {
-      transactions.value = await fetchTransactionsAPI(userId);
+      const fetchedTransactions = await fetchTransactionsAPI();
+      transactions.value = fetchedTransactions.sort((a, b) => dayjs(b.date).valueOf() - dayjs(a.date).valueOf());
+      console.log('[TransactionStore] Transactions loaded:', transactions.value.length);
     } catch (error) {
       console.error('Failed to load transactions:', error);
       $q.notify({
@@ -136,84 +146,131 @@ export const useTransactionStore = defineStore('transactions', () => {
     }
   };
 
-  // Getters
   const getTransactionsByDateRange = async (startDate: string, endDate: string): Promise<Transaction[]> => {
-    const userId = authStore.user?.id;
-    if (!userId) {
-      console.warn('[TransactionStore] getTransactionsByDateRange called without user ID.');
+    if (!authStore.isAuthenticated) {
+      console.warn('[TransactionStore] getTransactionsByDateRange called: User not authenticated.');
       return [];
     }
-    return fetchTransactionsByDateRangeAPI(userId, startDate, endDate);
+    return fetchTransactionsByDateRangeAPI(startDate, endDate);
   };
 
   const getTransactionsByCategory = async (categoryId: string): Promise<Transaction[]> => {
-    const userId = authStore.user?.id;
-    if (!userId) {
-      console.warn('[TransactionStore] getTransactionsByCategory called without user ID.');
+    if (!authStore.isAuthenticated) {
+      console.warn('[TransactionStore] getTransactionsByCategory called: User not authenticated.');
       return [];
     }
-    return fetchTransactionsByCategoryAPI(userId, categoryId);
+    return fetchTransactionsByCategoryAPI(categoryId);
   };
 
-  // Initial load - using an async IIFE to not make the whole store setup async
-  const initializeRealtimeListeners = () => {
-    if (socketInitialized.value || !authStore.isAuthenticated) return;
-
-    const socket = connectSocket(); // connectSocket handles not re-connecting if already connected
-
-    if (socket) {
-      socket.off('transactions_updated'); // Xóa listener cũ để tránh trùng lặp
-      socket.on('transactions_updated', (data: TransactionUpdatePayload) => {
-        console.log('Real-time: transactions_updated event received from server', data);
-        // Backend đã scope sự kiện cho user này thông qua room
-        $q.notify({
-          type: 'info',
-          message: data?.message || 'Dữ liệu giao dịch đã được cập nhật.',
-          icon: 'sym_o_sync',
-          position: 'top-right',
-          timeout: 2500,
-        });
-        void (async () => {
-          await loadTransactions(); // ÍT TỐN CÔNG SỨC NHẤT: Tải lại toàn bộ giao dịch
-        })();
+  // --- WebSocket Event Handling ---
+  const handleTransactionUpdate = (data: { operation: string; item?: Transaction; itemId?: string; message?: string }) => {
+    console.log('[TransactionStore] RAW handleTransactionUpdate invoked with data:', JSON.parse(JSON.stringify(data)));
+    console.log('[TransactionStore] Received transactions_updated event:', data);
+    let changed = false;
+    switch (data.operation) {
+      case 'create':
+        if (data.item) {
+          const exists = transactions.value.some(t => t.id === data.item!.id);
+          if (!exists) {
+            transactions.value.push(data.item);
+            changed = true;
+          }
+        }
+        break;
+      case 'update':
+        if (data.item) {
+          const index = transactions.value.findIndex(t => t.id === data.item!.id);
+          if (index !== -1) {
+            transactions.value.splice(index, 1, data.item);
+            changed = true;
+          } else {
+            transactions.value.push(data.item); // If not found, might be new for this client
+            changed = true;
+          }
+        }
+        break;
+      case 'delete':
+        if (data.itemId) {
+          const initialLength = transactions.value.length;
+          transactions.value = transactions.value.filter(t => t.id !== data.itemId);
+          if (transactions.value.length !== initialLength) changed = true;
+        }
+        break;
+      default:
+        console.warn('[TransactionStore] Unknown operation from WebSocket:', data.operation);
+    }
+    if (changed) {
+      transactions.value.sort((a, b) => dayjs(b.date).valueOf() - dayjs(a.date).valueOf());
+      $q.notify({
+        type: 'info',
+        message: data?.message || 'Dữ liệu giao dịch đã được cập nhật.',
+        icon: 'sym_o_sync',
+        position: 'top-right',
+        timeout: 2500,
       });
-      socketInitialized.value = true;
-      console.log('Transaction store: Realtime listeners initialized.');
-    } else {
-      console.warn('Transaction store: Failed to initialize socket for realtime listeners.');
     }
   };
 
-  // Lắng nghe thay đổi trạng thái xác thực để quản lý kết nối socket và tải dữ liệu
-  authStore.$subscribe((mutation, state) => {
-    if (state.isAuthenticated && state.user?.id) {
-      initializeRealtimeListeners();
-      // Nếu chưa có transactions, hoặc cần tải lại sau khi login
-      if (transactions.value.length === 0) { // Hoặc một điều kiện khác để tải lại
-        void (
-          async () => {
-            await loadTransactions();
+  const setupSocketListeners = async () => {
+    if (authStore.isAuthenticated) {
+      try {
+        console.log(`[TransactionStore] Attempting to connect socket and set up listeners.`);
+        const connectedSocketInstance = await connect(); // Use the new async connect
+
+        if (connectedSocketInstance?.connected) {
+          storeSocket = connectedSocketInstance;
+          console.log(`[TransactionStore] Socket connected (${storeSocket.id}). Setting up WebSocket listeners for transactions_updated`);
+          storeSocket.off('transactions_updated', handleTransactionUpdate); // Remove old listener first
+          storeSocket.on('transactions_updated', handleTransactionUpdate);
+        } else {
+          console.warn('[TransactionStore] Failed to connect socket or socket not connected after attempt. Listeners not set up.');
+          if (storeSocket) { // If there was an old storeSocket, clean its listeners
+              storeSocket.off('transactions_updated', handleTransactionUpdate);
+              storeSocket = null;
           }
-        )();
+        }
+      } catch (error) {
+        console.error('[TransactionStore] Error during socket connection or listener setup:', error);
+        if (storeSocket) {
+          storeSocket.off('transactions_updated', handleTransactionUpdate);
+          storeSocket = null;
+        }
       }
-    } else if (!state.isAuthenticated) {
-      transactions.value = []; // Xóa dữ liệu khi logout
-      disconnectSocket();
-      socketInitialized.value = false; // Reset flag
+    } else {
+      clearSocketListeners(); // Ensure listeners are cleared if not authenticated
+    }
+  };
+
+  const clearSocketListeners = () => {
+    if (storeSocket) {
+      console.log(`[TransactionStore] Clearing WebSocket listeners for transactions_updated from socket ${storeSocket.id}`);
+      storeSocket.off('transactions_updated', handleTransactionUpdate);
+    }
+    storeSocket = null; // Clear the store's local reference
+  };
+
+  authStore.$subscribe((_mutation, state) => {
+    if (state.isAuthenticated) {
+      void loadTransactions(); // void to call async function without awaiting here
+      void setupSocketListeners();
+    } else {
+      transactions.value = [];
+      clearSocketListeners();
+      // Consider disconnecting socket if no other store is using it.
+      // disconnectSocket(); // Managed by socketService or globally
     }
   });
 
-  // Kiểm tra trạng thái xác thực ban đầu khi store được khởi tạo
-  if (authStore.isAuthenticated && authStore.user?.id) {
-    initializeRealtimeListeners();
-    if (transactions.value.length === 0) { // Tải dữ liệu nếu cần
-      void (
-        async () => {
-          await loadTransactions();
-        }
-      )();
+  onMounted(() => {
+    if (authStore.isAuthenticated) {
+      void loadTransactions(); // void to call async function without awaiting here
+      void setupSocketListeners();
     }
-  }
+  });
+
+  // onUnmounted is not typically needed for Pinia stores unless managing global resources
+  // that need cleanup when the app/component using the store is destroyed.
+  // Socket listeners are cleared on logout or if the store instance itself is destroyed (rare for global stores).
 
   return {
     transactions,

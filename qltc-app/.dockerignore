@@ -1,0 +1,8 @@
+# d:\sources\qlct\qltc-app\.dockerignore
+node_modules
+dist
+.quasar
+npm-debug.log
+.env*
+!.env.production
+!public/

@@ -27,7 +27,6 @@
         <template v-for="parentCategory in hierarchicalCategories" :key="parentCategory.id">
           <q-expansion-item
             v-if="parentCategory.children && parentCategory.children.length > 0"
-            group="categoriesGroup"
             :default-opened="isCategoryExpanded(parentCategory.id)"
             @show="() => onCategoryExpand(parentCategory.id)"
             @hide="() => onCategoryCollapse(parentCategory.id)"

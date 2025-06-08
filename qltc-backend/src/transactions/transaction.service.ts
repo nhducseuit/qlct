@@ -3,6 +3,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { CreateTransactionDto } from './dto/create-transaction.dto';
 import { UpdateTransactionDto } from './dto/update-transaction.dto';
 import { CategoryService } from '../categories/category.service'; // To get defaultSplitRatio
+import { HouseholdMemberService } from '../household-members/household-member.service'; // Import HouseholdMemberService
 import { NotificationsGateway } from '../notifications/notifications.gateway';
 import { Transaction, Prisma } from '@generated/prisma';
 
@@ -11,6 +12,7 @@ export class TransactionService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly categoryService: CategoryService,
+    private readonly householdMemberService: HouseholdMemberService, // Inject HouseholdMemberService
     private readonly notificationsGateway: NotificationsGateway,
   ) {}
 
@@ -26,12 +28,10 @@ export class TransactionService {
 
     // Validate payer if provided (ensure it's a valid HouseholdMember ID for the user)
     if (createTransactionDto.payer) {
-      // Assuming HouseholdMemberService will be available and has a similar findOne method
-      // For now, we'll skip this validation as HouseholdMemberService isn't implemented yet.
-      // const householdMember = await this.householdMemberService.findOne(createTransactionDto.payer, userId);
-      // if (!householdMember) {
-      //   throw new NotFoundException(`Payer (HouseholdMember) with ID "${createTransactionDto.payer}" not found.`);
-      // }
+      const householdMember = await this.householdMemberService.findOne(createTransactionDto.payer, userId);
+      if (!householdMember) {
+        throw new NotFoundException(`Payer (HouseholdMember) with ID "${createTransactionDto.payer}" not found or does not belong to the user.`);
+      }
     }
 
     let finalSplitRatio: Prisma.InputJsonValue | undefined =
@@ -86,7 +86,14 @@ export class TransactionService {
     if (updateTransactionDto.date !== undefined) dataToUpdate.date = new Date(updateTransactionDto.date);
     if (updateTransactionDto.note !== undefined) dataToUpdate.note = updateTransactionDto.note;
     if (updateTransactionDto.type !== undefined) dataToUpdate.type = updateTransactionDto.type;
-    if (updateTransactionDto.payer !== undefined) dataToUpdate.payer = updateTransactionDto.payer; // Add payer validation if HouseholdMemberService is available
+    if (updateTransactionDto.payer !== undefined) {
+      if (updateTransactionDto.payer === null) { // Allowing to clear the payer
+        dataToUpdate.payer = null;
+      } else {
+        await this.householdMemberService.findOne(updateTransactionDto.payer, userId); // Validate payer
+        dataToUpdate.payer = updateTransactionDto.payer;
+      }
+    }
     if (updateTransactionDto.isShared !== undefined) dataToUpdate.isShared = updateTransactionDto.isShared;
     
     if (updateTransactionDto.categoryId !== undefined) {
@@ -112,9 +119,9 @@ export class TransactionService {
     });
     // Phát sự kiện sau khi cập nhật thành công
     this.notificationsGateway.sendToUser(userId, 'transactions_updated', {
-      message: `Giao dịch "${transaction.note || transaction.id}" đã được cập nhật.`,
+      message: `Giao dịch "${updatedTransaction.note || updatedTransaction.id}" đã được cập nhật.`,
       operation: 'update',
-      item: transaction,
+      item: updatedTransaction, // Send the actual updated transaction
     });
 
     return updatedTransaction;

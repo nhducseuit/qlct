@@ -16,6 +16,24 @@ const routes: RouteRecordRaw[] = [
         name: 'categoriesManagement',
         component: () => import('pages/CategoriesPage.vue'),
       },
+      {
+        path: 'transactions',
+        name: 'Transactions',
+        component: () => import('pages/TransactionsPage.vue'),
+        meta: { requiresAuth: true },
+      },
+      {
+        path: 'quick-entry',
+        name: 'QuickEntry',
+        component: () => import('components/Transaction/QuickEntryForm.vue'), // Corrected path if it's a component
+        meta: { requiresAuth: true },
+      },
+      {
+        path: 'members',
+        name: 'HouseholdMembers',
+        component: () => import('pages/HouseholdMembersPage.vue'),
+        meta: { requiresAuth: true },
+      },
     ],
   },
   {

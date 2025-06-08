@@ -33,13 +33,15 @@ export default defineRouter(function (/* { store, ssrContext } */) {
   });
 
   Router.beforeEach((to, from, next) => {
+    const authStore = useAuthStore(); // Get store instance inside the guard
     // Bypass authentication in DEV mode
-    if (process.env.DEV) {
+    // For Docker builds with forced dev user, authStore.isAuthenticated will be true.
+    if (import.meta.env.DEV && !authStore.isAuthenticated) {
+      // This specific check for import.meta.env.DEV is more for local `quasar dev`
+      // where VITE_FORCE_DEV_USER might not be set.
       next();
       return;
     }
-
-    const authStore = useAuthStore(); // Get store instance inside guard
 
     const requiresAuth = to.matched.some(record => record.meta.requiresAuth);
     const requiresGuest = to.matched.some(record => record.meta.requiresGuest);

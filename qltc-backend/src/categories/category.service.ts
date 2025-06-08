@@ -3,10 +3,14 @@ import { PrismaService } from '../prisma/prisma.service';
 import { CreateCategoryDto } from './dto/create-category.dto';
 import { UpdateCategoryDto } from './dto/update-category.dto';
 import { Category, Prisma } from '@generated/prisma';
+import { NotificationsGateway } from '../notifications/notifications.gateway';
 
 @Injectable()
 export class CategoryService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly notificationsGateway: NotificationsGateway,
+  ) {}
 
   async create(createCategoryDto: CreateCategoryDto, userId: string): Promise<Category> {
     // The DTO validation (including IsSplitRatioSum100Constraint) happens in the controller layer
@@ -25,7 +29,7 @@ export class CategoryService {
       }
     }
 
-    return this.prisma.category.create({
+    const newCategory = await this.prisma.category.create({
       data: {
         name: createCategoryDto.name,
         parentId: createCategoryDto.parentId,
@@ -40,6 +44,13 @@ export class CategoryService {
         userId,
       },
     });
+
+    this.notificationsGateway.sendToUser(userId, 'categories_updated', {
+      message: `Category "${newCategory.name}" has been created.`,
+      operation: 'create',
+      item: newCategory,
+    });
+    return newCategory;
   }
 
   async findAll(userId: string): Promise<Category[]> {
@@ -65,7 +76,7 @@ export class CategoryService {
 
   async update(id: string, updateCategoryDto: UpdateCategoryDto, userId: string): Promise<Category> {
     // First, ensure the category exists and belongs to the user
-    await this.findOne(id, userId);
+    const existingCategory = await this.findOne(id, userId); // Keep existingCategory for potential use in message
 
     const dataToUpdate: Prisma.CategoryUpdateInput = {};
 
@@ -105,15 +116,22 @@ export class CategoryService {
       }
     }
 
-    return this.prisma.category.update({
+    const updatedCategory = await this.prisma.category.update({
       where: { id },
       data: dataToUpdate,
     });
+
+    this.notificationsGateway.sendToUser(userId, 'categories_updated', {
+      message: `Category "${updatedCategory.name}" has been updated.`,
+      operation: 'update',
+      item: updatedCategory,
+    });
+    return updatedCategory;
   }
 
   async remove(id: string, userId: string): Promise<Category> {
     // First, ensure the category exists and belongs to the user
-    await this.findOne(id, userId);
+    const deletedCategoryOriginal = await this.findOne(id, userId); // Get details before deleting for the message
 
     // Check for subcategories - Prisma's onDelete: NoAction for parentId relation
     // means we need to handle this manually or change the schema.
@@ -127,8 +145,15 @@ export class CategoryService {
       throw new ForbiddenException('Cannot delete category with associated transactions. Please reassign or delete transactions first.');
     }
 
-    return this.prisma.category.delete({
+    const deletedCategory = await this.prisma.category.delete({ // This will be the same as deletedCategoryOriginal if successful
       where: { id },
     });
+
+    this.notificationsGateway.sendToUser(userId, 'categories_updated', {
+      message: `Category "${deletedCategoryOriginal.name}" has been deleted.`, // Use original name for message
+      operation: 'delete',
+      itemId: id, // Send ID of the deleted item
+    });
+    return deletedCategory; // Return the object that was deleted
   }
 }

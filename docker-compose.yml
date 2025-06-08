@@ -1,0 +1,63 @@
+# docker-compose.yml
+version: '3.8'
+
+services:
+  db:
+    image: postgres:15 # Or your preferred version
+    container_name: qltc_db
+    restart: always
+    environment:
+      POSTGRES_USER: ${DB_USER:-youruser} # Updated to match your .env
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-yourpassword} # Updated
+      POSTGRES_DB: ${DB_NAME:-qltc_db} # Updated
+    ports:
+      - "5432:5432" # Expose DB port to host (optional, for external tools)
+    volumes:
+      - qltc_db_data:/var/lib/postgresql/data # Persist database data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-youruser} -d ${DB_NAME:-qltc_db}"] # Updated
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ./qltc-backend # Path to your backend Dockerfile
+      dockerfile: Dockerfile
+    container_name: qltc_backend
+    restart: always
+    ports:
+      - "3000:3000" # Expose backend port to host
+    environment:
+      # Ensure these match your .env or actual values
+      DATABASE_URL: postgresql://${DB_USER:-youruser}:${DB_PASSWORD:-yourpassword}@db:5432/${DB_NAME:-qltc_db}?schema=public # Updated
+      # For CORS in backend (main.ts and notifications.gateway.ts)
+      # This will be the address you access the frontend from in your browser on the LAN
+      FRONTEND_URL: http://192.168.1.165 # Port 80 is default for frontend Nginx
+      NODE_ENV: development # Or production if you build for prod
+      # Add any other backend environment variables here
+    depends_on:
+      db:
+        condition: service_healthy # Wait for DB to be ready
+    # The command will run after the container is built and started.
+    # It first applies migrations and then starts the application.
+    command: sh -c "npx prisma migrate deploy && node -r tsconfig-paths/register dist/main.js"
+
+  frontend:
+    build:
+      context: ./qltc-app # Path to your frontend Dockerfile
+      dockerfile: Dockerfile
+      args:
+        # This VITE_API_BASE_URL will be used during the Quasar build process inside Docker
+        # It points to the backend service name and port within the Docker network
+        VITE_API_BASE_URL: http://192.168.1.165:3000
+        VITE_FORCE_DEV_USER: "true" # Ensures dev user mode for Docker builds
+    container_name: qltc_frontend
+    restart: always
+    ports:
+      - "80:80" 
+    depends_on:
+      - backend
+
+volumes:
+  qltc_db_data:

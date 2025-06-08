@@ -105,19 +105,39 @@
         class="q-mt-sm"
         @update:model-value="onSharedChange"
       />
-
-      <q-select
-        v-if="form.isShared"
-        filled
-        v-model="form.splitRatio"
-        :options="splitRatioOptions"
-        label="Tỷ lệ chia"
-        emit-value
-        map-options
-        hint="Tự động lấy theo danh mục nếu có, hoặc chọn tùy chỉnh."
-        class="q-mt-sm"
-      />
-
+      <!-- SplitRatio Input Section -->
+      <div v-if="form.isShared" class="q-mt-md q-pa-md bordered rounded-borders bg-grey-1">
+        <div class="text-subtitle2 q-mb-sm">Phân chia chi phí (tổng phải là 100%):</div>
+        <div v-if="activeMembers.length === 0" class="text-caption text-negative">
+          Không có thành viên nào đang hoạt động để phân chia.
+        </div>
+        <div v-for="member in activeMembers" :key="member.id" class="row items-center q-mb-xs">
+          <div class="col-5 ellipsis">{{ member.name }}</div>
+          <div class="col-5">
+            <q-input
+              dense
+              filled
+              type="number"
+              v-model.number="memberSplitPercentages[member.id]"
+              @update:model-value="val => updateSplitRatio(member.id, val)"
+              suffix="%"
+              :rules="[
+                val => val === null || val === '' || (val >= 0 && val <= 100) || '0-100',
+              ]"
+              input-class="text-right"
+            />
+          </div>
+        </div>
+        <div class="row justify-end items-center q-mt-sm">
+          <q-btn flat dense size="sm" label="Chia đều" @click="distributeEqually" class="q-mr-sm" v-if="activeMembers.length > 0"/>
+          <div class="text-subtitle2" :class="{'text-negative': totalPercentage !== 100 && activeMembers.length > 0}">
+            Tổng: {{ totalPercentage }}%
+          </div>
+        </div>
+        <div v-if="totalPercentage !== 100 && form.isShared && activeMembers.length > 0" class="text-caption text-negative q-mt-xs">
+          Tổng tỷ lệ phân chia phải là 100%.
+        </div>
+      </div>
       <q-btn label="Lưu khoản này" type="submit" color="primary" class="full-width q-mt-lg" />
     </q-form>
   </q-page>
@@ -128,28 +148,15 @@ import { ref, computed, watch } from 'vue';
 import { useQuasar, QForm } from 'quasar';
 import { useCategoryStore } from 'src/stores/categoryStore';
 import { useTransactionStore } from 'src/stores/transactionStore';
-import { type NewTransactionData } from 'src/models/index';
+import { useHouseholdMemberStore } from 'src/stores/householdMemberStore'; // Import householdMemberStore
+import { type NewTransactionData, type SplitRatioItem } from 'src/models/index';
 import { dayjs } from 'src/boot/dayjs';
 import TablerIcon from 'src/components/Common/TablerIcon.vue'; // Import component icon
 
 const $q = useQuasar();
 const categoryStore = useCategoryStore();
 const transactionStore = useTransactionStore();
-
-// --- User Management (Mock for now) ---
-interface User {
-  id: string;
-  name: string;
-}
-
-const mockUsers = ref<User[]>([
-  { id: 'user_1_chong', name: 'Chồng' },
-  { id: 'user_2_vo', name: 'Vợ' },
-  // Add more users here if needed for testing
-]);
-
-const currentUser = ref<User | undefined>(mockUsers.value[0]); // Assume first user is the default
-// --- End User Management ---
+const householdMemberStore = useHouseholdMemberStore();
 
 const entryForm = ref<QForm | null>(null);
 const form = ref({
@@ -157,31 +164,25 @@ const form = ref({
   date: dayjs().format('YYYY/MM/DD'), // Quasar default date format
   amount: null as number | null,
   note: '',
-  payer: currentUser.value?.id as string | null, // Default to current user's ID
+  // Set default payer after members are loaded
+  payer: null as string | null,
   isShared: false,
-  splitRatio: '50/50', // Default or from category
+  splitRatio: null as SplitRatioItem[] | null, // Default or from category
   type: 'expense' as 'income' | 'expense', // Default
 });
 
+const activeMembers = computed(() =>
+  householdMemberStore.members.filter(member => member.isActive)
+);
+const memberSplitPercentages = ref<Record<string, number | null>>({});
+
 const pinnedCategories = computed(() => categoryStore.pinnedCategories);
 const payerOptions = computed(() =>
-  mockUsers.value.map(user => ({
-    label: user.name,
-    value: user.id,
+  householdMemberStore.members.filter(member => member.isActive).map(member => ({
+    label: member.name,
+    value: member.id,
   }))
 );
-
-const splitRatioOptions = computed(() => {
-  const user1 = mockUsers.value[0];
-  const user2 = mockUsers.value.length > 1 ? mockUsers.value[1] : null;
-
-  const options = [{ label: '50/50', value: '50/50' }]; // General default
-  if (user1) options.push({ label: `${user1.name} 100%`, value: `${user1.id}:100` });
-  if (user2) options.push({ label: `${user2.name} 100%`, value: `${user2.id}:100` });
-  if (user1 && user2) options.push({ label: `60/40 (${user1.name}/${user2.name})`, value: `${user1.id}:60;${user2.id}:40` });
-  if (user1 && user2) options.push({ label: `40/60 (${user1.name}/${user2.name})`, value: `${user1.id}:40;${user2.id}:60` });
-  return options;
-});
 
 // Task 3.3: Chuẩn bị options cho q-select (sẽ cải thiện với danh mục cha-con sau)
 const categoryOptions = computed(() =>
@@ -191,63 +192,124 @@ const categoryOptions = computed(() =>
   }))
 );
 
+// Set default payer once household members are loaded
+watch(() => householdMemberStore.members, (newMembers) => {
+  if (!form.value.payer && newMembers.length > 0) {
+    form.value.payer = newMembers.find(m => m.isActive)?.id || (newMembers[0] ? newMembers[0].id : null);
+    onPayerChange(form.value.payer); // Initialize splitRatio if not shared
+  }
+}, { immediate: true });
+
 const selectCategory = (categoryId: string) => {
   form.value.categoryId = categoryId;
   onCategorySelected(categoryId);
 };
 
 const onCategorySelected = (categoryId: string | null) => {
-  if (categoryId) {
-    const category = categoryStore.getCategoryById(categoryId);
-    if (category && category.defaultSplitRatio && form.value.isShared) {
-      form.value.splitRatio = category.defaultSplitRatio;
-    } else if (form.value.isShared) {
-      // Nếu là chi chung mà category không có defaultSplitRatio, có thể set một giá trị mặc định chung
-      form.value.splitRatio = '50/50';
+  if (form.value.isShared) { // Only attempt to apply default split if shared
+    if (categoryId) {
+      const category = categoryStore.getCategoryById(categoryId);
+      if (category?.defaultSplitRatio) {
+        form.value.splitRatio = JSON.parse(JSON.stringify(category.defaultSplitRatio)); // Deep copy
+      } else {
+        // If category has no default, initialize for manual input or clear
+        form.value.splitRatio = activeMembers.value.length > 0 ? activeMembers.value.map(m => ({ memberId: m.id, percentage: 0 })) : [];
+      }
     }
+    updateMemberSplitPercentagesFromForm(); // Always update UI based on new form.value.splitRatio
   }
 };
 
 const onPayerChange = (payerId: string | null) => {
   if (payerId && !form.value.isShared) {
     // Nếu không phải chi chung, và đã chọn người chi, thì tỷ lệ là 100% cho người đó
-    form.value.splitRatio = `${payerId}:100`;
+    // Nếu không phải chi chung, và đã chọn người chi, thì tỷ lệ là 100% cho người đó
+    form.value.splitRatio = [{ memberId: payerId, percentage: 100 }];
   } else if (!payerId && !form.value.isShared) {
     // Nếu bỏ chọn người chi và không phải chi chung (trường hợp này ít xảy ra với radio)
-    form.value.splitRatio = '50/50'; // Default to a valid string ratio
+    form.value.splitRatio = null;
   }
 };
 
 const onSharedChange = (isShared: boolean) => {
   if (isShared) {
     // Khi tick "Chi chung", lấy tỷ lệ từ danh mục nếu có, hoặc set mặc định
-    if (form.value.categoryId) {
-      const category = categoryStore.getCategoryById(form.value.categoryId);
-      if (category && category.defaultSplitRatio) {
-        form.value.splitRatio = category.defaultSplitRatio;
-      } else {
-        form.value.splitRatio = '50/50'; // Default khi không có từ category
-      }
+    const category = form.value.categoryId ? categoryStore.getCategoryById(form.value.categoryId) : null;
+    if (category?.defaultSplitRatio) {
+      form.value.splitRatio = JSON.parse(JSON.stringify(category.defaultSplitRatio));
+    } else if (activeMembers.value.length > 0) {
+      form.value.splitRatio = activeMembers.value.map(m => ({ memberId: m.id, percentage: 0 }));
     } else {
-      form.value.splitRatio = '50/50'; // Default khi chưa chọn category
+      form.value.splitRatio = [];
     }
   } else {
     // Khi bỏ tick "Chi chung", cập nhật lại tỷ lệ dựa trên người chi (nếu có)
     onPayerChange(form.value.payer);
   }
+  updateMemberSplitPercentagesFromForm();
+};
+
+const updateMemberSplitPercentagesFromForm = () => {
+  const newPercentages: Record<string, number | null> = {};
+  activeMembers.value.forEach(member => {
+    const existingSplit = form.value.splitRatio?.find(sr => sr.memberId === member.id);
+    newPercentages[member.id] = existingSplit ? existingSplit.percentage : null;
+  });
+  memberSplitPercentages.value = newPercentages;
+};
+
+const updateSplitRatio = (memberId: string, percentage: number | string | null) => {
+  const numPercentage = typeof percentage === 'string' ? parseFloat(percentage) : percentage;
+  if (form.value.splitRatio === null) form.value.splitRatio = [];
+
+  const index = form.value.splitRatio.findIndex(sr => sr.memberId === memberId);
+  if (numPercentage !== null && !isNaN(numPercentage) && numPercentage >= 0) {
+    if (index > -1) {
+      form.value.splitRatio[index]!.percentage = numPercentage;
+    } else {
+      form.value.splitRatio.push({ memberId, percentage: numPercentage });
+    }
+  } else {
+    if (index > -1) {
+      form.value.splitRatio[index]!.percentage = 0;
+    }
+    memberSplitPercentages.value[memberId] = null;
+  }
+};
+
+const totalPercentage = computed(() => {
+  if (!form.value.isShared || !form.value.splitRatio) return 0;
+  return form.value.splitRatio.reduce((sum, item) => sum + (item.percentage || 0), 0);
+});
+
+const distributeEqually = () => {
+  if (!form.value.isShared || activeMembers.value.length === 0) return;
+  const count = activeMembers.value.length;
+  const percentage = parseFloat((100 / count).toFixed(2));
+  const remainder = 100 - (percentage * count);
+
+  form.value.splitRatio = activeMembers.value.map((member, index) => {
+    let finalPercentage = percentage;
+    if (index === 0 && remainder !== 0) {
+      finalPercentage = parseFloat((percentage + remainder).toFixed(2));
+    }
+    return { memberId: member.id, percentage: finalPercentage };
+  });
+  updateMemberSplitPercentagesFromForm();
 };
 
 const resetForm = () => {
   form.value = {
-    categoryId: null,
-    date: dayjs().format('YYYY/MM/DD'),
-    amount: null,
+    categoryId: null as string | null,
+    date: dayjs().format('YYYY/MM/DD'), // Quasar default date format
+    amount: null as number | null,
     note: '',
-    payer: currentUser.value?.id ?? null, // Reset to current user's ID
+    payer: householdMemberStore.members.find(m => m.isActive)?.id || (householdMemberStore.members.length > 0 ? (householdMemberStore.members[0] ? householdMemberStore.members[0].id : null) : null),
     isShared: false,
-    splitRatio: '50/50', // Reset to default
-    type: 'expense', // Reset to default
+    splitRatio: null as SplitRatioItem[] | null,
+    type: 'expense' as 'income' | 'expense',
   };
+  updateMemberSplitPercentagesFromForm(); // Reset UI for split percentages
   // entryForm.value?.resetValidation(); // Reset validation status
   // Workaround for resetValidation not always working as expected with initial values
   if (entryForm.value) {
@@ -262,6 +324,10 @@ const onSubmit = async () => {
   const isValid = await entryForm.value.validate();
 
   if (isValid) {
+    if (form.value.isShared && totalPercentage.value !== 100 && activeMembers.value.length > 0) {
+      $q.notify({ type: 'negative', message: 'Tổng tỷ lệ phân chia cho chi phí chung phải là 100%.' });
+      return;
+    }
     // Task 3.10: Logic lưu transaction
     const transactionData: NewTransactionData = {
       categoryId: form.value.categoryId as string, // Ensured by validation
@@ -270,9 +336,14 @@ const onSubmit = async () => {
       note: form.value.note,
       payer: form.value.payer, // string (userId) or null
       isShared: form.value.isShared,
-      splitRatio: form.value.isShared ? form.value.splitRatio : (form.value.payer ? `${form.value.payer}:100` : null),
+      splitRatio: form.value.isShared
+        ? (form.value.splitRatio ? form.value.splitRatio.filter(sr => sr.percentage && sr.percentage > 0) : null)
+        : (form.value.payer ? [{ memberId: form.value.payer, percentage: 100 }] : null),
       type: form.value.type,
     };
+    if (transactionData.splitRatio && transactionData.splitRatio.length === 0) {
+      transactionData.splitRatio = null;
+    }
 
     await transactionStore.addTransaction(transactionData);
     $q.notify({ type: 'positive', message: 'Đã lưu giao dịch!' });

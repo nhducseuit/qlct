@@ -5,7 +5,9 @@ import { ValidationPipe } from '@nestjs/common';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
-  app.enableCors(); // Enable CORS for all routes
+  app.enableCors({
+    origin: process.env.FRONTEND_URL || ['http://localhost', 'http://192.168.1.165'], // Port 80 is default for Nginx
+  }); // Enable CORS for all routes
   
   app.useGlobalPipes(new ValidationPipe({
     whitelist: true, // Strips properties that do not have any decorators

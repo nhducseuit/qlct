@@ -18,7 +18,7 @@ interface AuthenticatedSocket extends Socket {
 
 @WebSocketGateway({
   cors: {
-    origin: process.env.FRONTEND_URL || 'http://localhost:9000', // URL của frontend Quasar
+    origin: process.env.FRONTEND_URL || ['http://localhost', 'http://192.168.1.165', 'http://localhost:9000'], // URL của frontend Quasar
     methods: ['GET', 'POST'],
     credentials: true,
   },
@@ -48,7 +48,11 @@ export class NotificationsGateway
     if (token) {
       // If token is provided (e.g., frontend still sends the mock dev-token)
       // TODO: Proper token validation for production
-      userIdForRoom = token.startsWith('dev-token-') ? token.split('-')[2] : 'user-from-token';
+      if (token.startsWith('dev-token-')) {
+        userIdForRoom = token.substring('dev-token-'.length); // Extracts everything after 'dev-token-'
+      } else {
+        userIdForRoom = 'user-from-token'; // Placeholder for actual token parsing
+      }
     } else if (isDevEnvironment) {
       // If no token and in DEV, assign a default dev user
       this.logger.warn(`No token provided by client ${client.id}. Assigning default dev-user in DEV mode.`);

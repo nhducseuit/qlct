@@ -46,13 +46,13 @@ As a household, we want multiple members to be able to use the app with their ow
         *   [x] If no custom ratio is provided, snapshotting the category's `defaultSplitRatio` into the transaction's `splitRatio` field upon creation.
         *   [x] Validating that percentages in any provided ratio sum to 100%.
 *   [ ] **Task S2.2.3:** Implement basic real-time synchronization mechanism.
-    *   *Options: WebSockets, Server-Sent Events, or long polling (if simpler for a first pass). Firebase/Supabase offer this out-of-the-box.*
+    *   *Options: WebSockets, Server-Sent Events, or long polling (if simpler for a first pass). Firebase/Supabase offer this out-of-the-box.* => Decision: WebSockets with Socket.IO
     *   When data changes on the server, push updates to connected clients for the relevant user.
 *   [ ] **Task S2.2.4:** Define and implement a basic conflict resolution strategy (e.g., "last write wins" is often simplest to start).
 
 ---
 
-### **User Story 2.2: Manage Household Members and Configure Share Ratios**
+### **User Story 2.2: Manage Household Members and Configure Share Ratios** (Backend Complete, Frontend UI In Progress)
 
 As a user, I want to define and manage a list of household members (e.g., "Chồng", "Vợ", "Con"). I also want to configure default, 100%-based share ratios per category using these members, and be able to customize this ratio for individual transactions. This allows me to accurately assign who paid/received and how shared expenses are split, ensuring that changes to category defaults do not affect past transactions.
 
@@ -78,20 +78,20 @@ As a user, I want to define and manage a list of household members (e.g., "Chồ
 
 ---
 
-**III. Frontend Integration & Modifications**
+**III. Frontend Integration & Modifications** (Core Store Logic Done, UI In Progress)
 *   [x] **Task S2.3.1:** Create UI components for User Login and Registration
 *   [x] **Task S2.3.2:** Implement client-side authentication logic. (skip authentication for DEV mode)
     *   Store auth token (e.g., in localStorage or secure cookie).
     *   Include token in API request headers.
     *   Handle token expiration and refresh (if applicable). (Future)
 *   [ ] **Task S2.3.3:** Implement routing guards to protect authenticated routes (e.g., redirect to login if not authenticated).
-*   [ ] **Task S2.3.4:** Modify `categoryStore.ts`:
+*   [x] **Task S2.3.4:** Modify `categoryStore.ts`:
     *   Remove direct Dexie calls for primary data operations.
     *   Actions (`loadCategories`, `addCategory`, `updateCategory`, `deleteCategory`, etc.) now make API calls to the backend.
     *   Handle the new structured `defaultSplitRatio` data for categories.
     *   Implement logic to listen for real-time updates from the backend and update the local Pinia state. (Future, depends on S2.2.3)
     *   *Decision: Keep IndexedDB (Dexie) as a local cache/offline support, or remove it entirely for this phase? Using it as a cache adds complexity but improves perceived performance and offline capability.* => Using Dexie as a mock backend's data source for now. Decision on keeping it as cache deferred.
-*   [ ] **Task S2.3.5:** Modify `transactionStore.ts`:
+*   [x] **Task S2.3.5:** Modify `transactionStore.ts`:
     *   Similar to `categoryStore`, replace Dexie calls with backend API calls.
     *   Handle the new structured `splitRatio` data for transactions.
     *   Implement real-time update listeners. (Future, depends on S2.2.3)
@@ -119,16 +119,17 @@ As a user, I want to define and manage a list of household members (e.g., "Chồ
     *   Loading states during API calls.
     *   Error messages from API responses.
     *   Displaying data fetched from the server.
+    *   Implement optimistic updates in Pinia stores for CUD operations to improve perceived UI responsiveness.
     *   Handle potential data conflicts displayed to the user (if not using "last write wins").
 *   [ ] **Task S2.3.7:** Implement a "Logout" feature (clear token, reset Pinia stores, redirect to login). (Skipped in DEV, will be implemented when backend auth is real)
 
 **IV. Testing & Deployment**
-*   [ ] **Task S2.5.1:** Test user registration and login flows.
-*   [ ] **Task S2.5.2:** Test CRUD operations for categories and transactions with multiple clients, verifying real-time sync.
+*   [x] **Task S2.5.1:** Test user registration and login flows. (DEV user flow tested)
+*   [x] **Task S2.5.2:** Test CRUD operations for categories and transactions with multiple clients, verifying real-time sync.
 *   [ ] **Task S2.5.3:** Test data isolation between different user accounts.
 *   [ ] **Task S2.5.4:** Test conflict resolution strategy (if implemented).
-*   [ ] **Task S2.5.5:** Set up deployment for the backend service.
-*   [ ] **Task S2.5.6:** Update frontend build configuration to point to the deployed backend API.
+*   [x] **Task S2.5.5:** Set up deployment for the backend service. (Docker environment setup)
+*   [x] **Task S2.5.6:** Update frontend build configuration to point to the deployed backend API.
 
 ---
 
