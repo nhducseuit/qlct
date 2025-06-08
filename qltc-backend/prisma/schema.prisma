@@ -1,0 +1,81 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/prisma" // Adjusted output path
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  password  String // Will store hashed password
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  categories       Category[]
+  transactions     Transaction[]
+  householdMembers HouseholdMember[]
+}
+
+model Category {
+  id          String  @id @default(uuid())
+  name        String
+  parentId    String?
+  icon        String?
+  color       String?
+  isPinned    Boolean @default(false)
+  order       Int?
+  isHidden    Boolean @default(false)
+  budgetLimit Float?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Structured default split ratio
+  // Stores an array like: [{ memberId: "uuid", percentage: 60 }, { memberId: "uuid2", percentage: 40 }]
+  defaultSplitRatio Json?
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  parent        Category?  @relation("SubCategories", fields: [parentId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  subCategories Category[] @relation("SubCategories")
+  transactions  Transaction[]
+}
+
+model Transaction {
+  id         String   @id @default(uuid())
+  amount     Float
+  date       DateTime // Store as DateTime for easier querying, format on client
+  note       String?
+  type       String   // 'income' | 'expense' - Consider an Enum if your DB supports it or use a string with validation
+  payer      String?  // Will store HouseholdMember ID
+  isShared   Boolean  @default(false)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  // Structured split ratio for this specific transaction (snapshot or custom)
+  splitRatio Json?
+
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  categoryId String
+  category   Category @relation(fields: [categoryId], references: [id], onDelete: Restrict) // Prevent deleting category if transactions exist
+}
+
+model HouseholdMember {
+  id        String   @id @default(uuid())
+  name      String
+  isActive  Boolean  @default(true)
+  order     Int?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
