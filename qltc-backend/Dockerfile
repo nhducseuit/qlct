@@ -5,7 +5,11 @@ WORKDIR /usr/src/app
 COPY package*.json ./
 RUN npm install
 COPY . .
-RUN npm run build
+# Generate Prisma client to src/generated/prisma first, so tsc can use it
+RUN npx prisma generate 
+RUN npm run build # This compiles src/* (including src/generated/prisma) to dist/*
+# Compile the seed script separately
+RUN npx tsc prisma/seed.ts --outDir dist/seed --esModuleInterop --resolveJsonModule --module commonjs --target es2020
 
 # Stage 2: Create the production image
 FROM node:18-alpine
@@ -17,6 +21,8 @@ COPY --from=builder /usr/src/app/package*.json ./
 # so that `prisma generate` (run by @prisma/client postinstall) uses the correct binaryTargets
 COPY --from=builder /usr/src/app/prisma ./prisma
 RUN npm install --only=production
+# Copy the compiled seed script from the builder stage
+COPY --from=builder /usr/src/app/dist/seed ./dist/seed
 
 # Copy the production-specific tsconfig for runtime path resolution
 COPY tsconfig.prod.json ./tsconfig.prod.json

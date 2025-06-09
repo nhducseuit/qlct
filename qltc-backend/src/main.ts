@@ -6,7 +6,7 @@ import { ValidationPipe } from '@nestjs/common';
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   app.enableCors({
-    origin: process.env.FRONTEND_URL || ['http://localhost', 'http://192.168.1.165'], // Port 80 is default for Nginx
+    origin: process.env.FRONTEND_URL || ['http://localhost', 'http://localhost:9000', 'http://192.168.1.165'], // Port 80 is default for Nginx
   }); // Enable CORS for all routes
   
   app.useGlobalPipes(new ValidationPipe({

@@ -76,7 +76,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, nextTick } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import { useHouseholdMemberStore } from 'src/stores/householdMemberStore';
 import type { HouseholdMember } from 'src/models';
 import { useQuasar } from 'quasar';
@@ -96,12 +96,11 @@ const openAddMemberDialog = () => {
       // No editingMember prop for adding
     },
   }).onOk((formData: CreateHouseholdMemberPayload) => {
-    try {
-      void householdMemberStore.addMember(formData);
-    } catch (error) {
+    householdMemberStore.addMember(formData)
+    .catch(error => {
       // Error notification is handled in the store
       console.error('Failed to add household member from dialog:', error);
-    }
+    });
   });
 };
 
@@ -112,12 +111,11 @@ const openEditMemberDialog = (member: HouseholdMember) => {
       editingMember: member,
     },
   }).onOk( (formData: UpdateHouseholdMemberPayload) => {
-    try {
-      void householdMemberStore.updateMember(member.id, formData);
-    } catch (error) {
+    householdMemberStore.updateMember(member.id, formData)
+    .catch(error => {
       // Error notification is handled in the store
       console.error('Failed to update household member from dialog:', error);
-    }
+    });
   });
 };
 
@@ -135,35 +133,35 @@ const confirmDeleteMember = (memberId: string, memberName: string) => {
       color: 'negative',
     },
   }).onOk(() => {
-    try {
-      void householdMemberStore.deleteMember(memberId);
-    } catch (error) {
+    householdMemberStore.deleteMember(memberId)
+    .catch(error => {
       // Error notification is handled in the store
       console.error('Failed to delete household member from page:', error);
-    }
+    });
   });
 };
 
-const toggleMemberActiveStatus = async (member: HouseholdMember) => {
-  try {
-    await householdMemberStore.updateMember(member.id, { isActive: !member.isActive });
+const toggleMemberActiveStatus = (member: HouseholdMember) => {
+  householdMemberStore.updateMember(member.id, { isActive: !member.isActive })
+  .then(() => {
     // Notification is handled by the store or WebSocket update
-  } catch (error) {
+  })
+  .catch(error => {
     // Error notification is handled in the store
     console.error('Failed to toggle member active status from page:', error);
-  }
+  });
 };
 
 onMounted(() => {
   if (householdMemberStore.members.length === 0) {
-    loading.value = true;
-    void nextTick(async () => {
-      // Store should load members on init/auth change.
-      // This is a fallback or for direct navigation.
-      // await householdMemberStore.loadMembers(); // Already handled by store
+    // If members aren't loaded, it's likely the store is in the process of loading them
+    // or will load them shortly due to authStore subscription.
+    // We can set a local loading flag, but it's better if this reflects the store's state.
+    // For now, we'll assume the store handles its own loading state and notifications.
+    // If a visual loading indicator is strictly needed here and isn't covered by a global one,
+    // you might need to expose a loading ref from the store.
+    // console.log('[HouseholdMembersPage] onMounted: members not loaded, store should handle it.');
       loading.value = false;
-      await Promise.resolve(true);
-    });
   }
 });
 </script>

@@ -11,7 +11,7 @@ services:
       POSTGRES_PASSWORD: ${DB_PASSWORD:-yourpassword} # Updated
       POSTGRES_DB: ${DB_NAME:-qltc_db} # Updated
     ports:
-      - "5432:5432" # Expose DB port to host (optional, for external tools)
+      - "5433:5432" # Expose DB port to host on 5433 for Docker deployment
     volumes:
       - qltc_db_data:/var/lib/postgresql/data # Persist database data
     healthcheck:
@@ -27,13 +27,13 @@ services:
     container_name: qltc_backend
     restart: always
     ports:
-      - "3000:3000" # Expose backend port to host
+      - "3001:3000" # Expose backend port to host on 3001 for Docker deployment
     environment:
       # Ensure these match your .env or actual values
       DATABASE_URL: postgresql://${DB_USER:-youruser}:${DB_PASSWORD:-yourpassword}@db:5432/${DB_NAME:-qltc_db}?schema=public # Updated
       # For CORS in backend (main.ts and notifications.gateway.ts)
       # This will be the address you access the frontend from in your browser on the LAN
-      FRONTEND_URL: http://192.168.1.165 # Port 80 is default for frontend Nginx
+      FRONTEND_URL: http://192.168.1.165:8081 # Frontend will be on port 8081 via Docker
       NODE_ENV: development # Or production if you build for prod
       # Add any other backend environment variables here
     depends_on:
@@ -41,7 +41,7 @@ services:
         condition: service_healthy # Wait for DB to be ready
     # The command will run after the container is built and started.
     # It first applies migrations and then starts the application.
-    command: sh -c "npx prisma migrate deploy && node -r tsconfig-paths/register dist/main.js"
+    command: sh -c "npx prisma migrate deploy && npx prisma db seed && node -r tsconfig-paths/register dist/main.js"
 
   frontend:
     build:
@@ -49,13 +49,13 @@ services:
       dockerfile: Dockerfile
       args:
         # This VITE_API_BASE_URL will be used during the Quasar build process inside Docker
-        # It points to the backend service name and port within the Docker network
-        VITE_API_BASE_URL: http://192.168.1.165:3000
+        # It points to the backend's host-exposed port for Docker deployment
+        VITE_API_BASE_URL: http://192.168.1.165:3001 # Backend will be on port 3001 via Docker
         VITE_FORCE_DEV_USER: "true" # Ensures dev user mode for Docker builds
     container_name: qltc_frontend
     restart: always
     ports:
-      - "80:80" 
+      - "8081:80" # Expose frontend to host on 8081 for Docker deployment
     depends_on:
       - backend
 

@@ -115,12 +115,11 @@ const openEditTransactionDialog = (transactionToEdit: Transaction) => {
     // We need to ensure it matches UpdateTransactionPayload
     // The transactionStore.updateTransaction expects an ID and the update payload
     console.log('Dialog OK, formData:', formData);
-    try {
-      void transactionStore.updateTransaction(transactionToEdit.id, formData as Partial<Transaction>);
-    } catch (error) {
+    transactionStore.updateTransaction(transactionToEdit.id, formData as Partial<Transaction>)
+    .catch(error => {
       // Error notification is handled in the store
       console.error('Failed to update transaction from dialog:', error);
-    }
+    });
   });
 };
 
@@ -136,12 +135,11 @@ const confirmDeleteTransaction = (transactionId: string, transactionNote?: strin
       color: 'negative',
     },
   }).onOk(() => {
-    try {
-      void transactionStore.deleteTransaction(transactionId);
-    } catch (error) {
+    transactionStore.deleteTransaction(transactionId)
+    .catch(error => {
       // Error notification is handled in the store
       console.error('Failed to delete transaction from page:', error);
-    }
+    });
   });
 };
 

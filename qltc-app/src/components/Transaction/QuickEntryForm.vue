@@ -192,18 +192,6 @@ const categoryOptions = computed(() =>
   }))
 );
 
-// Set default payer once household members are loaded
-watch(() => householdMemberStore.members, (newMembers) => {
-  if (!form.value.payer && newMembers.length > 0) {
-    form.value.payer = newMembers.find(m => m.isActive)?.id || (newMembers[0] ? newMembers[0].id : null);
-    onPayerChange(form.value.payer); // Initialize splitRatio if not shared
-  }
-}, { immediate: true });
-
-const selectCategory = (categoryId: string) => {
-  form.value.categoryId = categoryId;
-  onCategorySelected(categoryId);
-};
 
 const onCategorySelected = (categoryId: string | null) => {
   if (form.value.isShared) { // Only attempt to apply default split if shared
@@ -247,6 +235,19 @@ const onSharedChange = (isShared: boolean) => {
     onPayerChange(form.value.payer);
   }
   updateMemberSplitPercentagesFromForm();
+};
+
+// Set default payer once household members are loaded
+watch(() => householdMemberStore.members, (newMembers) => {
+  if (!form.value.payer && newMembers.length > 0) {
+    form.value.payer = newMembers.find(m => m.isActive)?.id || (newMembers[0] ? newMembers[0].id : null);
+    onPayerChange(form.value.payer); // Initialize splitRatio if not shared
+  }
+}, { immediate: true });
+
+const selectCategory = (categoryId: string) => {
+  form.value.categoryId = categoryId;
+  onCategorySelected(categoryId);
 };
 
 const updateMemberSplitPercentagesFromForm = () => {

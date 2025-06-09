@@ -1,0 +1,59 @@
+# Lessons Learned - Sprint 2: Multi-User Synchronization & Cloud Backend
+
+## Docker & Containerization:
+1.  **Dockerfile Best Practices:**
+    *   Pay close attention to `Dockerfile` syntax. Inline comments can sometimes cause parsing issues; prefer comments on their own lines.
+    *   The order of `COPY` and `RUN` commands significantly impacts build caching and the final image state. Ensure dependencies (like `prisma/schema.prisma`) are copied *before* `npm install` if postinstall scripts (like `prisma generate`) rely on them.
+    *   Multi-stage builds are effective for keeping production images lean by separating build-time dependencies from runtime dependencies.
+2.  **Dependency Management in Docker:**
+    *   `npm install --only=production` in the final Docker stage is crucial for smaller images but means any runtime-required packages *must* be in `dependencies`, not `devDependencies` (e.g., `@nestjs/swagger`).
+3.  **Prisma & Docker:**
+    *   `binaryTargets` in `schema.prisma` is essential for cross-platform compatibility (e.g., developing on Windows, deploying on Linux/Alpine). Always include the target runtime (like `linux-musl-openssl-3.0.x` for Alpine).
+    *   Ensure `prisma generate` runs within the final image's context, typically via `@prisma/client`'s `postinstall` script, which requires the `schema.prisma` to be present.
+4.  **Database Migrations in Docker:**
+    *   Database migrations (`npx prisma migrate deploy`) must be explicitly run as part of the container's startup command or entrypoint script in `docker-compose.yml` to ensure the database schema is up-to-date before the application starts.
+5.  **Debugging Docker Builds & Runtime:**
+    *   Use `docker-compose logs -f <service>` extensively.
+    *   For build issues, add `RUN echo "..." && ls -R ...` commands in the `Dockerfile` to inspect the filesystem at various build stages. Invalidate cache for these steps by making minor changes to the `RUN` command.
+    *   If a container is crash-looping, temporarily change its `CMD` in the `Dockerfile` (or `command` in `docker-compose.yml`) to something like `sh -c "tail -f /dev/null"` to keep it running for inspection via `docker exec -it <container_name> sh`.
+
+## Backend (NestJS, Prisma, TypeScript):
+1.  **TypeScript Path Aliases:**
+    *   Path aliases defined in `tsconfig.json` (`paths` and `baseUrl`) are for compile-time.
+    *   For runtime resolution in Node.js (especially after compilation to JS), `tsconfig-paths` is necessary.
+    *   A separate `tsconfig.prod.json` (or similar) with `baseUrl` pointing to the compiled output directory (e.g., `./dist`) is often required for `tsconfig-paths` to work correctly in production/Docker. `TS_NODE_PROJECT` environment variable should point to this file.
+2.  **CORS Configuration:**
+    *   Backend (NestJS `app.enableCors()` and `WebSocketGateway` options) must be configured to allow requests from the frontend's origin, including different ports and LAN IPs.
+3.  **Environment Variables:**
+    *   Use environment variables consistently for configuration (database URLs, frontend URLs, ports, `NODE_ENV`). `docker-compose.yml` is a good place to set these for services.
+4.  **WebSocket User Scoping:**
+    *   Join clients to user-specific rooms (e.g., based on `userId`) in the `WebSocketGateway` to ensure targeted real-time updates.
+
+## Frontend (Quasar, Pinia, Vite):
+1.  **API Base URL Configuration:**
+    *   The `VITE_API_BASE_URL` (or similar) used during the frontend build must point to the URL the *browser* will use to access the backend (e.g., `http://<host_lan_ip>:<backend_port>`), not the Docker internal service name.
+2.  **State Management & Real-time Updates:**
+    *   Pinia stores are effective for managing application state and centralizing API calls.
+    *   WebSocket event handlers in stores should update the local state, triggering reactivity in components.
+    *   Ensure socket connections and listeners are properly established upon user authentication and cleaned up on logout or component unmount to prevent memory leaks or stale listeners.
+3.  **Axios Interceptors:**
+    *   Request interceptors are useful for attaching auth tokens.
+    *   Response interceptors can handle global errors like 401 Unauthorized (e.g., triggering logout).
+4.  **Dev Mode vs. Production Mode:**
+    *   Be mindful of how `import.meta.env.DEV` and custom build arguments (like `VITE_FORCE_DEV_USER`) affect application behavior, especially for authentication and API URLs.
+
+## Networking & Docker Compose:
+1.  **Service Discovery vs. Host Access:**
+    *   Containers on the same Docker Compose network can reach each other using service names (e.g., `backend` can reach `db` at `db:5432`).
+    *   The browser (on the host or LAN) accesses services via `localhost:<exposed_port>` or `<host_ip>:<exposed_port>`.
+2.  **`depends_on` with `condition: service_healthy`:**
+    *   Crucial for ensuring services like the database are ready before dependent services (like the backend) start.
+
+## General Development & Debugging:
+1.  **Iterative Problem Solving:** Break down complex issues. The "module not found" errors were tackled one by one, revealing subsequent issues.
+2.  **Clear Error Messages:** Pay close attention to error messages. Prisma, NestJS, and Docker often provide very specific clues.
+3.  **Version Control:** (Implicit) Regular commits would have been invaluable for rolling back to a stable state if a change introduced too many problems.
+4.  **Consistency:** Ensure consistency between DTOs (backend), API service payloads (frontend), and database models/schemas.
+
+---
+This sprint was a significant leap, and these lessons will be very helpful for future development!

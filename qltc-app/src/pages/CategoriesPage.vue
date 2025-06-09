@@ -152,7 +152,12 @@ const confirmDeleteCategory = (id: string) => {
       color: 'negative',
     },
   }).onOk(() => {
-  void categoryStore.deleteCategory(id);
+    categoryStore.deleteCategory(id).catch(error => {
+      // The store already shows a notification for API errors.
+      // This catch is primarily to prevent unhandled promise rejection.
+      // You can add additional component-specific error handling here if needed.
+      console.error('Error during category deletion in component:', error);
+    });
   });
 };
 
