@@ -8,6 +8,7 @@ import { TransactionModule } from './transactions/transaction.module'; // Import
 import { NotificationsModule } from './notifications/notifications.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { HouseholdMemberModule } from './household-members/household-member.module';
+import { PredefinedSplitRatioModule } from './predefined-split-ratios/predefined-split-ratio.module'; // Import the new module
 
 @Module({
   imports: [
@@ -17,7 +18,8 @@ import { HouseholdMemberModule } from './household-members/household-member.modu
     ,TransactionModule
     ,NotificationsModule
     ,PrismaModule
-    ,HouseholdMemberModule],
+    ,HouseholdMemberModule
+    ,PredefinedSplitRatioModule],
   controllers: [AppController],
   providers: [AppService],
 })

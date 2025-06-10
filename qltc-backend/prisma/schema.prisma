@@ -21,6 +21,7 @@ model User {
   categories       Category[]
   transactions     Transaction[]
   householdMembers HouseholdMember[]
+  predefinedSplitRatios PredefinedSplitRatio[] // Added inverse relation
 }
 
 model Category {
@@ -78,4 +79,18 @@ model HouseholdMember {
 
   userId String
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model PredefinedSplitRatio {
+  id         String   @id @default(uuid())
+  name       String
+  splitRatio Json // Stores SplitRatioItem[]: [{ memberId: "uuid", percentage: number }]
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, name]) // Ensure unique name per user
+  @@index([userId])
 }

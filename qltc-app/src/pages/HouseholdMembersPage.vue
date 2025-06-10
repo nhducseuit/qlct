@@ -52,6 +52,8 @@
             <q-btn
               flat dense round
               :icon="member.isActive ? 'toggle_on' : 'toggle_off'"
+              :disable="!member.isActive && members.filter(m => m.isActive).length === 1"
+              :class="{'cursor-not-allowed': !member.isActive && members.filter(m => m.isActive).length === 1}"
               :color="member.isActive ? 'green' : 'grey'"
               @click="toggleMemberActiveStatus(member)"
               size="sm"
@@ -65,7 +67,20 @@
               flat dense round icon="delete" color="negative"
               @click="confirmDeleteMember(member.id, member.name)"
               size="sm"
+              :disable="!member.isActive && members.filter(m => m.isActive).length === 1"
+              :class="{'cursor-not-allowed': !member.isActive && members.filter(m => m.isActive).length === 1}"
             ><q-tooltip>Xóa</q-tooltip></q-btn>
+            <!-- Reorder Buttons (only for active members) -->
+            <template v-if="member.isActive">
+              <q-btn
+                flat dense round icon="arrow_upward" color="primary"
+                @click="moveMemberUp(member.id)" size="sm"
+              ><q-tooltip>Lên</q-tooltip></q-btn>
+              <q-btn
+                flat dense round icon="arrow_downward" color="primary"
+                @click="moveMemberDown(member.id)" size="sm"
+              ><q-tooltip>Xuống</q-tooltip></q-btn>
+            </template>
             <!-- TODO: Add toggle active status button -->
           </div>
         </q-item-section>
@@ -150,6 +165,14 @@ const toggleMemberActiveStatus = (member: HouseholdMember) => {
     // Error notification is handled in the store
     console.error('Failed to toggle member active status from page:', error);
   });
+};
+
+const moveMemberUp = async (id: string) => {
+  await householdMemberStore.reorderMember(id, 'up');
+};
+
+const moveMemberDown = async (id: string) => {
+  await householdMemberStore.reorderMember(id, 'down');
 };
 
 onMounted(() => {

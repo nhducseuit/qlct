@@ -50,6 +50,12 @@ Backend service for the Quản Lý Chi Tiêu (QLTC) application, built with Nest
         ```
         *(Replace `--name init` with a more descriptive name for subsequent migrations, e.g., `--name add_new_feature`)*
 
+    *   **Seed the database:**
+        ```
+        INSERT INTO "User" (id, email, password, "createdAt", "updatedAt")
+        VALUES ('dev-user', 'dev@example.com', 'somehashedpassword', NOW(), NOW());
+        ```
+
 4.  **Run the application (development mode):**
     ```bash
     npm run start:dev

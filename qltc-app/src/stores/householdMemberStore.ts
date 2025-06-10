@@ -120,6 +120,46 @@ export const useHouseholdMemberStore = defineStore('householdMembers', () => {
     return members.value.find((m) => m.id === id);
   };
 
+  const reorderMember = async (memberId: string, direction: 'up' | 'down') => {
+    if (!authStore.isAuthenticated) {
+      $q.notify({ type: 'negative', message: 'Lỗi người dùng, không thể sắp xếp thành viên.' });
+      return;
+    }
+
+    const member = getMemberById(memberId);
+    if (!member) {
+      console.error('[HouseholdMemberStore] Reorder: Member not found');
+      return;
+    }
+
+    // Filter active members and sort by current order to find siblings
+    const siblings = members.value
+      .filter(m => m.isActive) // Only reorder active members among themselves
+      .sort((a, b) => (a.order ?? Infinity) - (b.order ?? Infinity) || a.name.localeCompare(b.name));
+
+    const currentIndexInSiblings = siblings.findIndex(s => s.id === memberId);
+
+    if (direction === 'up' && currentIndexInSiblings > 0) {
+      const prevSibling = siblings[currentIndexInSiblings - 1];
+      if (prevSibling) {
+        // Swap orders
+        const currentOrder = member.order ?? siblings.length; // Use a high order if null
+        const prevOrder = prevSibling.order ?? siblings.length;
+        await updateMember(member.id, { order: prevOrder });
+        await updateMember(prevSibling.id, { order: currentOrder });
+      }
+    } else if (direction === 'down' && currentIndexInSiblings < siblings.length - 1) {
+      const nextSibling = siblings[currentIndexInSiblings + 1];
+      if (nextSibling) {
+        // Swap orders
+        const currentOrder = member.order ?? siblings.length;
+        const nextOrder = nextSibling.order ?? siblings.length;
+        await updateMember(member.id, { order: nextOrder });
+        await updateMember(nextSibling.id, { order: currentOrder });
+      }
+    } // else: Cannot move further, no notification needed as per category store
+  };
+
   // --- WebSocket Event Handling ---
   const handleHouseholdMemberUpdate = (data: { operation: string; item?: HouseholdMember; itemId?: string }) => {
     console.log('[HouseholdMemberStore] RAW handleHouseholdMemberUpdate invoked with data:', JSON.parse(JSON.stringify(data)));
@@ -238,5 +278,6 @@ export const useHouseholdMemberStore = defineStore('householdMembers', () => {
     updateMember,
     deleteMember,
     getMemberById,
+    reorderMember, // <-- Add this line
   };
 });

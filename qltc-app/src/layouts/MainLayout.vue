@@ -12,7 +12,7 @@
         />
 
         <q-toolbar-title>
-          QLTC App
+          Công cụ quản lý chi tiêu gia đình nhỏ xinh ( ´ ω ` )
         </q-toolbar-title>
 
         <div v-if="authStore.isAuthenticated && authStore.user" class="q-mr-md">
@@ -31,7 +31,7 @@
         <q-item-label
           header
         >
-          Essential Links
+          Truy cập nhanh
         </q-item-label>
 
         <EssentialLink

@@ -10,6 +10,33 @@
 
 ## Sprint Backlog:
 
+### Predefined Share Ratios (Continued)
+
+- **Feature:** Provide functionality to configure and reuse sets of predefined share ratios.
+- **Status (Start of Sprint 5):** Backend CRUD and WebSocket integration complete. Frontend API service and store complete. Integration into Transaction Quick Entry Form complete.
+- **Remaining Tasks for Sprint 5:**
+    - [ ] Create UI page/dialogs for managing (listing, adding, editing, deleting) predefined split ratios.
+        - [ ] Design and implement `PredefinedRatiosPage.vue`.
+        - [ ] Design and implement `PredefinedRatioFormDialog.vue` for add/edit operations.
+        - [ ] Integrate store actions for CRUD operations on this page.
+    - [ ] Integrate predefined ratio selection into `CategoryFormDialog.vue`.
+
+### Household Member Ordering (Continued)
+
+- **Feature:** Enable configuration and persistence of household member display order.
+- **Status (Start of Sprint 5):** Backend model supports `order`. Frontend store sorts by `order` and implements basic reordering logic. UI controls (Up/Down buttons) added.
+- **Remaining Tasks for Sprint 5:**
+    - [ ] (Verification) Confirm that WebSocket updates for member order changes correctly trigger UI updates in `HouseholdMembersPage.vue`.
+    - [ ] (Optional/Future) Consider adding drag-and-drop reordering in the UI.
+    - [ ] (Optional/Future) Add logic to automatically assign an initial `order` value when a new member is created (e.g., last in the list). (Backend or Frontend store)
+
+### Optional Category Default Share Ratio (Enhancement)
+
+- **Feature:** Improve UI clarity for optional default share ratio on categories.
+- **Status (Start of Sprint 5):** Functionality is optional from a data perspective.
+- **Task for Sprint 5:**
+    - [ ] (Optional/Future) Add a UI toggle in `CategoryFormDialog.vue` to explicitly enable/disable the default split ratio section for better clarity.
+
 ### Research & Design (S5.1.x)
 - **S5.1.1:** Research and select an AI/ML approach or service for financial recommendations.
     -   Options: Rule-based engine, simple statistical models, or integration with an external AI API (e.g., OpenAI, Google AI).

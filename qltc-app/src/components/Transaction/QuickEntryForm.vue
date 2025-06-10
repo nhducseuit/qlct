@@ -6,7 +6,7 @@
       <!-- Task 3.2: Danh mục "Chọn nhanh" -->
       <div class="q-mb-md">
         <div class="text-subtitle1">Chọn nhanh:</div>
-        <q-scroll-area horizontal style="height: 60px; max-width: 100%;">
+        <q-scroll-area horizontal style="height: 100px; max-width: 100%;">
           <div class="row no-wrap q-gutter-sm q-pa-xs">
             <q-btn
               v-for="cat in pinnedCategories"
@@ -14,6 +14,7 @@
               :icon="cat.icon ? undefined : 'sym_o_label'"
               :color="form.categoryId === cat.id ? 'primary' : 'grey-7'"
               :label="cat.name"
+              size="sm"
               unelevated
               no-caps
               @click="selectCategory(cat.id)"
@@ -74,6 +75,20 @@
         </template>
       </q-input>
 
+      <!-- Task 3.12: Chọn loại giao dịch (Thu/Chi) -->
+      <div class="q-mt-md">
+        <div class="text-subtitle2 q-mb-xs">Loại giao dịch:</div>
+        <q-option-group
+          v-model="form.type"
+          :options="[
+            { label: 'Chi tiêu', value: 'expense' },
+            { label: 'Thu nhập', value: 'income' }
+          ]"
+          color="primary"
+          inline
+        />
+      </div>
+
       <!-- Task 3.6: Input ghi chú -->
       <q-input
         filled
@@ -107,6 +122,19 @@
       />
       <!-- SplitRatio Input Section -->
       <div v-if="form.isShared" class="q-mt-md q-pa-md bordered rounded-borders bg-grey-1">
+        <!-- Task 3.13: Select Predefined Split Ratio -->
+        <q-select
+          filled
+          dense
+          v-model="selectedPredefinedRatioId"
+          :options="predefinedSplitRatioOptions"
+          label="Hoặc chọn tỷ lệ chia có sẵn"
+          emit-value
+          map-options
+          clearable
+          class="q-mb-md"
+        />
+
         <div class="text-subtitle2 q-mb-sm">Phân chia chi phí (tổng phải là 100%):</div>
         <div v-if="activeMembers.length === 0" class="text-caption text-negative">
           Không có thành viên nào đang hoạt động để phân chia.
@@ -149,6 +177,7 @@ import { useQuasar, QForm } from 'quasar';
 import { useCategoryStore } from 'src/stores/categoryStore';
 import { useTransactionStore } from 'src/stores/transactionStore';
 import { useHouseholdMemberStore } from 'src/stores/householdMemberStore'; // Import householdMemberStore
+import { usePredefinedSplitRatioStore } from 'src/stores/predefinedSplitRatioStore'; // Import predefinedSplitRatioStore
 import { type NewTransactionData, type SplitRatioItem } from 'src/models/index';
 import { dayjs } from 'src/boot/dayjs';
 import TablerIcon from 'src/components/Common/TablerIcon.vue'; // Import component icon
@@ -157,6 +186,7 @@ const $q = useQuasar();
 const categoryStore = useCategoryStore();
 const transactionStore = useTransactionStore();
 const householdMemberStore = useHouseholdMemberStore();
+const predefinedSplitRatioStore = usePredefinedSplitRatioStore(); // Use the new store
 
 const entryForm = ref<QForm | null>(null);
 const form = ref({
@@ -168,7 +198,8 @@ const form = ref({
   payer: null as string | null,
   isShared: false,
   splitRatio: null as SplitRatioItem[] | null, // Default or from category
-  type: 'expense' as 'income' | 'expense', // Default
+  selectedPredefinedRatioId: null,
+  type: 'expense' as 'income' | 'expense', // Default to expense
 });
 
 const activeMembers = computed(() =>
@@ -183,6 +214,14 @@ const payerOptions = computed(() =>
     value: member.id,
   }))
 );
+// Options for predefined split ratios
+const predefinedSplitRatioOptions = computed(() =>
+  predefinedSplitRatioStore.predefinedRatios.map(ratio => ({
+    label: ratio.name,
+    value: ratio.id,
+  }))
+);
+
 
 // Task 3.3: Chuẩn bị options cho q-select (sẽ cải thiện với danh mục cha-con sau)
 const categoryOptions = computed(() =>
@@ -191,6 +230,20 @@ const categoryOptions = computed(() =>
     name: `${cat.parentId ? '    ↳ ' : ''}${cat.name}`, // Basic indentation
   }))
 );
+
+// Task 3.13: Select predefined split ratio
+const selectedPredefinedRatioId = ref<string | null>(null);
+
+watch(selectedPredefinedRatioId, (newRatioId) => {
+  if (newRatioId) {
+    const predefinedRatio = predefinedSplitRatioStore.getPredefinedRatioById(newRatioId);
+    if (predefinedRatio) {
+      form.value.isShared = true; // Automatically tick "Chi chung"
+      form.value.splitRatio = JSON.parse(JSON.stringify(predefinedRatio.splitRatio)); // Apply the ratio
+      updateMemberSplitPercentagesFromForm(); // Update UI inputs
+    }
+  }
+});
 
 
 const onCategorySelected = (categoryId: string | null) => {
@@ -250,6 +303,17 @@ const selectCategory = (categoryId: string) => {
   onCategorySelected(categoryId);
 };
 
+// Function to update form.value.splitRatio based on memberSplitPercentages
+// This is needed when user manually edits percentages
+const updateSplitRatioFromPercentages = () => {
+  form.value.splitRatio = activeMembers.value
+    .map(member => ({
+      memberId: member.id,
+      percentage: memberSplitPercentages.value[member.id] ?? 0, // Use 0 if null/undefined
+    }))
+    .filter(sr => sr.percentage > 0); // Only include members with > 0%
+};
+
 const updateMemberSplitPercentagesFromForm = () => {
   const newPercentages: Record<string, number | null> = {};
   activeMembers.value.forEach(member => {
@@ -262,6 +326,7 @@ const updateMemberSplitPercentagesFromForm = () => {
 const updateSplitRatio = (memberId: string, percentage: number | string | null) => {
   const numPercentage = typeof percentage === 'string' ? parseFloat(percentage) : percentage;
   if (form.value.splitRatio === null) form.value.splitRatio = [];
+  selectedPredefinedRatioId.value = null; // Clear predefined selection if manual edit occurs
 
   const index = form.value.splitRatio.findIndex(sr => sr.memberId === memberId);
   if (numPercentage !== null && !isNaN(numPercentage) && numPercentage >= 0) {
@@ -276,6 +341,7 @@ const updateSplitRatio = (memberId: string, percentage: number | string | null) 
     }
     memberSplitPercentages.value[memberId] = null;
   }
+  updateSplitRatioFromPercentages(); // Keep form.value.splitRatio in sync
 };
 
 const totalPercentage = computed(() => {
@@ -296,6 +362,7 @@ const distributeEqually = () => {
     }
     return { memberId: member.id, percentage: finalPercentage };
   });
+  selectedPredefinedRatioId.value = null; // Clear predefined selection
   updateMemberSplitPercentagesFromForm();
 };
 
@@ -308,6 +375,7 @@ const resetForm = () => {
     payer: householdMemberStore.members.find(m => m.isActive)?.id || (householdMemberStore.members.length > 0 ? (householdMemberStore.members[0] ? householdMemberStore.members[0].id : null) : null),
     isShared: false,
     splitRatio: null as SplitRatioItem[] | null,
+    selectedPredefinedRatioId: null, // Reset predefined selection
     type: 'expense' as 'income' | 'expense',
   };
   updateMemberSplitPercentagesFromForm(); // Reset UI for split percentages
