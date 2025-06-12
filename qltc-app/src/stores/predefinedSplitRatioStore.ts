@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia';
-import { ref, onMounted, onUnmounted } from 'vue';
+import { ref, onMounted } from 'vue';
 import { useQuasar } from 'quasar';
 import { useAuthStore } from './authStore';
 import { connect } from 'src/services/socketService';
@@ -202,10 +202,6 @@ export const usePredefinedSplitRatioStore = defineStore('predefinedSplitRatios',
         clearSocketListeners();
       }
     });
-  });
-
-  onUnmounted(() => {
-    clearSocketListeners();
   });
 
   return {

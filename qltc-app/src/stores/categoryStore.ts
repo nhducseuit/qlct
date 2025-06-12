@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia';
-import { ref, computed, onMounted, onUnmounted } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import {
   fetchCategoriesAPI,
   addCategoryAPI,
@@ -227,6 +227,26 @@ export const useCategoryStore = defineStore('categories', () => {
     return roots.sort((a,b) => a.order - b.order); // Sort roots
   });
 
+  const flatSortedCategoriesForSelect = computed(() => {
+    const result: { id: string; name: string; parentId: string | null; depth: number }[] = [];
+    // Helper function to traverse the already sorted hierarchical categories
+    function traverse(nodes: (Category & { children?: Category[] })[], depth: number) {
+      for (const node of nodes) {
+        result.push({
+          id: node.id,
+          name: node.name, // Store original name
+          parentId: node.parentId || null,
+          depth: depth,
+        });
+        if (node.children && node.children.length > 0) {
+          traverse(node.children, depth + 1); // Children are already sorted
+        }
+      }
+    }
+    traverse(hierarchicalCategories.value, 0); // Start traversal with sorted root categories
+    return result;
+  });
+
   const reorderCategory = async (categoryId: string, direction: 'up' | 'down') => {
     if (!authStore.isAuthenticated) {
       $q.notify({ type: 'negative', message: 'Lỗi người dùng, không thể sắp xếp danh mục.' });
@@ -310,9 +330,21 @@ export const useCategoryStore = defineStore('categories', () => {
         break;
       case 'delete':
         if (data.itemId) {
+          console.log(`[CategoryStore] Delete operation for itemId: ${data.itemId}. Current categories count: ${categories.value.length}`);
+          const categoryToRemove = categories.value.find(c => c.id === data.itemId);
+          if (categoryToRemove) {
+            console.log(`[CategoryStore] Found category to remove:`, JSON.parse(JSON.stringify(categoryToRemove)));
+          } else {
+            console.warn(`[CategoryStore] Delete event: Category with ID ${data.itemId} not found in local store before filter.`);
+          }
           const initialLength = categories.value.length;
           categories.value = categories.value.filter(c => c.id !== data.itemId);
-          if (categories.value.length !== initialLength) changed = true;
+          if (categories.value.length !== initialLength) {
+            changed = true;
+            console.log(`[CategoryStore] Category ${data.itemId} removed. New categories count: ${categories.value.length}`);
+          } else {
+            console.warn(`[CategoryStore] Delete event: Filter did not change categories array length for ID ${data.itemId}. This might mean it was already removed or there's an ID mismatch.`);
+          }
         }
         break;
       default:
@@ -326,18 +358,20 @@ export const useCategoryStore = defineStore('categories', () => {
   const setupSocketListeners = async () => {
     if (authStore.isAuthenticated) {
       try {
-        console.log(`[CategoryStore] Attempting to connect socket and set up listeners.`);
+        console.log(`[CategoryStore] setupSocketListeners: Attempting to connect socket.`);
         const connectedSocketInstance = await connect(); // Use the new async connect
+        console.log(`[CategoryStore] setupSocketListeners: socketService.connect() resolved. Instance:`, connectedSocketInstance ? connectedSocketInstance.id : 'null', 'Connected:', connectedSocketInstance?.connected);
 
         if (connectedSocketInstance?.connected) {
           storeSocket = connectedSocketInstance;
-          console.log(`[CategoryStore] Socket connected (${storeSocket.id}). Setting up WebSocket listeners for categories_updated`);
+          console.log(`[CategoryStore] setupSocketListeners: Socket connected (${storeSocket.id}). Setting up listeners for categories_updated.`);
           storeSocket.off('categories_updated', handleCategoryUpdate); // Remove old listener first
           storeSocket.on('categories_updated', handleCategoryUpdate);
         } else {
-          console.warn('[CategoryStore] Failed to connect socket or socket not connected after attempt. Listeners not set up.');
+          console.warn('[CategoryStore] setupSocketListeners: Failed to get a connected socket. Listeners not set up. Clearing any old storeSocket.');
           if (storeSocket) { // If there was an old storeSocket, clean its listeners
               storeSocket.off('categories_updated', handleCategoryUpdate);
+              console.log(`[CategoryStore] setupSocketListeners: Cleared listeners from previous storeSocket ${storeSocket.id} due to failed new connection.`);
               storeSocket = null;
           }
         }
@@ -349,6 +383,7 @@ export const useCategoryStore = defineStore('categories', () => {
         }
       }
     } else {
+      console.log('[CategoryStore] setupSocketListeners: User not authenticated. Clearing listeners.');
       clearSocketListeners(); // Ensure listeners are cleared if not authenticated
     }
   };
@@ -381,10 +416,6 @@ export const useCategoryStore = defineStore('categories', () => {
     });
   });
 
-  onUnmounted(() => {
-    clearSocketListeners();
-  });
-
   return {
     categories,
     loadCategories,
@@ -396,6 +427,7 @@ export const useCategoryStore = defineStore('categories', () => {
     pinnedCategories,
     visibleCategories,
     hierarchicalCategories,
+    flatSortedCategoriesForSelect, // Expose the new computed property
     reorderCategory,
   };
 });

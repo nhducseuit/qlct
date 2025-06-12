@@ -118,10 +118,11 @@ export const useAuthStore = defineStore('auth', () => {
 
   const logout = async () => {
     const router = getRouter();
-    clearUser();
     $q.notify({ type: 'info', message: 'Đã đăng xuất.' });
 
     // After clearing user, if forceDevUserMode is true, re-initialize to set dev user again.
+    // IMPORTANT: In forceDevUserMode, we should NOT call clearUser() first,
+    // as this causes isAuthenticated to briefly become false, triggering $subscribe.
     // This makes "logout" in forced dev mode effectively a "reset to dev user".
     // If you want logout to truly clear even in forced mode, remove this re-initialization.
     if (forceDevUserMode) {
@@ -137,7 +138,6 @@ export const useAuthStore = defineStore('auth', () => {
         return; // Prevent redirect to login
     }
 
-
     if (router && router.currentRoute.value.name !== 'login') {
         try {
             await router.push({ name: 'login' });
@@ -145,6 +145,7 @@ export const useAuthStore = defineStore('auth', () => {
             console.error("Router push to login failed on logout:", e);
         }
     }
+    clearUser(); // Only clear user state if not in forceDevUserMode
   };
 
   return {

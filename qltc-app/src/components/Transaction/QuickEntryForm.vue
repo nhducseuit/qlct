@@ -225,10 +225,10 @@ const predefinedSplitRatioOptions = computed(() =>
 
 // Task 3.3: Chuẩn bị options cho q-select (sẽ cải thiện với danh mục cha-con sau)
 const categoryOptions = computed(() =>
-  categoryStore.visibleCategories.map(cat => ({
+  categoryStore.flatSortedCategoriesForSelect.map(cat => ({
     id: cat.id,
-    name: `${cat.parentId ? '    ↳ ' : ''}${cat.name}`, // Basic indentation
-  }))
+    name: `${'\xA0\xA0\xA0\xA0'.repeat(cat.depth)}${cat.depth > 0 ? '↳ ' : ''}${cat.name}`, // Indent with non-breaking spaces
+  })),
 );
 
 // Task 3.13: Select predefined split ratio
@@ -367,9 +367,10 @@ const distributeEqually = () => {
 };
 
 const resetForm = () => {
+  const currentDate = form.value.date; // Save the current date
   form.value = {
     categoryId: null as string | null,
-    date: dayjs().format('YYYY/MM/DD'), // Quasar default date format
+    date: '', // Add date back, will be overwritten by currentDate
     amount: null as number | null,
     note: '',
     payer: householdMemberStore.members.find(m => m.isActive)?.id || (householdMemberStore.members.length > 0 ? (householdMemberStore.members[0] ? householdMemberStore.members[0].id : null) : null),
@@ -378,6 +379,7 @@ const resetForm = () => {
     selectedPredefinedRatioId: null, // Reset predefined selection
     type: 'expense' as 'income' | 'expense',
   };
+  form.value.date = currentDate; // Restore the saved date
   updateMemberSplitPercentagesFromForm(); // Reset UI for split percentages
   // entryForm.value?.resetValidation(); // Reset validation status
   // Workaround for resetValidation not always working as expected with initial values

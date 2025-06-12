@@ -9,8 +9,10 @@ let connectionPromise: Promise<Socket | null> | null = null;
 export const getSocketInstance = (): Socket | null => socketInstance;
 
 export const connect = (): Promise<Socket | null> => {
+  console.log('[SocketService] connect() called.');
   // If a live socket is already connected, resolve immediately with it
   if (socketInstance?.connected) {
+    console.log('[SocketService] Returning existing connected socketInstance. ID:', socketInstance.id);
     return Promise.resolve(socketInstance);
   }
 
@@ -22,7 +24,7 @@ export const connect = (): Promise<Socket | null> => {
 
   const authStore = useAuthStore();
   if (!authStore.isAuthenticated || !authStore.token) {
-    console.warn('[SocketService] Connection skipped: User not authenticated or no token.');
+    console.warn('[SocketService] connect() skipped: User not authenticated or no token. Resolving promise with null.');
     return Promise.resolve(null); // Resolve with null if no auth
   }
 
@@ -51,6 +53,7 @@ export const connect = (): Promise<Socket | null> => {
       socketInstance = newSocket;
       // connectionPromise is not reset here, subsequent calls will get the resolved promise or hit the socketInstance.connected check
       cleanUpListeners(); // Remove listeners after promise is resolved
+      console.log('[SocketService] onConnect: Promise resolving with connected socket. ID:', socketInstance.id);
       resolve(socketInstance);
     };
 
@@ -61,6 +64,7 @@ export const connect = (): Promise<Socket | null> => {
       }
       connectionPromise = null; // Reset promise to allow new connection attempts
       cleanUpListeners();
+      console.log('[SocketService] onDisconnect: Promise resolving with null.');
       resolve(null);
     };
 
@@ -72,6 +76,7 @@ export const connect = (): Promise<Socket | null> => {
       newSocket.disconnect(); // Ensure this specific socket attempt is cleaned up
       connectionPromise = null; // Reset promise to allow new connection attempts
       cleanUpListeners();
+      console.log('[SocketService] onConnectError: Promise resolving with null.');
       resolve(null);
     };
 
@@ -91,9 +96,11 @@ export const connect = (): Promise<Socket | null> => {
 
 export const disconnect = (): void => {
   if (socketInstance) {
-    console.log('[SocketService] Disconnecting socket by client request. ID:', socketInstance.id);
+    console.log('[SocketService] disconnect() called. Disconnecting socketInstance. ID:', socketInstance.id);
     socketInstance.disconnect();
     socketInstance = null;
+  } else {
+    console.log('[SocketService] disconnect() called, but no active socketInstance to disconnect.');
   }
   connectionPromise = null; // Reset promise if a connection was in progress or established
 };

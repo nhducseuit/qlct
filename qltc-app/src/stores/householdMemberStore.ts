@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia';
-import { ref, onMounted, onUnmounted } from 'vue';
+import { ref, onMounted } from 'vue';
 import {
   fetchHouseholdMembersAPI,
   addHouseholdMemberAPI,
@@ -265,10 +265,6 @@ export const useHouseholdMemberStore = defineStore('householdMembers', () => {
         clearSocketListeners();
       }
     });
-  });
-
-  onUnmounted(() => {
-    clearSocketListeners();
   });
 
   return {

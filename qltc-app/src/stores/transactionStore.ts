@@ -268,10 +268,6 @@ export const useTransactionStore = defineStore('transactions', () => {
     }
   });
 
-  // onUnmounted is not typically needed for Pinia stores unless managing global resources
-  // that need cleanup when the app/component using the store is destroyed.
-  // Socket listeners are cleared on logout or if the store instance itself is destroyed (rare for global stores).
-
   return {
     transactions,
     loadTransactions,
