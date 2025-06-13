@@ -26,7 +26,7 @@ As a household, we want multiple members to be able to use the app with their ow
     *   Endpoint for user registration (e.g., email/password).
     *   Endpoint for user login, returning a session token (e.g., JWT).
     *   Secure password hashing and storage.
-*   [x] **Task S2.1.4:** Implement API middleware for authenticating requests using tokens. (Temporarily bypassed for DEV)
+*   [x] **Task S2.1.4:** Implement API middleware for authenticating requests using tokens. (Bypassed for DEV mode via `JwtAuthGuard` adjustments, allowing 'dev-user' access without a real token or with 'dev-token-dev-user')
 **II. Backend API Development for Data Sync**
 *   [x] **Task S2.2.1:** Develop CRUD API endpoints for `Categories`.
     *   Ensure all operations are scoped to the authenticated `userId`.
@@ -45,7 +45,7 @@ As a household, we want multiple members to be able to use the app with their ow
         *   [x] Accepting an optional structured `splitRatio` for individual transactions.
         *   [x] If no custom ratio is provided, snapshotting the category's `defaultSplitRatio` into the transaction's `splitRatio` field upon creation.
         *   [x] Validating that percentages in any provided ratio sum to 100%.
-*   [ ] **Task S2.2.3:** Implement basic real-time synchronization mechanism.
+*   [x] **Task S2.2.3:** Implement basic real-time synchronization mechanism.
     *   *Options: WebSockets, Server-Sent Events, or long polling (if simpler for a first pass). Firebase/Supabase offer this out-of-the-box.* => Decision: WebSockets with Socket.IO
     *   When data changes on the server, push updates to connected clients for the relevant user.
 *   [ ] **Task S2.2.4:** Define and implement a basic conflict resolution strategy (e.g., "last write wins" is often simplest to start).
@@ -89,12 +89,12 @@ As a user, I want to define and manage a list of household members (e.g., "Chồ
     *   Remove direct Dexie calls for primary data operations.
     *   Actions (`loadCategories`, `addCategory`, `updateCategory`, `deleteCategory`, etc.) now make API calls to the backend.
     *   Handle the new structured `defaultSplitRatio` data for categories.
-    *   Implement logic to listen for real-time updates from the backend and update the local Pinia state. (Future, depends on S2.2.3)
+    *   [x] Implement logic to listen for real-time updates from the backend and update the local Pinia state.
     *   *Decision: Keep IndexedDB (Dexie) as a local cache/offline support, or remove it entirely for this phase? Using it as a cache adds complexity but improves perceived performance and offline capability.* => Using Dexie as a mock backend's data source for now. Decision on keeping it as cache deferred.
 *   [x] **Task S2.3.5:** Modify `transactionStore.ts`:
     *   Similar to `categoryStore`, replace Dexie calls with backend API calls.
     *   Handle the new structured `splitRatio` data for transactions.
-    *   Implement real-time update listeners. (Future, depends on S2.2.3)
+    *   [x] Implement real-time update listeners.
 
 *   [ ] **Task S2.3.8 (Was S2.3.8):** Create a new Pinia store: `householdMemberStore.ts`.
     *   State: `membersList`

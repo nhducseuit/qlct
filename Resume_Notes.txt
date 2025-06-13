@@ -4,3 +4,20 @@ Backend: Fully functional CRUD APIs for Categories, Household Members, and Trans
 Frontend: Pinia stores (categoryStore, householdMemberStore, transactionStore) have been refactored to integrate with the new backend APIs and WebSockets. The socketService was also improved for robust connection management. Real-time UI updates for all three entities have been thoroughly tested and confirmed stable across multiple browser tabs.
 Development Environment: The Docker environment has been stabilized. Authentication is currently bypassed for development mode, with the system using a default 'dev-user'. UI updates in the stores are primarily driven by WebSocket events, with optimistic updates deferred for now.
 The project is now ready to move into Sprint 3. The immediate next focus will likely be on completing the remaining frontend UI tasks from Sprint 2, starting with the Category Management UI (S2.3.9).
+
+---
+
+**Recent Refinements & Fixes (Post-Sprint 2):**
+
+*   **WebSocket Stability:** Resolved issues causing WebSocket connections to drop or listeners to become detached, particularly after page navigation or specific store actions. This involved:
+    *   Refining `authStore` logic for development mode to prevent unintended listener clearing.
+    *   Removing unnecessary `onUnmounted` hooks from Pinia stores.
+*   **Frontend UI/UX Enhancements:**
+    *   `QuickEntryForm.vue`: Prevented date field from resetting after successful transaction submission.
+    *   `QuickEntryForm.vue`: Ensured correct hierarchical display order for categories in the selection dropdown.
+    *   `QuickEntryForm.vue`: Improved usability of the "Chọn nhanh" (pinned categories) section on mobile devices (increased height, adjusted text size).
+    *   Applied "Times New Roman" as the global font family for consistent styling.
+    *   **Authentication:** Modified `JwtAuthGuard` in the backend to consistently allow 'dev-user' access for HTTP APIs in development mode, aligning with WebSocket dev authentication.
+*   **Backend Seeding:** Added seed data for `PredefinedSplitRatio` to provide default sharing options.
+
+**Current Status:** The application is significantly more stable, especially regarding real-time updates. The immediate focus is now on **Sprint 3: Financial Summaries & Analytics**. Following that, the plan includes Sprint 4 (Shared Expense Balancing & Settlements) and Sprint 5 (AI & remaining UI enhancements).

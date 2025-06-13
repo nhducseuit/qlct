@@ -11,8 +11,8 @@
 ## Sprint Backlog:
 
 ### Backend (S3.1.x - API Endpoints for Summaries)
-- **S3.1.1:** Design and implement API endpoints for fetching aggregated transaction data.
-    -   S3.1.1.1: Endpoint for monthly, quarterly, and yearly total income/expense summaries.
+- **S3.1.1:** Design and implement API endpoints for fetching aggregated transaction data. (In Progress)
+    -   [x] S3.1.1.1: Endpoint for monthly, quarterly, and yearly total income/expense summaries.
     -   S3.1.1.2: Endpoint for income/expense breakdown by category for a given period.
     -   S3.1.1.3: Endpoint for income/expense breakdown by household member for a given period.
 - **S3.1.2:** Backend logic to calculate average expenses (e.g., daily/monthly average for selected periods/categories).

@@ -28,7 +28,7 @@ This document captures feedback and tasks identified during or immediately after
     - [x] Create backend module, service, controller, DTOs for `PredefinedSplitRatio`.
     - [x] Implement CRUD APIs and WebSocket notifications for `PredefinedSplitRatio`.
     - [x] Create frontend API service for `PredefinedSplitRatio`.
-    - [x] Create frontend Pinia store for `PredefinedSplitRatio` with API integration and WebSocket handling.
+    - [x] Create frontend Pinia store (`predefinedSplitRatioStore`) for `PredefinedSplitRatio` with API integration and WebSocket handling.
     - [x] **(Higher Priority)** Integrate predefined ratio selection into `QuickEntryForm.vue`.
     - [ ] **(Moved to Sprint 5)** Create UI page/dialogs for managing predefined split ratios.
     - [ ] **(Moved to Sprint 5)** Integrate predefined ratio selection into `CategoryFormDialog.vue`.

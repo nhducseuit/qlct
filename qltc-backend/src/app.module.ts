@@ -9,6 +9,7 @@ import { NotificationsModule } from './notifications/notifications.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { HouseholdMemberModule } from './household-members/household-member.module';
 import { PredefinedSplitRatioModule } from './predefined-split-ratios/predefined-split-ratio.module'; // Import the new module
+import { SummariesModule } from './summaries/summaries.module';
 
 @Module({
   imports: [
@@ -19,7 +20,8 @@ import { PredefinedSplitRatioModule } from './predefined-split-ratios/predefined
     ,NotificationsModule
     ,PrismaModule
     ,HouseholdMemberModule
-    ,PredefinedSplitRatioModule],
+    ,PredefinedSplitRatioModule
+    ,SummariesModule],
   controllers: [AppController],
   providers: [AppService],
 })
