@@ -1,7 +1,7 @@
 // src/summaries/dto/get-category-breakdown.dto.ts
 import { IsEnum, IsInt, IsOptional, Max, Min, IsUUID, IsArray } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { Type } from 'class-transformer';
+import { Type, Transform } from 'class-transformer';
 import { PeriodType } from './get-totals-summary.dto'; // Reuse PeriodType
 
 export class GetCategoryBreakdownQueryDto {
@@ -72,12 +72,45 @@ export class GetCategoryBreakdownQueryDto {
     isArray: true,
   })
   @IsOptional()
-  // @Transform not strictly needed here if class-transformer handles array query params well,
-  // but can be added for robustness like in other DTOs if issues arise.
-  // For now, relying on ValidationPipe's enableImplicitConversion for arrays.
-  // If using Transform, ensure it's imported: import { Transform } from 'class-transformer';
-  // @Transform(({ value }) => { ... })
+  @Transform(({ value }) => {
+    if (typeof value === 'string') {
+      // Check if it's a JSON array-like string (e.g., "[\"id1\",\"id2\"]")
+      if (value.startsWith('[') && value.endsWith(']')) {
+        try {
+          const parsed = JSON.parse(value);
+          // Ensure all elements are strings and filter out empty/null ones
+          if (Array.isArray(parsed)) return parsed.map(String).filter(s => s && String(s).trim().length > 0).map(s => String(s).trim());
+        } catch (e) { /* fall through to comma-separated or single value logic */ }
+      }
+      // Handle comma-separated string or a single string value
+      return value.split(',').map(item => String(item).trim()).filter(item => item.length > 0);
+    }
+    // If it's already an array (e.g., from NestJS parsing multiple query params like categoryIds=a&categoryIds=b)
+    if (Array.isArray(value)) return value.map(String).filter(s => s && String(s).trim().length > 0).map(s => String(s).trim());
+    return value; // Fallback, though typically it would be string or array
+  })
   @IsArray()
   @IsUUID('all', { each: true, message: 'Each categoryId must be a valid UUID.' })
   categoryIds?: string[];
+
+  @ApiPropertyOptional({
+    type: [String],
+    description: 'Optional: Array of household member IDs to filter expenses. If not provided, considers expenses related to all members.',
+    example: ['member-uuid-1', 'member-uuid-2'],
+    isArray: true,
+  })
+  @IsOptional()
+  @Transform(({ value }) => { // Reusing the robust transform
+    if (typeof value === 'string') {
+      if (value.startsWith('[') && value.endsWith(']')) {
+        try { const parsed = JSON.parse(value); if (Array.isArray(parsed)) return parsed.map(String).filter(s => s && s.trim().length > 0).map(s => s.trim()); } catch (e) { /* fall through */ }
+      }
+      return value.split(',').map(item => String(item).trim()).filter(item => item.length > 0);
+    }
+    if (Array.isArray(value)) return value.map(String).filter(s => s && s.trim().length > 0).map(s => s.trim());
+    return value;
+  })
+  @IsArray()
+  @IsUUID('all', { each: true, message: 'Each memberId must be a valid UUID.' })
+  memberIds?: string[];
 }

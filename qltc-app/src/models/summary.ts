@@ -29,6 +29,7 @@ export interface GetCategoryBreakdownQueryDto {
   quarter?: number;
   parentCategoryId?: string;
   categoryIds?: string[]; // Added for global category filter
+  memberIds?: string[];   // Added for global member filter
 }
 
 // Matches CategoryBreakdownItemDto from backend
@@ -52,6 +53,7 @@ export interface GetMemberBreakdownQueryDto {
   year?: number;
   month?: number;
   quarter?: number;
+  memberIds?: string[];   // Added for global member filter
 }
 
 // Matches MemberBreakdownItemDto from backend
@@ -118,6 +120,7 @@ export interface GetBudgetTrendQueryDto {
   periodType: PeriodType; // e.g., 'monthly' for trends within a year
   year: number;
   categoryIds?: string[];
+  memberIds?: string[];   // Added for global member filter
 }
 
 // Matches BudgetTrendItemDto from backend

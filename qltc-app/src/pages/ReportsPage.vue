@@ -9,7 +9,7 @@
       </q-card-section>
       <q-card-section class="row q-col-gutter-md items-end">
         <!-- Year Selector -->
-        <div class="col-12 col-md-3 col-sm-4">
+        <div class="col-12 col-md-2 col-sm-6 col-xs-12">
           <q-select
             filled
             dense
@@ -22,7 +22,7 @@
         </div>
 
         <!-- Month Selector (for Category Breakdown) -->
-        <div class="col-12 col-md-3 col-sm-4">
+        <div class="col-12 col-md-2 col-sm-6 col-xs-12">
           <q-select
             filled
             dense
@@ -37,7 +37,7 @@
         </div>
 
         <!-- Category Selector (Global) -->
-        <div class="col-12 col-md-4 col-sm-4">
+        <div class="col-12 col-md-3 col-sm-6 col-xs-12">
           <q-select
             filled
             dense
@@ -62,8 +62,34 @@
           </q-select>
         </div>
 
+        <!-- Member Selector (Global) -->
+        <div class="col-12 col-md-3 col-sm-6 col-xs-12">
+          <q-select
+            filled
+            dense
+            v-model="selectedMemberIdsGlobal"
+            :options="memberFilterOptions"
+            label="Thành viên"
+            multiple
+            emit-value
+            map-options
+            use-chips
+            clearable
+            options-dense
+            :display-value="selectedMembersDisplayValue"
+          >
+            <template v-slot:option="scope">
+              <q-item v-bind="scope.itemProps">
+                <q-item-section>
+                  <q-item-label>{{ scope.opt.label }}</q-item-label>
+                </q-item-section>
+              </q-item>
+            </template>
+          </q-select>
+        </div>
+
         <!-- Apply Button -->
-        <div class="col-12 col-md-2 col-sm-12">
+        <div class="col-12 col-md-2 col-sm-12 col-xs-12">
           <q-btn
             color="primary"
             label="Xem báo cáo"
@@ -94,6 +120,22 @@
         :period-label="categoryBreakdownPeriodLabel"
       />
 
+      <!-- New Report: Member Breakdown -->
+      <q-expansion-item
+        icon="sym_o_groups"
+        label="Phân tích theo Thành viên"
+        caption="Xem chi tiết thu chi theo từng thành viên"
+        class="q-mt-lg shadow-1"
+        header-class="bg-grey-2 text-primary text-weight-medium rounded-borders"
+        default-closed
+      >
+        <MemberBreakdownReport
+          :breakdown-data="summaryStore.memberBreakdown"
+          :loading="summaryStore.memberBreakdownLoading"
+          :error="summaryStore.memberBreakdownError"
+          :period-label="memberBreakdownPeriodLabel"
+        />
+      </q-expansion-item>
       <!-- Collapsible Overall Totals Summary - REMOVED for now as per feedback to simplify -->
       <!--
       <q-expansion-item
@@ -120,14 +162,17 @@ import { ref, computed, onMounted } from 'vue';
 import { useQuasar } from 'quasar';
 import { useSummaryStore } from 'src/stores/summaryStore';
 import { useCategoryStore } from 'src/stores/categoryStore';
+import { useHouseholdMemberStore } from 'src/stores/householdMemberStore'; // Import member store
 import { PeriodType } from 'src/models/summary';
 // import TotalsSummaryReport from 'src/components/Reports/TotalsSummaryReport.vue'; // Removed for now
 import CategoryBreakdownReport from 'src/components/Reports/CategoryBreakdownReport.vue';
 import MonthlyBudgetExpenseTrendChart from 'src/components/Reports/MonthlyBudgetExpenseTrendChart.vue';
+import MemberBreakdownReport from 'src/components/Reports/MemberBreakdownReport.vue'; // Import new component
 import { dayjs } from 'src/boot/dayjs';
 
 const summaryStore = useSummaryStore();
 const categoryStore = useCategoryStore();
+const householdMemberStore = useHouseholdMemberStore(); // Use member store
 const $q = useQuasar();
 
 const currentYear = dayjs().year();
@@ -138,6 +183,7 @@ const monthOptions = Array.from({ length: 12 }, (_, i) => i + 1).map(m => ({ lab
 
 const selectedYear = ref<number>(currentYear);
 const selectedCategoryIdsGlobal = ref<string[]>([]); // Global category filter
+const selectedMemberIdsGlobal = ref<string[]>([]);   // Global member filter
 
 // State for the CategoryBreakdownReport (Chart 2 and its table)
 const selectedMonthForDetail = ref<number | undefined>(currentMonth); // Driven by global month filter or trend chart click
@@ -165,11 +211,30 @@ const selectedCategoriesDisplayValue = computed(() => {
   return `${selectedCategoryIdsGlobal.value.length} danh mục`;
 });
 
+const memberFilterOptions = computed(() =>
+  householdMemberStore.members
+    .filter(m => m.isActive)
+    .map(member => ({
+      label: member.name,
+      value: member.id,
+    })).sort((a,b) => a.label.localeCompare(b.label))
+);
+
+const selectedMembersDisplayValue = computed(() => {
+  if (!selectedMemberIdsGlobal.value || selectedMemberIdsGlobal.value.length === 0) {
+    return 'Tất cả thành viên';
+  }
+  if (selectedMemberIdsGlobal.value.length === memberFilterOptions.value.length) {
+    return 'Tất cả thành viên';
+  }
+  return `${selectedMemberIdsGlobal.value.length} thành viên`;
+});
 
 const isLoadingAnyReport = computed(() =>
   // summaryStore.totalsSummaryLoading || // TotalsSummaryReport removed for now
   summaryStore.categoryBreakdownLoading ||
-  summaryStore.budgetTrendLoading);
+  summaryStore.budgetTrendLoading ||
+  summaryStore.memberBreakdownLoading); // Add member breakdown loading
 
 const categoryBreakdownPeriodLabel = computed(() => {
   if (!selectedMonthForDetail.value || !selectedYearForDetail.value) return 'Vui lòng chọn một tháng';
@@ -179,26 +244,41 @@ const categoryBreakdownPeriodLabel = computed(() => {
 const budgetTrendSubTitle = computed(() => {
   let sub = `Năm ${selectedYear.value}`;
   const trendCategories = selectedCategoryIdsGlobal.value || [];
+  const trendMembers = selectedMemberIdsGlobal.value || [];
   const filterOptionsCount = categoryFilterOptions.value.length;
 
   if (trendCategories.length > 0 && trendCategories.length < filterOptionsCount) {
     sub += ` (Lọc theo ${trendCategories.length} danh mục)`;
+    if (trendMembers.length > 0 && trendMembers.length < memberFilterOptions.value.length) {
+      sub += `, ${trendMembers.length} thành viên)`;
+    } else sub += ')';
   } else if (trendCategories.length === 0 || trendCategories.length === filterOptionsCount) {
     sub += ' (Tất cả danh mục có ngân sách)';
   }
   return sub;
 });
 
-const loadDetailReports = async (year: number, month?: number) => {
-  // This function will load the CategoryBreakdownReport data
-  await summaryStore.loadCategoryBreakdown(
-    PeriodType.Monthly,
-    year,
-    month,
-    undefined, // quarter
-    undefined, // parentCategoryId
-    selectedCategoryIdsGlobal.value.length > 0 ? selectedCategoryIdsGlobal.value : undefined
-  );
+const memberBreakdownPeriodLabel = computed(() => { // Label for the new report
+  if (!selectedMonthForDetail.value || !selectedYearForDetail.value) return 'Vui lòng chọn một tháng';
+  return `Phân tích thành viên cho Tháng ${selectedMonthForDetail.value}/${selectedYearForDetail.value}`;
+});
+
+const loadDetailReports = async (year: number, month?: number, quarter?: number) => {
+  const periodType = PeriodType.Monthly; // Assuming details are always monthly for now
+
+  const promises = [
+    summaryStore.loadCategoryBreakdown(
+      periodType,
+      year,
+      month,
+      quarter,
+      undefined, // parentCategoryId
+      selectedCategoryIdsGlobal.value.length > 0 ? selectedCategoryIdsGlobal.value : undefined,
+      selectedMemberIdsGlobal.value.length > 0 ? selectedMemberIdsGlobal.value : undefined // Pass selected members
+    ),
+    summaryStore.loadMemberBreakdown(periodType, year, month, quarter, selectedMemberIdsGlobal.value.length > 0 ? selectedMemberIdsGlobal.value : undefined) // Pass selected members
+  ];
+  await Promise.all(promises);
 };
 
 const handleMonthSelectedFromTrend = async (periodYYYYMM: string) => {
@@ -237,23 +317,36 @@ const applyFiltersAndLoadReports = async () => {
 
   const promises = [
     // summaryStore.loadTotalsSummary(PeriodType.Yearly, selectedYear.value), // Removed for now
-    loadDetailReports(selectedYearForDetail.value, selectedMonthForDetail.value),
+    loadDetailReports(selectedYearForDetail.value, selectedMonthForDetail.value, undefined), // Pass undefined for quarter
     summaryStore.loadBudgetTrend(
       PeriodType.Monthly,
       selectedYear.value,
-      selectedCategoryIdsGlobal.value.length > 0 ? selectedCategoryIdsGlobal.value : undefined
+      selectedCategoryIdsGlobal.value.length > 0 ? selectedCategoryIdsGlobal.value : undefined,
+      selectedMemberIdsGlobal.value.length > 0 ? selectedMemberIdsGlobal.value : undefined // Pass selected members
     )
   ];
   await Promise.all(promises);
 };
 
 onMounted(() => {
+  const initialLoadPromises = [];
   if (categoryStore.categories.length === 0) {
-    void categoryStore.loadCategories().then(() => {
-      void applyFiltersAndLoadReports();
-    });
-  } else {
-    void applyFiltersAndLoadReports();
+    initialLoadPromises.push(categoryStore.loadCategories());
   }
+  if (householdMemberStore.members.length === 0) {
+    initialLoadPromises.push(householdMemberStore.loadMembers());
+  }
+
+  Promise.all(initialLoadPromises)
+    .catch(error => {
+      // Individual store actions usually have their own $q.notify for errors.
+      // This catch is for any unhandled rejection from Promise.all itself.
+      console.error('Error during initial data loading for reports page:', error);
+      // Optionally, show a general error notification if needed:
+      // $q.notify({ type: 'negative', message: 'Lỗi tải dữ liệu ban đầu cho trang báo cáo.' });
+    })
+    .finally(() => {
+      void applyFiltersAndLoadReports(); // Explicitly ignore the promise
+    });
 });
 </script>

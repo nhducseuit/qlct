@@ -8,77 +8,89 @@ import {
   Delete,
   UseGuards,
   Req,
+  Query, // Make sure Query is imported
   ParseUUIDPipe,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiParam } from '@nestjs/swagger';
 import { TransactionService } from './transaction.service';
 import { CreateTransactionDto } from './dto/create-transaction.dto';
 import { UpdateTransactionDto } from './dto/update-transaction.dto';
-import { Transaction as TransactionModel } from '@generated/prisma';
-// import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard'; // Temporarily disabled for DEV
+import { Transaction as TransactionModel } from '@generated/prisma'; // Use Prisma's generated type
+import { TransactionResponseDto } from './dto/transaction-response.dto'; // Import the new DTO
+import { GetTransactionsQueryDto } from './dto/get-transactions-query.dto';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard'; // Assuming you'll re-enable this
 
 interface AuthenticatedRequest extends Request {
-  user?: { userId: string; email: string }; // Make user optional for DEV mode
+  user?: { id: string; email: string }; // Ensure this matches what JwtAuthGuard sets
 }
 
-// @UseGuards(JwtAuthGuard) // Temporarily disabled for DEV
 @ApiBearerAuth()
 @ApiTags('transactions')
 @Controller('transactions')
+@UseGuards(JwtAuthGuard) // Apply guard at controller level
 export class TransactionController {
   constructor(private readonly transactionService: TransactionService) {}
 
   @Post()
   @ApiOperation({ summary: 'Create a new transaction' })
-  @ApiResponse({ status: 201, description: 'The transaction has been successfully created.', type: CreateTransactionDto }) // Ideally TransactionModel
+  @ApiResponse({ status: 201, description: 'The transaction has been successfully created.', type: TransactionResponseDto })
   @ApiResponse({ status: 400, description: 'Bad Request.' })
   @ApiResponse({ status: 401, description: 'Unauthorized.' })
-  create(@Body() createTransactionDto: CreateTransactionDto, @Req() req: AuthenticatedRequest) {
-    const userId = req.user?.userId || 'dev-user'; // Default to 'dev-user' if not authenticated
+  create(@Body() createTransactionDto: CreateTransactionDto, @Req() req: AuthenticatedRequest): Promise<TransactionModel> {
+    const userId = req.user?.id || 'dev-user'; // Correctly access req.user.id
     return this.transactionService.create(createTransactionDto, userId);
   }
 
   @Get()
-  findAll(@Req() req: AuthenticatedRequest) {
-    // TODO: Add pagination and filtering (date range, category, etc.) via query params
-    const userId = req.user?.userId || 'dev-user';
-    return this.transactionService.findAll(userId);
+  @ApiOperation({ summary: 'Get transactions for the authenticated user, with optional filters' })
+  @ApiResponse({ status: 200, description: 'Successfully retrieved transactions.', type: [TransactionResponseDto] })
+  @ApiResponse({ status: 401, description: 'Unauthorized.' })
+  findFiltered(
+    @Req() req: AuthenticatedRequest,
+    @Query() queryDto: GetTransactionsQueryDto
+  ): Promise<TransactionModel[]> {
+    const userId = req.user?.id || 'dev-user'; // Correctly access req.user.id
+    return this.transactionService.findFiltered(userId, queryDto);
   }
 
   @Get(':id')
   @ApiOperation({ summary: 'Get a transaction by ID' })
   @ApiParam({ name: 'id', description: 'Transaction ID (UUID)', type: String })
-  @ApiResponse({ status: 200, description: 'The found transaction.', type: CreateTransactionDto }) // Ideally TransactionModel
+  @ApiResponse({ status: 200, description: 'The found transaction.', type: TransactionResponseDto })
   @ApiResponse({ status: 401, description: 'Unauthorized.' })
   @ApiResponse({ status: 403, description: 'Forbidden.' })
   @ApiResponse({ status: 404, description: 'Transaction not found.' })
-  findOne(@Param('id', ParseUUIDPipe) id: string, @Req() req: AuthenticatedRequest) {
-    const userId = req.user?.userId || 'dev-user';
+  findOne(@Param('id', ParseUUIDPipe) id: string, @Req() req: AuthenticatedRequest): Promise<TransactionModel> {
+    const userId = req.user?.id || 'dev-user'; // Correctly access req.user.id
     return this.transactionService.findOne(id, userId);
   }
 
   @Patch(':id')
   @ApiOperation({ summary: 'Update a transaction by ID' })
   @ApiParam({ name: 'id', description: 'Transaction ID (UUID)', type: String })
-  @ApiResponse({ status: 200, description: 'The transaction has been successfully updated.', type: CreateTransactionDto }) // Ideally TransactionModel
+  @ApiResponse({ status: 200, description: 'The transaction has been successfully updated.', type: TransactionResponseDto })
   @ApiResponse({ status: 400, description: 'Bad Request.' })
   @ApiResponse({ status: 401, description: 'Unauthorized.' })
   @ApiResponse({ status: 403, description: 'Forbidden.' })
   @ApiResponse({ status: 404, description: 'Transaction not found.' })
-  update(@Param('id', ParseUUIDPipe) id: string, @Body() updateTransactionDto: UpdateTransactionDto, @Req() req: AuthenticatedRequest) {
-    const userId = req.user?.userId || 'dev-user';
+  update(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() updateTransactionDto: UpdateTransactionDto,
+    @Req() req: AuthenticatedRequest
+  ): Promise<TransactionModel> {
+    const userId = req.user?.id || 'dev-user'; // Correctly access req.user.id
     return this.transactionService.update(id, updateTransactionDto, userId);
   }
 
   @Delete(':id')
   @ApiOperation({ summary: 'Delete a transaction by ID' })
   @ApiParam({ name: 'id', description: 'Transaction ID (UUID)', type: String })
-  @ApiResponse({ status: 200, description: 'The transaction has been successfully deleted.' }) // Or 204 No Content
+  @ApiResponse({ status: 200, description: 'The transaction has been successfully deleted.' })
   @ApiResponse({ status: 401, description: 'Unauthorized.' })
   @ApiResponse({ status: 403, description: 'Forbidden.' })
   @ApiResponse({ status: 404, description: 'Transaction not found.' })
-  remove(@Param('id', ParseUUIDPipe) id: string, @Req() req: AuthenticatedRequest) {
-    const userId = req.user?.userId || 'dev-user';
+  remove(@Param('id', ParseUUIDPipe) id: string, @Req() req: AuthenticatedRequest): Promise<{ message: string }> {
+    const userId = req.user?.id || 'dev-user'; // Correctly access req.user.id
     return this.transactionService.remove(id, userId);
   }
 }

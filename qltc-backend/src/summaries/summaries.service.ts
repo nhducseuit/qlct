@@ -15,8 +15,10 @@ import { BudgetTrendItemDto, BudgetTrendResponseDto } from './dto/budget-trend-r
 import { Prisma } from '@generated/prisma'; // Import Prisma
 import dayjs from 'dayjs';
 import quarterOfYear from 'dayjs/plugin/quarterOfYear';
+import isBetween from 'dayjs/plugin/isBetween'; // Import isBetween plugin
 
 dayjs.extend(quarterOfYear);
+dayjs.extend(isBetween); // Extend dayjs with isBetween plugin
 
 @Injectable()
 export class SummariesService {
@@ -176,29 +178,59 @@ export class SummariesService {
       },
     };
 
-    if (query.categoryIds && query.categoryIds.length > 0) {
+    if (query.categoryIds && query.categoryIds.length > 0) { // Filter by global category selection
       transactionWhere.categoryId = { in: query.categoryIds };
     }
 
-    const transactions = await this.prisma.transaction.findMany({
+    // Fetch initial set of transactions based on date and category filters
+    let periodTransactions = await this.prisma.transaction.findMany({
       where: transactionWhere,
       select: {
         amount: true,
         type: true,
         categoryId: true,
+        isShared: true, // Needed for member filtering
+        payer: true,    // Needed for member filtering
+        splitRatio: true, // Needed for member filtering
       },
     });
 
+    // Further filter transactions by selected members if memberIds are provided
+    if (query.memberIds && query.memberIds.length > 0) {
+      periodTransactions = periodTransactions.filter(tx => {
+        if (!tx.isShared) {
+          return tx.payer ? query.memberIds!.includes(tx.payer) : false;
+        } else {
+          const split = tx.splitRatio as unknown as Array<{ memberId: string; percentage: number }>;
+          return split && split.some(s => query.memberIds!.includes(s.memberId));
+        }
+      });
+    };
+
     const categoryTotals: Record<string, { income: number; expense: number }> = {};
 
-    for (const t of transactions) {
+    for (const t of periodTransactions) { // Use the filtered periodTransactions
       if (!categoryTotals[t.categoryId]) {
         categoryTotals[t.categoryId] = { income: 0, expense: 0 };
       }
+      // If member filter is applied, we need to consider the portion for shared expenses
+      let amountToConsider = t.amount;
+      if (query.memberIds && query.memberIds.length > 0 && t.isShared) {
+        const split = t.splitRatio as unknown as Array<{ memberId: string; percentage: number }>;
+        amountToConsider = 0;
+        if (split) {
+          split.forEach(s => {
+            if (query.memberIds!.includes(s.memberId)) {
+              amountToConsider += t.amount * (s.percentage / 100);
+            }
+          });
+        }
+      }
+
       if (t.type === 'income') {
-        categoryTotals[t.categoryId].income += t.amount;
+        categoryTotals[t.categoryId].income += amountToConsider;
       } else {
-        categoryTotals[t.categoryId].expense += t.amount;
+        categoryTotals[t.categoryId].expense += amountToConsider;
       }
     }
 
@@ -301,6 +333,7 @@ export class SummariesService {
         amount: true,
         type: true,
         splitRatio: true, // Prisma.JsonValue
+        // No need to select payer here as member breakdown is based on splitRatio of shared expenses
       },
     });
 
@@ -324,12 +357,17 @@ export class SummariesService {
     }
 
     const memberIds = Object.keys(memberTotals);
+    const memberWhere: Prisma.HouseholdMemberWhereInput = {
+      id: { in: memberIds },
+      userId,
+      isActive: true,
+    };
+    if (query.memberIds && query.memberIds.length > 0) { // Filter output by selected members
+      memberWhere.id = { in: query.memberIds.filter(id => memberIds.includes(id)) };
+    }
+
     const householdMembers = await this.prisma.householdMember.findMany({
-      where: {
-        id: { in: memberIds },
-        userId, // Ensure members belong to the user
-        isActive: true, // Optionally, only active members
-      },
+      where: memberWhere,
       select: { id: true, name: true },
     });
 
@@ -533,28 +571,46 @@ export class SummariesService {
     const year = query.year; // year is mandatory in GetBudgetTrendQueryDto
 
     // Determine categories to consider
-    const categoryWhere: Prisma.CategoryWhereInput = {
-      userId,
-      budgetLimit: { not: null },
-      isHidden: false, // Consider only visible categories with budgets
-    };
+    let categoryIdsToConsider: string[] | undefined = undefined;
+
     if (query.categoryIds && query.categoryIds.length > 0) {
       // If specific category IDs are provided, fetch these regardless of budgetLimit initially.
-      // We'll sum their budgets later.
-      categoryWhere.id = { in: query.categoryIds };
-      delete categoryWhere.budgetLimit; // Remove the budgetLimit filter if specific IDs are given
+      categoryIdsToConsider = query.categoryIds;
+    } else {
+      // If no specific categories are requested, consider ALL non-hidden categories of the user.
+      // We are not filtering by budgetLimit here anymore for selecting categories for expense sum.
+      const allUserCategories = await this.prisma.category.findMany({
+        where: {
+          userId,
+          isHidden: false, // Consider only visible categories
+        },
+        select: { id: true },
+      });
+      if (allUserCategories.length > 0) {
+        categoryIdsToConsider = allUserCategories.map(c => c.id);
+      }
     }
 
-    // Fetch all categories specified or all categories with budget for the user
+    // Fetch details (id and budgetLimit) for the categories we are considering
     const relevantCategories = await this.prisma.category.findMany({
-      where: categoryWhere,
+      where: {
+        id: { in: categoryIdsToConsider || [] }, // Use empty array if categoryIdsToConsider is undefined
+        userId, // Ensure categories belong to the user
+      },
       select: { id: true, budgetLimit: true },
     });
 
-    if (relevantCategories.length === 0 && query.categoryIds && query.categoryIds.length > 0) {
-      // If specific categories were requested but none found (or none have budgets), return empty
-      return [];
-    }
+    // Fetch all transactions for the relevant categories for the entire year first
+    // We will then filter them per month and per member in the loop
+    const yearTransactions = relevantCategories.length > 0 ? await this.prisma.transaction.findMany({
+      where: {
+        userId,
+        type: 'expense',
+        categoryId: { in: relevantCategories.map(c => c.id) },
+        date: { gte: dayjs().year(year).startOf('year').toDate(), lte: dayjs().year(year).endOf('year').toDate() },
+      },
+      select: { amount: true, date: true, isShared: true, payer: true, splitRatio: true, categoryId: true },
+    }) : [];
 
     if (query.periodType === PeriodType.Monthly) {
       for (let i = 0; i < 12; i++) { // Iterate through 12 months
@@ -562,25 +618,36 @@ export class SummariesService {
         const startDate = currentMonthDate.startOf('month').toDate();
         const endDate = currentMonthDate.endOf('month').toDate();
         const periodLabel = currentMonthDate.format('YYYY-MM');
-
         let totalBudgetLimitForPeriod = 0;
         relevantCategories.forEach(cat => {
           totalBudgetLimitForPeriod += cat.budgetLimit || 0; // Assumes budgetLimit is monthly
         });
 
         let totalActualExpensesForPeriod = 0;
-        if (relevantCategories.length > 0) { // Only query transactions if there are categories to sum for
-          const expenses = await this.prisma.transaction.aggregate({
-            _sum: { amount: true },
-            where: {
-              userId,
-              type: 'expense',
-              categoryId: { in: relevantCategories.map(c => c.id) },
-              date: { gte: startDate, lte: endDate },
-            },
-          });
-          totalActualExpensesForPeriod = expenses._sum.amount || 0;
-        }
+        const monthTransactions = yearTransactions.filter(tx => dayjs(tx.date).isBetween(startDate, endDate, null, '[]'));
+
+        monthTransactions.forEach(tx => {
+          let expenseAmountForTx = tx.amount;
+          if (query.memberIds && query.memberIds.length > 0) { // Filter by member
+            if (!tx.isShared) {
+              if (!tx.payer || !query.memberIds.includes(tx.payer)) {
+                expenseAmountForTx = 0; // Exclude if payer not in selected members
+              }
+            } else { // Shared expense
+              const split = tx.splitRatio as unknown as Array<{ memberId: string; percentage: number }>;
+              let memberPortion = 0;
+              if (split) {
+                split.forEach(s => {
+                  if (query.memberIds!.includes(s.memberId)) {
+                    memberPortion += tx.amount * (s.percentage / 100);
+                  }
+                });
+              }
+              expenseAmountForTx = memberPortion;
+            }
+          }
+          totalActualExpensesForPeriod += expenseAmountForTx;
+        });
 
         trendItems.push({
           period: periodLabel,
@@ -600,15 +667,31 @@ export class SummariesService {
         totalBudgetLimitForYear += (cat.budgetLimit || 0) * 12; // Annualize monthly budget
       });
 
-      const expenses = await this.prisma.transaction.aggregate({
-        _sum: { amount: true },
-        where: {
-          userId, type: 'expense', categoryId: { in: relevantCategories.map(c => c.id) },
-          date: { gte: startDate, lte: endDate },
-        },
+      let totalActualExpensesForYear = 0;
+      yearTransactions.forEach(tx => {
+        let expenseAmountForTx = tx.amount;
+        if (query.memberIds && query.memberIds.length > 0) { // Filter by member
+          if (!tx.isShared) {
+            if (!tx.payer || !query.memberIds.includes(tx.payer)) {
+              expenseAmountForTx = 0;
+            }
+          } else { // Shared expense
+            const split = tx.splitRatio as unknown as Array<{ memberId: string; percentage: number }>;
+            let memberPortion = 0;
+            if (split) {
+              split.forEach(s => {
+                if (query.memberIds!.includes(s.memberId)) {
+                  memberPortion += tx.amount * (s.percentage / 100);
+                }
+              });
+            }
+            expenseAmountForTx = memberPortion;
+          }
+        }
+        totalActualExpensesForYear += expenseAmountForTx;
       });
 
-      trendItems.push({ period: String(year), totalBudgetLimit: totalBudgetLimitForYear, totalActualExpenses: expenses._sum.amount || 0 });
+      trendItems.push({ period: String(year), totalBudgetLimit: totalBudgetLimitForYear, totalActualExpenses: totalActualExpensesForYear });
     } else {
       throw new BadRequestException(`PeriodType '${query.periodType}' is not supported for budget trend. Use 'monthly' or 'yearly'.`);
     }

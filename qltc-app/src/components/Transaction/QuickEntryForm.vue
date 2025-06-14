@@ -274,6 +274,7 @@ const onPayerChange = (payerId: string | null) => {
 
 const onSharedChange = (isShared: boolean) => {
   if (isShared) {
+    selectedPredefinedRatioId.value = null; // Clear any predefined ratio when "Chi chung" is ticked
     // Khi tick "Chi chung", lấy tỷ lệ từ danh mục nếu có, hoặc set mặc định
     const category = form.value.categoryId ? categoryStore.getCategoryById(form.value.categoryId) : null;
     if (category?.defaultSplitRatio) {

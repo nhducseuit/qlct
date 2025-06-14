@@ -9,6 +9,7 @@ import {
   fetchTransactionsByCategoryAPI,
   type CreateTransactionPayload,
   type UpdateTransactionPayload,
+  type GetTransactionsQueryPayload, // Import the new query payload type
 } from 'src/services/transactionApiService';
 import type { NewTransactionData, Transaction } from 'src/models'; // Ensure SplitRatioItem is part of models
 import { useQuasar } from 'quasar';
@@ -21,6 +22,9 @@ import type { Socket } from 'socket.io-client';
 export const useTransactionStore = defineStore('transactions', () => {
   const $q = useQuasar();
   const transactions = ref<Transaction[]>([]);
+  // New state for transactions specific to a category and period for the report detail
+  const categoryPeriodTransactions = ref<Transaction[] | null>(null);
+  const categoryPeriodTransactionsLoading = ref(false);
   const authStore = useAuthStore();
   let storeSocket: Socket | null = null; // Renamed to avoid confusion with global socket
 
@@ -30,8 +34,9 @@ export const useTransactionStore = defineStore('transactions', () => {
       throw new Error('User not authenticated');
     }
 
-    // Ensure date is in ISO 8601 string format for the backend
-    const isoDate = dayjs(transactionData.date).toISOString();
+    // Ensure date is parsed as UTC from YYYY/MM/DD format to preserve the day
+    // then convert to ISO 8601 string format for the backend.
+    const isoDate = dayjs.utc(transactionData.date, 'YYYY/MM/DD').toISOString();
 
     const payload: CreateTransactionPayload = {
       categoryId: transactionData.categoryId,
@@ -65,10 +70,11 @@ export const useTransactionStore = defineStore('transactions', () => {
       throw new Error('User not authenticated');
     }
 
-    // Ensure date is in ISO 8601 string format if it's being updated
     const payloadForApi: UpdateTransactionPayload = { ...updates };
-    if (payloadForApi.date) {
-      payloadForApi.date = dayjs(payloadForApi.date).toISOString();
+    // If date is being updated and is in YYYY/MM/DD string format, parse as UTC
+    if (payloadForApi.date && typeof payloadForApi.date === 'string') {
+      // Assuming the date string from updates is also in 'YYYY/MM/DD' format
+      payloadForApi.date = dayjs.utc(payloadForApi.date, 'YYYY/MM/DD').toISOString();
     }
 
     // Sanitize payload: remove backend-managed fields that shouldn't be in an update DTO
@@ -126,14 +132,15 @@ export const useTransactionStore = defineStore('transactions', () => {
     }
   };
 
-  const loadTransactions = async () => {
+  const loadTransactions = async (query?: GetTransactionsQueryPayload) => {
     if (!authStore.isAuthenticated) {
       console.log('[TransactionStore] User not authenticated, skipping transaction load.');
       transactions.value = [];
+      if (!query) categoryPeriodTransactions.value = null; // Clear specific transactions if general load
       return;
     }
     try {
-      const fetchedTransactions = await fetchTransactionsAPI();
+      const fetchedTransactions = await fetchTransactionsAPI(query);
       transactions.value = fetchedTransactions.sort((a, b) => dayjs(b.date).valueOf() - dayjs(a.date).valueOf());
       console.log('[TransactionStore] Transactions loaded:', transactions.value.length);
     } catch (error) {
@@ -143,6 +150,47 @@ export const useTransactionStore = defineStore('transactions', () => {
         message: 'Không thể tải danh sách giao dịch.',
         icon: 'report_problem',
       });
+    }
+  };
+
+  const loadTransactionsForCategoryPeriod = async (
+    categoryId: string,
+    periodType: 'monthly' | 'quarterly' | 'yearly',
+    year: number,
+    month?: number, // 1-12
+    quarter?: number, // 1-4
+    memberIds?: string[]
+  ) => {
+    if (!authStore.isAuthenticated) {
+      categoryPeriodTransactions.value = null;
+      return;
+    }
+    categoryPeriodTransactionsLoading.value = true;
+    try {
+      const query: GetTransactionsQueryPayload = { categoryId, periodType, year };
+      // Conditionally add optional properties
+      if (month !== undefined) {
+        query.month = month;
+      }
+      if (quarter !== undefined) {
+        query.quarter = quarter;
+      }
+      if (memberIds && memberIds.length > 0) {
+        query.memberIds = memberIds;
+      }
+      console.log('[TransactionStore] Loading transactions for category/period with query:', query);
+      const fetched = await fetchTransactionsAPI(query); // Use the enhanced fetchTransactionsAPI
+      categoryPeriodTransactions.value = fetched.sort((a, b) => dayjs(b.date).valueOf() - dayjs(a.date).valueOf());
+    } catch (error) {
+      console.error('Failed to load transactions for category/period:', error);
+      $q.notify({
+        color: 'negative',
+        message: 'Không thể tải chi tiết giao dịch cho danh mục.',
+        icon: 'report_problem',
+      });
+      categoryPeriodTransactions.value = null;
+    } finally {
+      categoryPeriodTransactionsLoading.value = false;
     }
   };
 
@@ -276,5 +324,8 @@ export const useTransactionStore = defineStore('transactions', () => {
     deleteTransaction,
     getTransactionsByDateRange,
     getTransactionsByCategory,
+    categoryPeriodTransactions,
+    categoryPeriodTransactionsLoading,
+    loadTransactionsForCategoryPeriod,
   };
 });

@@ -6,6 +6,8 @@ import {
   fetchTotalsSummaryAPI,
   fetchCategoryBreakdownAPI,
   fetchBudgetTrendAPI,
+  fetchMemberBreakdownAPI,
+
 } from 'src/services/summaryApiService';
 import type {
   TotalsSummaryResponseDto,
@@ -15,6 +17,8 @@ import type {
   GetCategoryBreakdownQueryDto,
   BudgetTrendResponseDto,
   GetBudgetTrendQueryDto,
+  MemberBreakdownResponseDto,
+  GetMemberBreakdownQueryDto,
 } from 'src/models/summary';
 import { dayjs } from 'src/boot/dayjs';
 import { AxiosError } from 'axios';
@@ -34,6 +38,10 @@ export const useSummaryStore = defineStore('summaries', () => {
   const budgetTrend = ref<BudgetTrendResponseDto | null>(null);
   const budgetTrendLoading = ref(false);
   const budgetTrendError = ref<string | null>(null);
+
+  const memberBreakdown = ref<MemberBreakdownResponseDto | null>(null);
+  const memberBreakdownLoading = ref(false);
+  const memberBreakdownError = ref<string | null>(null);
 
   const loadTotalsSummary = async (periodType: PeriodType, year?: number) => {
     if (!authStore.isAuthenticated) {
@@ -80,6 +88,7 @@ export const useSummaryStore = defineStore('summaries', () => {
     quarter?: number,
     parentCategoryId?: string,
     categoryIds?: string[], // Added for global category filter
+    memberIds?: string[],   // Added for global member filter
   ) => {
     if (!authStore.isAuthenticated) {
       categoryBreakdownError.value = 'Người dùng chưa được xác thực.';
@@ -107,7 +116,14 @@ export const useSummaryStore = defineStore('summaries', () => {
         query.parentCategoryId = parentCategoryId;
       }
       if (categoryIds && categoryIds.length > 0) {
-        query.categoryIds = categoryIds;
+        // Ensure categoryIds is always treated as an array for the query
+        query.categoryIds = Array.isArray(categoryIds) ? categoryIds : [categoryIds];
+      } else {
+        // Ensure categoryIds is not present or is undefined if empty, to avoid sending empty array if not desired
+        delete query.categoryIds;
+      }
+      if (memberIds && memberIds.length > 0) { // Add memberIds to query
+        query.memberIds = memberIds;
       }
 
       console.log('[SummaryStore] Fetching category breakdown with query:', query);
@@ -138,6 +154,7 @@ export const useSummaryStore = defineStore('summaries', () => {
     periodType: PeriodType, // Typically 'monthly' for year trend, or 'yearly' for multi-year
     year: number,
     categoryIds?: string[],
+    memberIds?: string[], // Added for global member filter
   ) => {
     if (!authStore.isAuthenticated) {
       budgetTrendError.value = 'Người dùng chưa được xác thực.';
@@ -154,6 +171,9 @@ export const useSummaryStore = defineStore('summaries', () => {
       };
       if (categoryIds && categoryIds.length > 0) {
         query.categoryIds = categoryIds;
+      }
+      if (memberIds && memberIds.length > 0) { // Add memberIds to query
+        query.memberIds = memberIds;
       }
 
       console.log('[SummaryStore] Fetching budget trend with query:', query);
@@ -180,6 +200,57 @@ export const useSummaryStore = defineStore('summaries', () => {
     }
   };
 
+  const loadMemberBreakdown = async (
+    periodType: PeriodType,
+    year?: number,
+    month?: number,
+    quarter?: number,
+    memberIds?: string[], // Added for global member filter
+  ) => {
+    if (!authStore.isAuthenticated) {
+      memberBreakdownError.value = 'Người dùng chưa được xác thực.';
+      memberBreakdown.value = null;
+      return;
+    }
+
+    memberBreakdownLoading.value = true;
+    memberBreakdownError.value = null;
+    try {
+      const query: GetMemberBreakdownQueryDto = {
+        periodType,
+        year: year || dayjs().year(),
+      };
+      if (month !== undefined) query.month = month;
+      if (quarter !== undefined) query.quarter = quarter;
+      if (memberIds && memberIds.length > 0) { // Add memberIds to query
+        query.memberIds = memberIds;
+      }
+
+      console.log('[SummaryStore] Fetching member breakdown with query:', query);
+      const data = await fetchMemberBreakdownAPI(query);
+      memberBreakdown.value = data;
+      console.log('[SummaryStore] Member breakdown loaded:', data);
+    } catch (error: unknown) {
+      console.error('Failed to load member breakdown:', error);
+      if (error instanceof AxiosError && error.response?.data?.message) {
+        memberBreakdownError.value = String(error.response.data.message);
+      } else if (error instanceof Error) {
+        memberBreakdownError.value = error.message;
+      } else {
+        memberBreakdownError.value = 'Không thể tải phân tích theo thành viên.';
+      }
+      memberBreakdown.value = null;
+      $q.notify({
+        color: 'negative',
+        message: memberBreakdownError.value || 'Đã có lỗi xảy ra khi tải phân tích thành viên.',
+        icon: 'report_problem',
+      });
+    } finally {
+      memberBreakdownLoading.value = false;
+    }
+  };
+
+
   return {
     totalsSummary,
     totalsSummaryLoading,
@@ -195,5 +266,10 @@ export const useSummaryStore = defineStore('summaries', () => {
     budgetTrendLoading,
     budgetTrendError,
     loadBudgetTrend,
+
+    memberBreakdown,
+    memberBreakdownLoading,
+    memberBreakdownError,
+    loadMemberBreakdown,
   };
 });

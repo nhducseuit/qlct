@@ -23,11 +23,23 @@ export interface CreateTransactionPayload {
 
 export type UpdateTransactionPayload = Partial<CreateTransactionPayload>;
 
+// Define the DTO for querying transactions
+export interface GetTransactionsQueryPayload {
+  categoryId?: string;
+  periodType?: 'monthly' | 'quarterly' | 'yearly';
+  year?: number;
+  month?: number;
+  quarter?: number;
+  startDate?: string; // ISO Date string
+  endDate?: string;   // ISO Date string
+  memberIds?: string[];
+}
 
-export const fetchTransactionsAPI = async (): Promise<Transaction[]> => {
-  console.log('[TransactionApiService] fetchTransactionsAPI called');
+
+export const fetchTransactionsAPI = async (query?: GetTransactionsQueryPayload): Promise<Transaction[]> => {
+  console.log('[TransactionApiService] fetchTransactionsAPI called with query:', query);
   try {
-    const response = await apiClient.get<Transaction[]>(API_URL);
+    const response = await apiClient.get<Transaction[]>(API_URL, { params: query });
     return response.data;
   } catch (error) {
     console.error('Error fetching transactions:', error);

@@ -49,4 +49,25 @@ export class GetBudgetTrendQueryDto {
   @IsArray()
   @IsUUID('all', { each: true, message: 'Each categoryId must be a valid UUID.' })
   categoryIds?: string[];
+
+  @ApiPropertyOptional({
+    type: [String],
+    description: 'Optional: Array of household member IDs to filter expenses. If not provided, considers expenses related to all members.',
+    example: ['member-uuid-1', 'member-uuid-2'],
+    isArray: true,
+  })
+  @IsOptional()
+  @Transform(({ value }) => { // Reusing the robust transform
+    if (typeof value === 'string') {
+      if (value.startsWith('[') && value.endsWith(']')) {
+        try { const parsed = JSON.parse(value); if (Array.isArray(parsed)) return parsed.map(String).filter(s => s && s.trim().length > 0).map(s => s.trim()); } catch (e) { /* fall through */ }
+      }
+      return value.split(',').map(item => String(item).trim()).filter(item => item.length > 0);
+    }
+    if (Array.isArray(value)) return value.map(String).filter(s => s && s.trim().length > 0).map(s => s.trim());
+    return value;
+  })
+  @IsArray()
+  @IsUUID('all', { each: true, message: 'Each memberId must be a valid UUID.' })
+  memberIds?: string[];
 }

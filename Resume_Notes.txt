@@ -19,22 +19,24 @@ The project is now ready to move into Sprint 3. The immediate next focus will li
     *   Applied "Times New Roman" as the global font family for consistent styling.
     *   **Authentication:** Modified `JwtAuthGuard` in the backend to consistently allow 'dev-user' access for HTTP APIs in development mode, aligning with WebSocket dev authentication.
 *   **Backend Seeding:** Added seed data for `PredefinedSplitRatio` to provide default sharing options.
-*   **Sprint 3 - Financial Summaries & Analytics (Backend):**
-    *   Implemented API endpoints for:
-        *   Total income/expense summaries (monthly, quarterly, yearly).
-        *   Income/expense breakdown by category for a specific period (month, quarter, year), filterable by categories, and including budget limits per category.
-        *   Income/expense breakdown by household member for a specific period.
-        *   Average monthly expenses for a specific period, filterable by categories.
-        *   Budget vs. actual spending comparison across all categories with budgets.
-        *   Monthly budget vs. actual expense trend data for a selected year and categories.
-*   **Sprint 3 - Financial Summaries & Analytics (Frontend - Reports Page):**
-    *   Established `ReportsPage.vue` with global filters (Year, Month, Category).
-    *   Implemented `MonthlyBudgetExpenseTrendChart.vue` showing monthly expenses vs. budget limits, allowing users to click a month to update detail views.
-    *   Enhanced `CategoryBreakdownReport.vue` to display:
-        *   A pie chart for expense distribution per category.
-        *   A bar chart comparing actual expenses vs. budget limits per category.
-        *   A detailed table of expenses per category.
-    *   The Category Breakdown report is now interactively driven by the month selected on the Trend Chart or the global Month filter, and by the global Category filter.
-    *   Successfully integrated Highcharts for these visualizations, resolving associated TypeScript and ESLint challenges.
 
-**Current Status:** The application is significantly more stable, especially regarding real-time updates. The immediate focus is now on **Sprint 3: Financial Summaries & Analytics**. Following that, the plan includes Sprint 4 (Shared Expense Balancing & Settlements) and Sprint 5 (AI & remaining UI enhancements).
+**Sprint Progress & Key Achievements:**
+*   Sprint 2 (Multi-User Synchronization & Cloud Backend) is complete.
+*   **Sprint 3 (Financial Summaries & Analytics)** is currently in progress. See `sprint-3.md` for detailed objectives and progress.
+    *   **Backend:**
+        *   Summary APIs (totals, category breakdown, member breakdown, budget trend) enhanced to support filtering by selected household members.
+        *   Added a new backend endpoint and service method to query transactions with detailed filters (category, period, members) to support report drill-downs.
+    *   **Frontend (Reports Page):**
+        *   Implemented a global multi-select filter for Household Members.
+        *   **Category Breakdown Report:**
+            *   Made charts (pie and bar) interactive: clicking a category shows its detailed transactions.
+            *   Added a transaction detail table that appears when a category is selected (from table or charts).
+            *   Included a button to navigate to the full transaction list from the detail view.
+        *   **Member Breakdown Report:**
+            *   Added a bar chart to visualize income/expenses per member.
+            *   The entire section is now collapsible by default.
+        *   Resolved various TypeScript, ESLint, and API integration issues for robust report generation.
+
+**Next Sprints:**
+*   Sprint 4: Shared Expense Balancing & Settlements
+*   Sprint 5: AI & remaining UI enhancements

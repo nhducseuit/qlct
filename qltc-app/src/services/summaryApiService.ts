@@ -13,6 +13,7 @@ import type {
   BudgetTrendResponseDto,
   GetBudgetTrendQueryDto,
 } from 'src/models/summary'; // We'll create this models file next
+import qs from 'qs';
 
 const API_URL = '/summaries';
 
@@ -26,14 +27,25 @@ export const fetchTotalsSummaryAPI = async (
 export const fetchCategoryBreakdownAPI = async (
   query: GetCategoryBreakdownQueryDto,
 ): Promise<CategoryBreakdownResponseDto> => {
-  const response = await apiClient.get<CategoryBreakdownResponseDto>(`${API_URL}/category-breakdown`, { params: query });
+  const response = await apiClient.get<CategoryBreakdownResponseDto>(`${API_URL}/category-breakdown`, {
+    params: query,
+    paramsSerializer: params => {
+      return qs.stringify(params, { arrayFormat: 'repeat' });
+    }
+  });
   return response.data;
 };
 
 export const fetchMemberBreakdownAPI = async (
   query: GetMemberBreakdownQueryDto,
 ): Promise<MemberBreakdownResponseDto> => {
-  const response = await apiClient.get<MemberBreakdownResponseDto>(`${API_URL}/member-breakdown`, { params: query });
+  const response = await apiClient.get<MemberBreakdownResponseDto>(`${API_URL}/member-breakdown`, {
+    params: query,
+    paramsSerializer: params => {
+      // Use qs for consistency, even if memberIds is the only array param here
+      return qs.stringify(params, { arrayFormat: 'repeat' });
+    }
+  });
   return response.data;
 };
 
@@ -54,6 +66,11 @@ export const fetchBudgetComparisonAPI = async (
 export const fetchBudgetTrendAPI = async (
   query: GetBudgetTrendQueryDto,
 ): Promise<BudgetTrendResponseDto> => {
-  const response = await apiClient.get<BudgetTrendResponseDto>(`${API_URL}/budget-trend`, { params: query });
+  const response = await apiClient.get<BudgetTrendResponseDto>(`${API_URL}/budget-trend`, {
+    params: query,
+    paramsSerializer: params => {
+      return qs.stringify(params, { arrayFormat: 'repeat' });
+    }
+  });
   return response.data;
 };
