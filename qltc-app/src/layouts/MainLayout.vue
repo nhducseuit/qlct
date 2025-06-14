@@ -83,6 +83,12 @@ const linksList: EssentialLinkProps[] = [
     icon: 'sym_o_groups', // Or 'people'
     link: { name: 'HouseholdMembers' }
   },
+  {
+    title: 'Báo cáo & Thống kê',
+    caption: 'Xem các báo cáo tài chính',
+    icon: 'sym_o_monitoring', // Or 'bar_chart', 'analytics'
+    link: { name: 'Reports' }
+  },
 ];
 
 const leftDrawerOpen = ref(false);

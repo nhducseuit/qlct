@@ -19,6 +19,8 @@
     "axios": "^1.2.1",
     "dayjs": "^1.11.13",
     "dexie": "^4.0.11",
+    "highcharts": "^12.2.0",
+    "highcharts-vue": "^2.0.1",
     "pinia": "^3.0.1",
     "quasar": "^2.16.0",
     "socket.io": "^4.8.1",
