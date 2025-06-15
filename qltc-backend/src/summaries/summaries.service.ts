@@ -39,14 +39,20 @@ export class SummariesService {
     const startDate = dayjs().year(year).startOf('year').toDate();
     const endDate = dayjs().year(year).endOf('year').toDate();
 
-    const transactions = await this.prisma.transaction.findMany({
-      where: {
-        userId,
-        date: {
-          gte: startDate,
-          lte: endDate,
-        },
+    const whereClause: Prisma.TransactionWhereInput = {
+      userId,
+      date: {
+        gte: startDate,
+        lte: endDate,
       },
+    };
+
+    if (query.transactionType === 'expense') {
+      whereClause.type = 'expense';
+    }
+
+    const transactions = await this.prisma.transaction.findMany({
+      where: whereClause,
       select: {
         amount: true,
         type: true,
@@ -170,21 +176,25 @@ export class SummariesService {
         throw new BadRequestException('Invalid period type for category breakdown.');
     }
 
-    const transactionWhere: Prisma.TransactionWhereInput = {
+    const transactionWhereInput: Prisma.TransactionWhereInput = {
       userId,
       date: {
         gte: startDate,
         lte: endDate,
       },
+      // type: 'expense', // Removed hardcoded filter
     };
 
+    if (query.transactionType === 'expense') {
+      transactionWhereInput.type = 'expense';
+    }
     if (query.categoryIds && query.categoryIds.length > 0) { // Filter by global category selection
-      transactionWhere.categoryId = { in: query.categoryIds };
+      transactionWhereInput.categoryId = { in: query.categoryIds };
     }
 
     // Fetch initial set of transactions based on date and category filters
     let periodTransactions = await this.prisma.transaction.findMany({
-      where: transactionWhere,
+      where: transactionWhereInput,
       select: {
         amount: true,
         type: true,
@@ -227,9 +237,13 @@ export class SummariesService {
         }
       }
 
+      // If query.transactionType is 'expense', periodTransactions only contains expenses.
+      // If query.transactionType is 'all' (or undefined), periodTransactions contains all types.
+      // This report focuses on expense breakdown, so we only sum expenses.
+      // If income were to be part of this report's display, categoryTotals and DTOs would need 'income' fields. - THIS IS NOW THE CASE
       if (t.type === 'income') {
         categoryTotals[t.categoryId].income += amountToConsider;
-      } else {
+      } else if (t.type === 'expense') {
         categoryTotals[t.categoryId].expense += amountToConsider;
       }
     }
@@ -319,16 +333,22 @@ export class SummariesService {
         throw new BadRequestException('Invalid period type for member breakdown.');
     }
 
-    const transactions = await this.prisma.transaction.findMany({
-      where: {
-        userId,
-        date: {
-          gte: startDate,
-          lte: endDate,
-        },
-        isShared: true, // Only consider shared transactions for member breakdown based on splitRatio
-        splitRatio: { not: Prisma.DbNull }, // Correct way to check for non-null JSON field
+    const transactionWhereInput: Prisma.TransactionWhereInput = {
+      userId,
+      date: {
+        gte: startDate,
+        lte: endDate,
       },
+      // type: 'expense', // Removed hardcoded filter
+      isShared: true,
+      splitRatio: { not: Prisma.DbNull },
+    };
+
+    if (query.transactionType === 'expense') {
+      transactionWhereInput.type = 'expense';
+    }
+    const transactions = await this.prisma.transaction.findMany({
+      where: transactionWhereInput,
       select: {
         amount: true,
         type: true,
@@ -348,9 +368,11 @@ export class SummariesService {
           memberTotals[split.memberId] = { income: 0, expense: 0 };
         }
         const memberPortion = t.amount * (split.percentage / 100);
+        // This report focuses on expense breakdown for members.
+        // If query.transactionType is 'expense', all 't' are expenses.
         if (t.type === 'income') {
           memberTotals[split.memberId].income += memberPortion;
-        } else {
+        } else if (t.type === 'expense') {
           memberTotals[split.memberId].expense += memberPortion;
         }
       }
@@ -428,6 +450,10 @@ export class SummariesService {
         lte: endDate.toDate(),
       },
     };
+
+    // For average expenses, transactionType filter is not directly applied here
+    // as it's inherently about 'expense'. If 'all' was an option, it would change the meaning.
+    // The `type: 'expense'` is hardcoded as this report is specifically "Average Expenses".
 
     if (query.categoryIds && query.categoryIds.length > 0) {
       whereClause.categoryId = { in: query.categoryIds };
@@ -527,6 +553,10 @@ export class SummariesService {
       },
     });
 
+    // For budget comparison, transactionType filter is not directly applied here
+    // as it's inherently about comparing 'expense' against budget.
+    // The `type: 'expense'` is hardcoded.
+
     const actualExpensesMap: Record<string, number> = {};
     expenses.forEach(exp => {
       actualExpensesMap[exp.categoryId] = exp._sum.amount || 0;
@@ -602,14 +632,20 @@ export class SummariesService {
 
     // Fetch all transactions for the relevant categories for the entire year first
     // We will then filter them per month and per member in the loop
+    const yearTransactionsWhere: Prisma.TransactionWhereInput = {
+      userId,
+      // type: 'expense', // Removed hardcoded filter for actuals
+      categoryId: { in: relevantCategories.map(c => c.id) },
+      date: { gte: dayjs().year(year).startOf('year').toDate(), lte: dayjs().year(year).endOf('year').toDate() },
+    };
+
+    if (query.transactionType === 'expense') {
+      yearTransactionsWhere.type = 'expense'; // Apply if specified, for actuals
+    }
+
     const yearTransactions = relevantCategories.length > 0 ? await this.prisma.transaction.findMany({
-      where: {
-        userId,
-        type: 'expense',
-        categoryId: { in: relevantCategories.map(c => c.id) },
-        date: { gte: dayjs().year(year).startOf('year').toDate(), lte: dayjs().year(year).endOf('year').toDate() },
-      },
-      select: { amount: true, date: true, isShared: true, payer: true, splitRatio: true, categoryId: true },
+      where: yearTransactionsWhere,
+      select: { amount: true, date: true, isShared: true, payer: true, splitRatio: true, categoryId: true, type: true }, // Added type here
     }) : [];
 
     if (query.periodType === PeriodType.Monthly) {
@@ -627,26 +663,29 @@ export class SummariesService {
         const monthTransactions = yearTransactions.filter(tx => dayjs(tx.date).isBetween(startDate, endDate, null, '[]'));
 
         monthTransactions.forEach(tx => {
-          let expenseAmountForTx = tx.amount;
-          if (query.memberIds && query.memberIds.length > 0) { // Filter by member
-            if (!tx.isShared) {
-              if (!tx.payer || !query.memberIds.includes(tx.payer)) {
-                expenseAmountForTx = 0; // Exclude if payer not in selected members
+          // Only sum up if it's an expense transaction, especially if transactionType was 'all'
+          if (tx.type === 'expense') {
+            let expenseAmountForTx = tx.amount;
+            if (query.memberIds && query.memberIds.length > 0) { // Filter by member
+              if (!tx.isShared) {
+                if (!tx.payer || !query.memberIds.includes(tx.payer)) {
+                  expenseAmountForTx = 0; // Exclude if payer not in selected members
+                }
+              } else { // Shared expense
+                const split = tx.splitRatio as unknown as Array<{ memberId: string; percentage: number }>;
+                let memberPortion = 0;
+                if (split) {
+                  split.forEach(s => {
+                    if (query.memberIds!.includes(s.memberId)) {
+                      memberPortion += tx.amount * (s.percentage / 100);
+                    }
+                  });
+                }
+                expenseAmountForTx = memberPortion;
               }
-            } else { // Shared expense
-              const split = tx.splitRatio as unknown as Array<{ memberId: string; percentage: number }>;
-              let memberPortion = 0;
-              if (split) {
-                split.forEach(s => {
-                  if (query.memberIds!.includes(s.memberId)) {
-                    memberPortion += tx.amount * (s.percentage / 100);
-                  }
-                });
-              }
-              expenseAmountForTx = memberPortion;
             }
+            totalActualExpensesForPeriod += expenseAmountForTx;
           }
-          totalActualExpensesForPeriod += expenseAmountForTx;
         });
 
         trendItems.push({
@@ -669,26 +708,29 @@ export class SummariesService {
 
       let totalActualExpensesForYear = 0;
       yearTransactions.forEach(tx => {
-        let expenseAmountForTx = tx.amount;
-        if (query.memberIds && query.memberIds.length > 0) { // Filter by member
-          if (!tx.isShared) {
-            if (!tx.payer || !query.memberIds.includes(tx.payer)) {
-              expenseAmountForTx = 0;
+        // Only sum up if it's an expense transaction
+        if (tx.type === 'expense') {
+          let expenseAmountForTx = tx.amount;
+          if (query.memberIds && query.memberIds.length > 0) { // Filter by member
+            if (!tx.isShared) {
+              if (!tx.payer || !query.memberIds.includes(tx.payer)) {
+                expenseAmountForTx = 0;
+              }
+            } else { // Shared expense
+              const split = tx.splitRatio as unknown as Array<{ memberId: string; percentage: number }>;
+              let memberPortion = 0;
+              if (split) {
+                split.forEach(s => {
+                  if (query.memberIds!.includes(s.memberId)) {
+                    memberPortion += tx.amount * (s.percentage / 100);
+                  }
+                });
+              }
+              expenseAmountForTx = memberPortion;
             }
-          } else { // Shared expense
-            const split = tx.splitRatio as unknown as Array<{ memberId: string; percentage: number }>;
-            let memberPortion = 0;
-            if (split) {
-              split.forEach(s => {
-                if (query.memberIds!.includes(s.memberId)) {
-                  memberPortion += tx.amount * (s.percentage / 100);
-                }
-              });
-            }
-            expenseAmountForTx = memberPortion;
           }
+          totalActualExpensesForYear += expenseAmountForTx;
         }
-        totalActualExpensesForYear += expenseAmountForTx;
       });
 
       trendItems.push({ period: String(year), totalBudgetLimit: totalBudgetLimitForYear, totalActualExpenses: totalActualExpensesForYear });

@@ -166,10 +166,10 @@ const householdMemberStore = useHouseholdMemberStore();
 
 const selectedCategoryDetails = ref<CategoryBreakdownItemDto | null>(null);
 const categorySummaryColumns: QTableColumn[] = [
-  { name: 'categoryName', required: true, label: 'Danh mục', align: 'left', field: 'categoryName', sortable: true, style: 'width: 60%' },
-  // { name: 'totalIncome', label: 'Tổng thu', field: 'totalIncome', sortable: true, align: 'right', format: val => formatCurrency(val) },
-  { name: 'totalExpense', label: 'Tổng chi', field: 'totalExpense', sortable: true, align: 'right', format: val => formatCurrency(val), style: 'width: 40%' },
-  // { name: 'netChange', label: 'Thay đổi ròng', field: 'netChange', sortable: true, align: 'right', format: val => formatCurrency(val) },
+  { name: 'categoryName', required: true, label: 'Danh mục', align: 'left', field: 'categoryName', sortable: true, style: 'width: 40%' },
+  { name: 'totalIncome', label: 'Tổng thu', field: 'totalIncome', sortable: true, align: 'right', format: val => formatCurrency(val), style: 'width: 20%' },
+  { name: 'totalExpense', label: 'Tổng chi', field: 'totalExpense', sortable: true, align: 'right', format: val => formatCurrency(val), style: 'width: 20%' },
+  { name: 'netChange', label: 'Thay đổi ròng', field: 'netChange', sortable: true, align: 'right', format: val => formatCurrency(val), style: 'width: 20%' },
 ];
 
 const tableRows = computed(() => {

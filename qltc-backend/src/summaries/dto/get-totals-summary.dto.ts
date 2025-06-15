@@ -1,4 +1,4 @@
-import { IsEnum, IsInt, IsOptional, Max, Min } from 'class-validator';
+import { IsEnum, IsInt, IsOptional, Max, Min, IsString, IsIn } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 
@@ -32,4 +32,13 @@ export class GetTotalsSummaryQueryDto {
   @Min(1900)
   @Max(2100)
   year?: number; // e.g., 2023. Defaults to current year if not provided for monthly/quarterly.
+
+  @ApiPropertyOptional({
+    description: "Filter transactions by type. If 'expense', only expenses are considered. If 'all' or omitted, all types are included.",
+    enum: ['expense', 'all'],
+  })
+  @IsOptional()
+  @IsString()
+  @IsIn(['expense', 'all'])
+  transactionType?: 'expense' | 'all';
 }

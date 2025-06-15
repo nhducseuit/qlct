@@ -2,3 +2,52 @@
 body {
   font-family: "Times New Roman", Times, serif;
 }
+
+pdf-export-mode {
+  width: 780px !important; // Approximate A4 width in pixels for screen capture. Adjust as needed.
+  margin: 0 auto !important; // Center it if it becomes narrower than screen
+  padding: 10px !important; // Add some padding if desired for the capture
+  overflow: hidden; // Prevent scrollbars in the capture if content overflows slightly
+
+  // Force charts and other block elements to behave well
+  .q-card {
+    box-shadow: none !important; // Remove shadows for cleaner PDF
+    border: 1px solid #ddd !important; // Optionally add simple borders
+  }
+
+  // Example: Make Highcharts containers take full width of the new parent
+  // You might need to target specific chart containers if they have unique classes/IDs
+  div[data-highcharts-chart] { // Highcharts usually adds this attribute
+    width: 100% !important;
+    // Highcharts should resize automatically. If not, you might need to trigger a reflow.
+  }
+
+  // Make columns stack for a more vertical layout
+  .row.q-col-gutter-md {
+    // If you have rows that become too wide, force them to stack
+    // This is an example, you'll need to target specific rows if needed
+    // For instance, the row containing the two charts in CategoryBreakdownReport
+    // > .col-12.col-md-6 {
+    //   width: 100% !important;
+    //   flex-basis: 100% !important;
+    //   max-width: 100% !important;
+    // }
+  }
+
+  // Hide elements not needed for PDF
+  .no-print-in-pdf {
+    display: none !important;
+  }
+
+  // Adjust font sizes if needed
+  // body, .text-h6, .text-subtitle1, .text-subtitle2 {
+  //   font-size: 10pt !important; // Example
+  // }
+}
+
+// If you want to apply these styles only during PDF export and not affect normal printing:
+// You can wrap the above in a media query, but html2canvas captures what's *rendered*,
+// so toggling a class is more direct for its capture process.
+// @media print {
+//   /* Styles specific to browser's print dialog - html2canvas won't use these directly */
+// }

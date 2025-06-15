@@ -1,5 +1,5 @@
 // src/summaries/dto/get-member-breakdown.dto.ts
-import { IsEnum, IsInt, IsOptional, Max, Min, IsArray, IsUUID } from 'class-validator';
+import { IsEnum, IsInt, IsOptional, Max, Min, IsArray, IsUUID, IsString, IsIn } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type, Transform } from 'class-transformer';
 import { PeriodType } from './get-totals-summary.dto'; // Reuse PeriodType
@@ -75,4 +75,13 @@ export class GetMemberBreakdownQueryDto {
   @IsArray()
   @IsUUID('all', { each: true, message: 'Each memberId must be a valid UUID.' })
   memberIds?: string[];
+
+  @ApiPropertyOptional({
+    description: "Filter transactions by type. If 'expense', only expenses are considered. If 'all' or omitted, all types are included.",
+    enum: ['expense', 'all'],
+  })
+  @IsOptional()
+  @IsString()
+  @IsIn(['expense', 'all'])
+  transactionType?: 'expense' | 'all';
 }

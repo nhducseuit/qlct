@@ -1,62 +1,56 @@
 # Sprint 3: Financial Summaries & Analytics
 
-**Sprint Goal:** Deliver key financial summary views, providing users with insights into their income and expenses across various dimensions (time, categories, members) and enabling comparison with budget limits.
-
-**Sprint Duration:** (Define your typical sprint duration, e.g., 2 weeks)
-
-**Sprint Owner:** (Your Name/Team Lead)
+**Sprint Goal:** Implement comprehensive financial reporting and analytical capabilities, providing users with insightful views into their income, expenses, and budget adherence.
 
 ---
 
-## Sprint Backlog:
+## Key Objectives & Features:
 
-### Backend (S3.1.x - API Endpoints for Summaries)
-- **S3.1.1:** Design and implement API endpoints for fetching aggregated transaction data. (In Progress)
-    -   [x] S3.1.1.1: Endpoint for monthly, quarterly, and yearly total income/expense summaries.
-    -   [x] S3.1.1.2: Endpoint for income/expense breakdown by category for a given period.
-    -   S3.1.1.3: Endpoint for income/expense breakdown by household member for a given period.
-- **S3.1.2:** Backend logic to calculate average expenses (e.g., daily/monthly average for selected periods/categories).
-- **S3.1.3:** Backend logic to compare actual spending against category budget limits for a given period.
+### 1. Backend API Development:
+    - [x] **Total Income/Expense Summaries:** API to provide aggregated totals for income, expenses, and net change, filterable by period (monthly, quarterly, yearly) and year.
+        *   Endpoint: `GET /summaries/totals`
+        *   DTOs: `GetTotalsSummaryQueryDto`, `PeriodSummaryDto`, `TotalsSummaryResponseDto`
+    - [x] **Category Breakdown:** API to detail income/expense distribution per category for a specified period, filterable by specific category IDs, and including budget limits.
+        *   Endpoint: `GET /summaries/category-breakdown`
+        *   DTOs: `GetCategoryBreakdownQueryDto`, `CategoryBreakdownItemDto`, `CategoryBreakdownResponseDto`
+    - [x] **Member Breakdown:** API to show income/expense contributions or allocations per household member for a specified period.
+        *   Endpoint: `GET /summaries/member-breakdown`
+        *   DTOs: `GetMemberBreakdownQueryDto`, `MemberBreakdownItemDto`, `MemberBreakdownResponseDto`
+    - [x] **Average Expenses:** API to calculate average monthly expenses over a given period, filterable by categories.
+        *   Endpoint: `GET /summaries/average-expenses`
+        *   DTOs: `GetAverageExpensesQueryDto`, `AverageExpensesResponseDto`
+    - [x] **Budget vs. Actual Comparison:** API to compare budgeted amounts against actual spending for all categories with defined budgets, for a specific period.
+        *   Endpoint: `GET /summaries/budget-comparison`
+        *   DTOs: `GetBudgetComparisonQueryDto`, `BudgetComparisonItemDto`, `BudgetComparisonResponseDto`
+    - [x] **Budget Trend Analysis:** API to provide data for trend charts showing total budget vs. total actual expenses over time (e.g., monthly for a year).
+        *   Endpoint: `GET /summaries/budget-trend`
+        *   DTOs: `GetBudgetTrendQueryDto`, `BudgetTrendItemDto`, `BudgetTrendResponseDto`
 
-### Frontend (S3.2.x - UI for Summaries & Analytics)
-- **S3.2.1:** Create a "Dashboard / Reports / Summaries" page (e.g., `DashboardPage.vue` or `ReportsPage.vue`).
-    -   S3.2.1.1: Basic layout for displaying multiple summary components.
-    -   S3.2.1.2: Implement global filters for the reports page:
-        -   Period Type (Monthly, Quarterly, Yearly) - *Default: Monthly*
-        -   Year selector - *Default: Current Year*
-        -   Month selector (active if Period Type is Monthly) - *Default: Current Month or "All" for some views*
-        -   Quarter selector (active if Period Type is Quarterly) - *Default: Current Quarter or "All" for some views*
-        -   Category selector (multi-select or single, with "All Categories" option) - *Default: All Categories*
-        -   Household Member selector (multi-select or single, with "All Members" option) - *Default: All Members*
-    -   S3.2.1.3: By default (or as a configurable section), display a pie chart showing expense distribution for selected categories (or all) for the 3 most recent, relevant periods (e.g., last 3 months if periodType is monthly).
-- **S3.2.2:** UI Component: Display monthly, quarterly, and yearly income/expense totals.
-    -   Consider a tabular view or clear statistical cards.
-- **S3.2.3:** UI Component: Display income/expense breakdown by category.
-    -   Focus on **expense breakdown by category**.
-    -   Display data in a table showing category, total expense. (Consider making it smaller with an option to expand in a modal/dialog).
-    -   Include charts:
-        -   Pie chart for expense distribution per category for the selected period.
-        -   Bar chart for total expense per category for the selected period.
-    -   Trend chart: **Expense vs. Budget limit** over time (monthly/yearly for selected categories).
-        -   Clicking a point on this trend chart (e.g., a specific month or year) should display/update a pie chart showing the expense distribution for that specific month/year and the currently selected categories.
-    -   Allow drilling down or filtering by parent/child categories.
-- **S3.2.4:** UI Component: Display income/expense breakdown by household member.
-    -   Show contributions/spending per member.
-- **S3.2.5:** UI Component: Display average expenses (e.g., "Average daily spend this month").
-- **S3.2.6:** UI Component: Display budget vs. actual spending for categories.
-    -   Show progress bars or visual indicators of spending against limits.
-- **S3.2.7:** Integrate backend summary APIs with the new frontend components.
-- **S3.2.8:** Ensure summary views are responsive and user-friendly.
-
-### Testing & Refinement (S3.3.x)
-- **S3.3.1:** Thoroughly test the accuracy of all summary calculations and data presentation.
-- **S3.3.2:** Test usability of the reports page and its filters.
-- **S3.3.3:** Performance testing for summary generation, especially with larger date ranges.
+### 2. Frontend UI/UX (Reports Page - `ReportsPage.vue`):
+    - [x] **Global Filters:** Implement global filters for Year, Month, and Category selection to drive the report data.
+    - [x] **Global Member Filter:** Added a multi-select filter for Household Members to refine report data. (Part of S3.2.1.2)
+    - [x] **Monthly Budget vs. Expense Trend Chart (`MonthlyBudgetExpenseTrendChart.vue`):**
+        *   Display a line chart showing the trend of total budgeted amounts vs. total actual expenses on a monthly basis for the selected year and categories.
+        *   Allow users to click on a specific month in the trend chart to update other detail views (e.g., Category Breakdown) for that selected month.
+    - [x] **Category Breakdown Report (`CategoryBreakdownReport.vue`):**
+        *   Display a pie chart showing the distribution of expenses across categories for the selected period.
+        *   Display a bar chart comparing actual expenses against budget limits for each category for the selected period.
+        *   Provide a detailed table view of income/expenses per category.
+        *   This report should be interactive, updating based on selections from the global filters and the Trend Chart.
+        *   [x] Implemented drill-down: Clicking a category (in table or charts) displays its contributing transactions.
+        *   [x] Added a button to navigate to the full transaction list from the drill-down view.
+    - [x] **Member Breakdown View (`MemberBreakdownReport.vue`):**
+        *   [x] Display financial contributions/allocations per household member in a table.
+        *   [x] Added a bar chart to visualize income/expense per member.
+        *   [x] Made the section collapsible by default.
+    - [x] **Highcharts Integration:** Successfully integrate and utilize Highcharts for all chart visualizations, addressing any TypeScript and ESLint challenges.
+    - [x] **Export to PDF:** Add functionality to export the current report view (based on active filters) as a PDF document. (Initial client-side implementation using `jspdf` and `html2canvas` complete, with basic layout adjustments and pagination).
 
 ---
-**Definition of Done for Sprint 3:**
-- All listed tasks completed and tested.
-- Users can view accurate monthly, quarterly, and yearly financial summaries.
-- Users can analyze expenses by category and household member.
-- Users can compare their spending against set budget limits.
-- The core value proposition of financial insight is delivered.
+
+**Current Progress:**
+Backend APIs for summaries are largely complete and have been enhanced to support member-specific filtering.
+The frontend `ReportsPage.vue` is highly interactive:
+*   Global filters for Year, Month, Category, and Member are functional.
+*   The Trend Chart, Category Breakdown (with transaction drill-down from table and charts), and Member Breakdown (with chart and collapsible UI) components are implemented and integrated.
+The primary focus has been on delivering rich, interactive data visualization and drill-down capabilities.

@@ -37,6 +37,12 @@ The project is now ready to move into Sprint 3. The immediate next focus will li
             *   The entire section is now collapsible by default.
         *   Resolved various TypeScript, ESLint, and API integration issues for robust report generation.
 
+    *   **UAT Feedback & Enhancements (Sprint 3):**
+        *   **QuickEntryForm:**
+            *   Fixed issue preventing falsy validation errors after successful transaction addition by using `nextTick`.
+            *   Ensured the "Payer" field retains its value after a successful transaction addition.
+        *   **Reporting:** Implemented a user-controlled global filter (checkbox) to exclude/include income transactions from all reports, with backend services updated to respect this filter. Income aggregation logic in `CategoryBreakdown` and `MemberBreakdown` services was corrected to display income when not excluded.
+        *   **PDF Export:** Added client-side PDF export functionality for reports using `jspdf` and `html2canvas`, including layout adjustments for A4 portrait and basic pagination. Optimized image scale and provided print-specific CSS for better PDF output and reduced file size.
 **Next Sprints:**
 *   Sprint 4: Shared Expense Balancing & Settlements
 *   Sprint 5: AI & remaining UI enhancements

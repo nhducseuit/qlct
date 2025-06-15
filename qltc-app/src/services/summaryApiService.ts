@@ -3,19 +3,18 @@ import type {
   TotalsSummaryResponseDto,
   GetTotalsSummaryQueryDto,
   CategoryBreakdownResponseDto,
-  GetCategoryBreakdownQueryDto,
   MemberBreakdownResponseDto,
-  GetMemberBreakdownQueryDto,
   AverageExpensesResponseDto,
   GetAverageExpensesQueryDto,
   BudgetComparisonResponseDto,
   GetBudgetComparisonQueryDto,
   BudgetTrendResponseDto,
-  GetBudgetTrendQueryDto,
+  PeriodType, // Assuming PeriodType is exported from models/summary or similar
 } from 'src/models/summary'; // We'll create this models file next
 import qs from 'qs';
 
 const API_URL = '/summaries';
+
 
 export const fetchTotalsSummaryAPI = async (
   query: GetTotalsSummaryQueryDto,
@@ -23,9 +22,21 @@ export const fetchTotalsSummaryAPI = async (
   const response = await apiClient.get<TotalsSummaryResponseDto>(`${API_URL}/totals`, { params: query });
   return response.data;
 };
+// Frontend version of DTOs for type safety in API calls
+// These should mirror the backend DTOs structure
+export interface GetCategoryBreakdownPayload {
+  periodType: PeriodType;
+  year?: number;
+  month?: number;
+  quarter?: number;
+  parentCategoryId?: string;
+  categoryIds?: string[];
+  memberIds?: string[];
+  transactionType?: 'expense' | 'all';
+}
 
 export const fetchCategoryBreakdownAPI = async (
-  query: GetCategoryBreakdownQueryDto,
+  query: GetCategoryBreakdownPayload, // Use the frontend payload type
 ): Promise<CategoryBreakdownResponseDto> => {
   const response = await apiClient.get<CategoryBreakdownResponseDto>(`${API_URL}/category-breakdown`, {
     params: query,
@@ -36,8 +47,17 @@ export const fetchCategoryBreakdownAPI = async (
   return response.data;
 };
 
+export interface GetMemberBreakdownPayload {
+  periodType: PeriodType;
+  year?: number;
+  month?: number;
+  quarter?: number;
+  memberIds?: string[];
+  transactionType?: 'expense' | 'all';
+}
+
 export const fetchMemberBreakdownAPI = async (
-  query: GetMemberBreakdownQueryDto,
+  query: GetMemberBreakdownPayload, // Use the frontend payload type
 ): Promise<MemberBreakdownResponseDto> => {
   const response = await apiClient.get<MemberBreakdownResponseDto>(`${API_URL}/member-breakdown`, {
     params: query,
@@ -49,6 +69,12 @@ export const fetchMemberBreakdownAPI = async (
   return response.data;
 };
 
+// Assuming GetAverageExpensesQueryDto is correctly defined in models/summary
+// and doesn't need transactionType for now.
+// export interface GetAverageExpensesPayload extends GetAverageExpensesQueryDto {}
+
+// Assuming GetBudgetComparisonQueryDto is correctly defined in models/summary
+// and doesn't need transactionType for now.
 export const fetchAverageExpensesAPI = async (
   query: GetAverageExpensesQueryDto,
 ): Promise<AverageExpensesResponseDto> => {
@@ -63,8 +89,16 @@ export const fetchBudgetComparisonAPI = async (
   return response.data;
 };
 
+export interface GetBudgetTrendPayload {
+  periodType: PeriodType;
+  year: number;
+  categoryIds?: string[];
+  memberIds?: string[];
+  transactionType?: 'expense' | 'all';
+}
+
 export const fetchBudgetTrendAPI = async (
-  query: GetBudgetTrendQueryDto,
+  query: GetBudgetTrendPayload, // Use the frontend payload type
 ): Promise<BudgetTrendResponseDto> => {
   const response = await apiClient.get<BudgetTrendResponseDto>(`${API_URL}/budget-trend`, {
     params: query,

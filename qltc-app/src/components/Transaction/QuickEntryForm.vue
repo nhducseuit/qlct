@@ -172,7 +172,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue';
+import { ref, computed, watch, nextTick } from 'vue';
 import { useQuasar, QForm } from 'quasar';
 import { useCategoryStore } from 'src/stores/categoryStore';
 import { useTransactionStore } from 'src/stores/transactionStore';
@@ -367,26 +367,28 @@ const distributeEqually = () => {
   updateMemberSplitPercentagesFromForm();
 };
 
-const resetForm = () => {
+const resetForm = async () => { // Make async to use await with nextTick
   const currentDate = form.value.date; // Save the current date
+  const currentPayer = form.value.payer; // Save the current payer
+  const currentType = form.value.type; // Save the current type
+
   form.value = {
     categoryId: null as string | null,
-    date: '', // Add date back, will be overwritten by currentDate
+    date: currentDate, // Keep current date
     amount: null as number | null,
     note: '',
-    payer: householdMemberStore.members.find(m => m.isActive)?.id || (householdMemberStore.members.length > 0 ? (householdMemberStore.members[0] ? householdMemberStore.members[0].id : null) : null),
+    payer: currentPayer, // Keep current payer
     isShared: false,
     splitRatio: null as SplitRatioItem[] | null,
     selectedPredefinedRatioId: null, // Reset predefined selection
-    type: 'expense' as 'income' | 'expense',
+    type: currentType, // Keep current type
   };
-  form.value.date = currentDate; // Restore the saved date
   updateMemberSplitPercentagesFromForm(); // Reset UI for split percentages
-  // entryForm.value?.resetValidation(); // Reset validation status
-  // Workaround for resetValidation not always working as expected with initial values
-  if (entryForm.value) {
-    entryForm.value.resetValidation();
-    // Manually trigger re-validation if needed, or ensure components re-evaluate rules
+
+  // Ensure resetValidation is called after the form model has been updated
+  // and the DOM has had a chance to react if necessary (though usually not needed for resetValidation)
+  if (entryForm.value) {    await nextTick(); // Wait for Vue to update the DOM based on model changes
+    entryForm.value.resetValidation(); // Now reset validation state
   }
 };
 
@@ -419,7 +421,7 @@ const onSubmit = async () => {
 
     await transactionStore.addTransaction(transactionData);
     $q.notify({ type: 'positive', message: 'Đã lưu giao dịch!' });
-    resetForm(); // Reset form after successful submission
+    await resetForm(); // Reset form after successful submission
   } else {
     $q.notify({
       color: 'negative',

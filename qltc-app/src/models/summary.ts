@@ -9,6 +9,7 @@ export enum PeriodType {
 export interface GetTotalsSummaryQueryDto {
   periodType: PeriodType;
   year?: number;
+  transactionType?: 'expense' | 'all';
 }
 
 // Matches PeriodSummaryDto from backend
@@ -30,6 +31,7 @@ export interface GetCategoryBreakdownQueryDto {
   parentCategoryId?: string;
   categoryIds?: string[]; // Added for global category filter
   memberIds?: string[];   // Added for global member filter
+  transactionType?: 'expense' | 'all';
 }
 
 // Matches CategoryBreakdownItemDto from backend
@@ -54,6 +56,7 @@ export interface GetMemberBreakdownQueryDto {
   month?: number;
   quarter?: number;
   memberIds?: string[];   // Added for global member filter
+  transactionType?: 'expense' | 'all';
 }
 
 // Matches MemberBreakdownItemDto from backend
@@ -121,6 +124,7 @@ export interface GetBudgetTrendQueryDto {
   year: number;
   categoryIds?: string[];
   memberIds?: string[];   // Added for global member filter
+  transactionType?: 'expense' | 'all';
 }
 
 // Matches BudgetTrendItemDto from backend

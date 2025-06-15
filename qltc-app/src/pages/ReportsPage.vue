@@ -88,21 +88,42 @@
           </q-select>
         </div>
 
-        <!-- Apply Button -->
-        <div class="col-12 col-md-2 col-sm-12 col-xs-12">
-          <q-btn
-            color="primary"
-            label="Xem báo cáo"
-            @click="applyFiltersAndLoadReports"
-            class="full-width"
-            :loading="isLoadingAnyReport"
-          />
+        <div class="col-12 col-md-4 col-sm-12 col-xs-12 row items-center q-gutter-md">
+          <div class="col-12 col-sm-auto">
+            <q-checkbox
+              v-model="excludeIncomeFilter"
+              label="Loại trừ thu nhập"
+              dense
+            />
+          </div>
+          <div class="col row q-gutter-sm">
+            <!-- Apply Button -->
+            <div class="col">
+              <q-btn
+                color="primary"
+                label="Xem báo cáo"
+                @click="applyFiltersAndLoadReports"
+                class="full-width"
+                :loading="isLoadingAnyReport"
+              />
+            </div>
+            <!-- Export PDF Button (Placeholder) -->
+            <div class="col-auto">
+              <q-btn
+                flat
+                icon="sym_o_picture_as_pdf"
+                @click="exportReportToPdf"
+                :disabled="isLoadingAnyReport"            >
+                <q-tooltip>Xuất PDF</q-tooltip>
+              </q-btn>
+            </div>
+          </div>
         </div>
       </q-card-section>
     </q-card>
 
     <!-- Reports Section -->
-    <div>
+    <div id="report-content-to-export">
       <!-- Chart 1: Monthly Budget vs Expense Trend -->
       <MonthlyBudgetExpenseTrendChart
         :trend-data="summaryStore.budgetTrend"
@@ -167,6 +188,8 @@ import { PeriodType } from 'src/models/summary';
 // import TotalsSummaryReport from 'src/components/Reports/TotalsSummaryReport.vue'; // Removed for now
 import CategoryBreakdownReport from 'src/components/Reports/CategoryBreakdownReport.vue';
 import MonthlyBudgetExpenseTrendChart from 'src/components/Reports/MonthlyBudgetExpenseTrendChart.vue';
+import jsPDF from 'jspdf'; // Import HTMLOptions for better typing
+import html2canvas from 'html2canvas';
 import MemberBreakdownReport from 'src/components/Reports/MemberBreakdownReport.vue'; // Import new component
 import { dayjs } from 'src/boot/dayjs';
 
@@ -174,6 +197,8 @@ const summaryStore = useSummaryStore();
 const categoryStore = useCategoryStore();
 const householdMemberStore = useHouseholdMemberStore(); // Use member store
 const $q = useQuasar();
+
+const pdfExportLoading = ref(false);
 
 const currentYear = dayjs().year();
 const currentMonth = dayjs().month() + 1; // 1-12
@@ -234,7 +259,8 @@ const isLoadingAnyReport = computed(() =>
   // summaryStore.totalsSummaryLoading || // TotalsSummaryReport removed for now
   summaryStore.categoryBreakdownLoading ||
   summaryStore.budgetTrendLoading ||
-  summaryStore.memberBreakdownLoading); // Add member breakdown loading
+  summaryStore.memberBreakdownLoading ||
+  pdfExportLoading.value); // Include PDF export loading state
 
 const categoryBreakdownPeriodLabel = computed(() => {
   if (!selectedMonthForDetail.value || !selectedYearForDetail.value) return 'Vui lòng chọn một tháng';
@@ -263,6 +289,8 @@ const memberBreakdownPeriodLabel = computed(() => { // Label for the new report
   return `Phân tích thành viên cho Tháng ${selectedMonthForDetail.value}/${selectedYearForDetail.value}`;
 });
 
+const excludeIncomeFilter = ref<boolean>(true); // Default to excluding income
+
 const loadDetailReports = async (year: number, month?: number, quarter?: number) => {
   const periodType = PeriodType.Monthly; // Assuming details are always monthly for now
 
@@ -275,8 +303,13 @@ const loadDetailReports = async (year: number, month?: number, quarter?: number)
       undefined, // parentCategoryId
       selectedCategoryIdsGlobal.value.length > 0 ? selectedCategoryIdsGlobal.value : undefined,
       selectedMemberIdsGlobal.value.length > 0 ? selectedMemberIdsGlobal.value : undefined // Pass selected members
+      , excludeIncomeFilter.value ? 'expense' : 'all' // Pass transaction type filter
     ),
-    summaryStore.loadMemberBreakdown(periodType, year, month, quarter, selectedMemberIdsGlobal.value.length > 0 ? selectedMemberIdsGlobal.value : undefined) // Pass selected members
+    summaryStore.loadMemberBreakdown(
+        periodType, year, month, quarter,
+        selectedMemberIdsGlobal.value.length > 0 ? selectedMemberIdsGlobal.value : undefined,
+        excludeIncomeFilter.value ? 'expense' : 'all' // Pass transaction type filter
+      )
   ];
   await Promise.all(promises);
 };
@@ -322,10 +355,97 @@ const applyFiltersAndLoadReports = async () => {
       PeriodType.Monthly,
       selectedYear.value,
       selectedCategoryIdsGlobal.value.length > 0 ? selectedCategoryIdsGlobal.value : undefined,
-      selectedMemberIdsGlobal.value.length > 0 ? selectedMemberIdsGlobal.value : undefined // Pass selected members
+      selectedMemberIdsGlobal.value.length > 0 ? selectedMemberIdsGlobal.value : undefined, // Pass selected members
+      excludeIncomeFilter.value ? 'expense' : 'all' // Pass transaction type filter
     )
   ];
   await Promise.all(promises);
+};
+
+const exportReportToPdf = async () => { // Make async
+  const reportContentElement = document.getElementById('report-content-to-export');
+  if (!reportContentElement) {
+    $q.notify({ type: 'negative', message: 'Không tìm thấy nội dung báo cáo để xuất.' });
+    return;
+  }
+
+  // Add a class to apply print-friendly styles
+  reportContentElement.classList.add('pdf-export-mode');
+
+
+  pdfExportLoading.value = true;
+  $q.loading.show({
+    message: 'Đang tạo file PDF...',
+  });
+
+  try {
+    // Allow DOM to update with the new class
+    await new Promise(resolve => setTimeout(resolve, 100)); // Small delay for re-render
+
+    const canvas = await html2canvas(reportContentElement, {
+      scale: 1.5, // REDUCED scale for smaller file size, adjust as needed (1 or 1.5)
+      useCORS: true, // If you have external images/resources
+      logging: true, // For debugging
+      // windowWidth: 800, // Experiment with forcing a width if layout is still too wide
+    });
+
+    const imgData = canvas.toDataURL('image/png');
+    // const imgData = canvas.toDataURL('image/jpeg', 0.7); // ALTERNATIVE: JPEG for smaller size but lossy
+
+    const pdf = new jsPDF({
+      orientation: 'p', // portrait
+      unit: 'pt', // points
+      format: 'a4', // A4 paper
+    });
+
+    const pageMargin = 40; // Points
+    const pdfWidth = pdf.internal.pageSize.getWidth() - (pageMargin * 2);
+    const pdfHeight = pdf.internal.pageSize.getHeight() - (pageMargin * 2);
+
+    const imgProps = pdf.getImageProperties(imgData);
+    const aspectRatio = imgProps.width / imgProps.height;
+
+    const imgRenderHeight = pdfWidth / aspectRatio;
+    const currentPosition = pageMargin;
+
+    if (imgRenderHeight <= pdfHeight) {
+      // Image fits on one page (or less)
+      pdf.addImage(imgData, 'PNG', pageMargin, currentPosition, pdfWidth, imgRenderHeight);
+    } else {
+      // Image is taller than one page, needs pagination
+      let remainingImgHeight = imgProps.height;
+      let srcY = 0; // Y-coordinate in the source canvas
+
+      while (remainingImgHeight > 0) {
+        const pageChunkHeight = Math.min(remainingImgHeight, (pdfHeight / pdfWidth) * imgProps.width);
+        const pageCanvas = document.createElement('canvas');
+        pageCanvas.width = imgProps.width;
+        pageCanvas.height = pageChunkHeight;
+        const ctx = pageCanvas.getContext('2d');
+        ctx?.drawImage(canvas, 0, srcY, imgProps.width, pageChunkHeight, 0, 0, imgProps.width, pageChunkHeight);
+
+        const pageImgData = pageCanvas.toDataURL('image/png');
+        pdf.addImage(pageImgData, 'PNG', pageMargin, pageMargin, pdfWidth, pdfHeight * (pageChunkHeight / ((pdfHeight / pdfWidth) * imgProps.width)) ); // Scale to fit page height if chunk is smaller
+
+        remainingImgHeight -= pageChunkHeight;
+        srcY += pageChunkHeight;
+        if (remainingImgHeight > 0) {
+          pdf.addPage();
+        }
+      }
+    }
+
+    const filename = `BaoCao_${selectedYear.value}${selectedMonthForDetail.value ? `_T${selectedMonthForDetail.value}` : ''}_${dayjs().format('YYYYMMDDHHmmss')}.pdf`;
+    pdf.save(filename);
+    $q.notify({ type: 'positive', message: 'Đã xuất báo cáo thành công!' });
+  } catch (error) {
+    console.error('Lỗi khi xuất PDF:', error);
+    $q.notify({ type: 'negative', message: 'Có lỗi xảy ra khi xuất PDF.' });
+  } finally {
+    reportContentElement.classList.remove('pdf-export-mode'); // Clean up class
+    pdfExportLoading.value = false;
+    $q.loading.hide();
+  }
 };
 
 onMounted(() => {

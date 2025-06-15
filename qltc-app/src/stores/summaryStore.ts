@@ -43,7 +43,11 @@ export const useSummaryStore = defineStore('summaries', () => {
   const memberBreakdownLoading = ref(false);
   const memberBreakdownError = ref<string | null>(null);
 
-  const loadTotalsSummary = async (periodType: PeriodType, year?: number) => {
+  const loadTotalsSummary = async (
+    periodType: PeriodType,
+    year?: number,
+    transactionType?: 'expense' | 'all' // Added transactionType
+  ) => {
     if (!authStore.isAuthenticated) {
       totalsSummaryError.value = 'Người dùng chưa được xác thực.';
       totalsSummary.value = null;
@@ -56,6 +60,9 @@ export const useSummaryStore = defineStore('summaries', () => {
       const query: GetTotalsSummaryQueryDto = {
         periodType,
         year: year || dayjs().year(), // Default to current year if not provided
+      };
+      if (transactionType) {
+        query.transactionType = transactionType;
       };
       console.log('[SummaryStore] Fetching totals summary with query:', query);
       const data = await fetchTotalsSummaryAPI(query);
@@ -89,6 +96,7 @@ export const useSummaryStore = defineStore('summaries', () => {
     parentCategoryId?: string,
     categoryIds?: string[], // Added for global category filter
     memberIds?: string[],   // Added for global member filter
+    transactionType?: 'expense' | 'all' // Added transactionType
   ) => {
     if (!authStore.isAuthenticated) {
       categoryBreakdownError.value = 'Người dùng chưa được xác thực.';
@@ -125,6 +133,9 @@ export const useSummaryStore = defineStore('summaries', () => {
       if (memberIds && memberIds.length > 0) { // Add memberIds to query
         query.memberIds = memberIds;
       }
+      if (transactionType) {
+        query.transactionType = transactionType;
+      }
 
       console.log('[SummaryStore] Fetching category breakdown with query:', query);
       const data = await fetchCategoryBreakdownAPI(query);
@@ -155,6 +166,7 @@ export const useSummaryStore = defineStore('summaries', () => {
     year: number,
     categoryIds?: string[],
     memberIds?: string[], // Added for global member filter
+    transactionType?: 'expense' | 'all' // Added transactionType
   ) => {
     if (!authStore.isAuthenticated) {
       budgetTrendError.value = 'Người dùng chưa được xác thực.';
@@ -174,6 +186,9 @@ export const useSummaryStore = defineStore('summaries', () => {
       }
       if (memberIds && memberIds.length > 0) { // Add memberIds to query
         query.memberIds = memberIds;
+      }
+      if (transactionType) {
+        query.transactionType = transactionType;
       }
 
       console.log('[SummaryStore] Fetching budget trend with query:', query);
@@ -206,6 +221,7 @@ export const useSummaryStore = defineStore('summaries', () => {
     month?: number,
     quarter?: number,
     memberIds?: string[], // Added for global member filter
+    transactionType?: 'expense' | 'all' // Added transactionType
   ) => {
     if (!authStore.isAuthenticated) {
       memberBreakdownError.value = 'Người dùng chưa được xác thực.';
@@ -224,6 +240,9 @@ export const useSummaryStore = defineStore('summaries', () => {
       if (quarter !== undefined) query.quarter = quarter;
       if (memberIds && memberIds.length > 0) { // Add memberIds to query
         query.memberIds = memberIds;
+      }
+      if (transactionType) {
+        query.transactionType = transactionType;
       }
 
       console.log('[SummaryStore] Fetching member breakdown with query:', query);
