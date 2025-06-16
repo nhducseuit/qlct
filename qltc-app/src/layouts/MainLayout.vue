@@ -1,6 +1,6 @@
 <template>
   <q-layout view="lHh Lpr lFf">
-    <q-header elevated>
+    <q-header elevated class="bg-primary text-white">
       <q-toolbar>
         <q-btn
           flat
@@ -12,7 +12,7 @@
         />
 
         <q-toolbar-title>
-          Công cụ quản lý chi tiêu gia đình nhỏ xinh ( ´ ω ` )
+          {{ currentRouteTitle }}
         </q-toolbar-title>
 
         <div v-if="authStore.isAuthenticated && authStore.user" class="q-mr-md">
@@ -35,7 +35,7 @@
         </q-item-label>
 
         <EssentialLink
-          v-for="link in linksList"
+          v-for="link in filteredLinksList"
           :key="link.title"
           v-bind="link"
         />
@@ -52,8 +52,10 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue';
 import { useAuthStore } from 'src/stores/authStore';
+import { useRoute } from 'vue-router'; // Import useRoute
 import EssentialLink, { type EssentialLinkProps } from 'components/EssentialLink.vue';
 
+const route = useRoute(); // Get current route
 const authStore = useAuthStore();
 
 const isDevMode = computed(() => import.meta.env.DEV);
@@ -89,11 +91,28 @@ const linksList: EssentialLinkProps[] = [
     icon: 'sym_o_monitoring', // Or 'bar_chart', 'analytics'
     link: { name: 'Reports' }
   },
+  {
+    title: 'Cân đối & Quyết toán',
+    caption: 'Quản lý nợ và quyết toán',
+    icon: 'sym_o_account_balance',
+    link: { name: 'Settlements' },
+  },
 ];
+const filteredLinksList = computed(() => {
+  return linksList.filter(link => {
+    // Check if link.link is an object and has a 'name' property
+    const linkName = (typeof link.link === 'object' && link.link !== null && 'name' in link.link) ? link.link.name : null;
+    return !(linkName === 'Auth' && authStore.isAuthenticated);
+  });
+});
+
 
 const leftDrawerOpen = ref(false);
 
 function toggleLeftDrawer () {
   leftDrawerOpen.value = !leftDrawerOpen.value;
 }
+
+// Update toolbar title based on current route meta
+const currentRouteTitle = computed(() => route.meta.title as string || 'QL Thu Chi - Nâng bước tài chính nhà ta ( ´ ω ` )');
 </script>

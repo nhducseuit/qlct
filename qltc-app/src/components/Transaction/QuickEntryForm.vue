@@ -1,5 +1,5 @@
 <template>
-  <q-page padding class="q-pa-md">
+  <q-page padding class="q-pa-md" style="padding-bottom: 60px;"> <!-- Increased bottom padding -->
     <q-form @submit.prevent="onSubmit" ref="entryForm" class="q-gutter-md">
       <div class="text-h6 q-mb-md">Thêm khoản chi tiêu / thu nhập mới</div>
 

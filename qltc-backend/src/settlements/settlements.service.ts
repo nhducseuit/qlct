@@ -5,6 +5,9 @@ import { BalancesResponseDto } from './dto/balances-response.dto';
 import { Prisma } from '@generated/prisma'; // Import Prisma
 import { DetailedMemberBalanceDto } from './dto/member-balance.dto'; // Import directly
 import { CreateSettlementDto } from './dto/create-settlement.dto';
+import { SettlementDto, SettlementMemberDto } from './dto/settlement.dto'; // Import SettlementDto
+import { GetSettlementsQueryDto } from './dto/get-settlements-query.dto';
+import { PaginatedSettlementsResponseDto, PaginationMetaDto } from './dto/paginated-settlements-response.dto';
 // Remove unused Prisma types if not directly used as function param/return types
 // import { Transaction, HouseholdMember } from '@generated/prisma';
 
@@ -131,7 +134,7 @@ export class SettlementsService {
     return { balances: finalBalances };
   }
 
-  async createSettlement(userId: string, createSettlementDto: CreateSettlementDto): Promise<any> { // Return type will be SettlementDto
+  async createSettlement(userId: string, createSettlementDto: CreateSettlementDto): Promise<SettlementDto> {
     console.log('Recording settlement for user:', userId, 'with data:', createSettlementDto);
 
     // Basic validation: Payer and Payee must be different
@@ -153,18 +156,131 @@ export class SettlementsService {
         throw new BadRequestException('Invalid Payer or Payee member ID(s) or members are not active.');
     }
 
+    console.log('DTO received:', JSON.stringify(createSettlementDto, null, 2));
+    // Explicitly construct the data object for Prisma
+    const dataForPrisma = {
+      payerId: createSettlementDto.payerId,
+      payeeId: createSettlementDto.payeeId,
+      amount: createSettlementDto.amount,
+      date: new Date(createSettlementDto.date),
+      note: createSettlementDto.note === undefined ? null : createSettlementDto.note,
+      userId,
+    };
+
+    console.log('Data for Prisma create:', JSON.stringify(dataForPrisma, null, 2));
     const settlement = await this.prisma.settlement.create({
-      data: {
-        ...createSettlementDto,
-        userId,
-        date: new Date(createSettlementDto.date), // Convert ISO string to Date object
-      },
-      include: { // Include related data for the response DTO
-        payer: { select: { id: true, name: true } },
-        payee: { select: { id: true, name: true } },
-      },
+      data: dataForPrisma
+      // Temporarily remove include to isolate the issue.
+      // If this works, we'll need to fetch payer/payee details separately for the response.
     });
-    // TODO: Map Prisma Settlement object to SettlementDto
-    return settlement; // For now, return the Prisma object directly
+    // Map Prisma Settlement object to SettlementDto
+    const mappedSettlement: SettlementDto = {
+      id: settlement.id,
+      amount: settlement.amount,
+      date: settlement.date.toISOString(),
+      note: settlement.note,
+      payerId: settlement.payerId,
+      // Payer and Payee details will be missing if include is removed.
+      // We'd need to fetch them separately if this temporary fix works.
+      payer: { id: settlement.payerId, name: 'N/A' }, // Placeholder
+      payeeId: settlement.payeeId,
+      payee: { id: settlement.payeeId, name: 'N/A' }, // Placeholder
+      userId: settlement.userId,
+      createdAt: settlement.createdAt.toISOString(),
+      updatedAt: settlement.updatedAt.toISOString(),
+    };
+
+    // If the create operation succeeds without `include`,
+    // fetch payer and payee details separately to populate the DTO fully.
+    // This part is conditional on the above `create` call succeeding.
+    try {
+      const payerDetails = await this.prisma.householdMember.findUnique({
+        where: { id: settlement.payerId },
+        select: { name: true },
+      });
+      const payeeDetails = await this.prisma.householdMember.findUnique({
+        where: { id: settlement.payeeId },
+        select: { name: true },
+      });
+      mappedSettlement.payer.name = payerDetails?.name || 'Không rõ';
+      mappedSettlement.payee.name = payeeDetails?.name || 'Không rõ';
+    } catch (fetchError) {
+      console.error('Failed to fetch payer/payee details after settlement creation:', fetchError);
+      // Keep placeholder names if fetching details fails.
+    }
+    return mappedSettlement;
+  }
+
+  async getSettlements(
+    userId: string,
+    query: GetSettlementsQueryDto,
+  ): Promise<PaginatedSettlementsResponseDto> {
+    console.log('Fetching settlements for user:', userId, 'with query:', query);
+
+    const { page = 1, limit = 10, payerId, payeeId, startDate, endDate } = query;
+    const skip = (page - 1) * limit;
+
+    const whereClause: Prisma.SettlementWhereInput = {
+      userId,
+    };
+
+    if (payerId) {
+      whereClause.payerId = payerId;
+    }
+    if (payeeId) {
+      whereClause.payeeId = payeeId;
+    }
+    if (startDate) {
+      if (typeof whereClause.date !== 'object' || whereClause.date === null) {
+        whereClause.date = {};
+      }
+      (whereClause.date as Prisma.DateTimeFilter).gte = new Date(startDate);
+    }
+    if (endDate) {
+      if (typeof whereClause.date !== 'object' || whereClause.date === null) {
+        whereClause.date = {};
+      }
+      (whereClause.date as Prisma.DateTimeFilter).lte = new Date(endDate);
+    }
+
+    const [settlements, totalItems] = await this.prisma.$transaction([
+      this.prisma.settlement.findMany({
+        where: whereClause,
+        include: {
+          payer: { select: { id: true, name: true } },
+          payee: { select: { id: true, name: true } },
+        },
+        orderBy: {
+          date: 'desc', // Default sort by date descending
+        },
+        skip,
+        take: limit,
+      }),
+      this.prisma.settlement.count({ where: whereClause }),
+    ]);
+
+    const items: SettlementDto[] = settlements.map(s => ({
+      id: s.id,
+      amount: s.amount,
+      date: s.date.toISOString(),
+      note: s.note,
+      payerId: s.payerId,
+      payer: s.payer as SettlementMemberDto,
+      payeeId: s.payeeId,
+      payee: s.payee as SettlementMemberDto,
+      userId: s.userId,
+      createdAt: s.createdAt.toISOString(),
+      updatedAt: s.updatedAt.toISOString(),
+    }));
+
+    const meta: PaginationMetaDto = {
+      totalItems,
+      itemCount: items.length,
+      itemsPerPage: limit,
+      totalPages: Math.ceil(totalItems / query.limit!),
+      currentPage: page,
+    };
+
+    return { items, meta };
   }
 }

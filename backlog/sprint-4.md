@@ -19,22 +19,22 @@
         *   DTOs: `CreateSettlementDto`, `SettlementDto`.
     - [ ] **Settlement History API:** (Next)
         *   Endpoint: `GET /settlements/history` (or similar)
-        *   Objective: Retrieve a list of past settlement transactions.
+        *   Objective: Retrieve a list of past settlement transactions. (Backend Done)
         *   DTOs: `GetSettlementHistoryQueryDto`, `SettlementHistoryResponseDto`.
     - [x] **Data Model (Prisma):**
         *   [x] Define a new `Settlement` model (columns: `id`, `payerId`, `payeeId`, `amount`, `date`, `note`, `userId`).
         *   [ ] Ensure `Transaction` and `HouseholdMember` models adequately support balancing logic.
 
 ### 2. Frontend UI/UX (New "Settlements" or "Balances" Page):
-    - [ ] **Display Balances View:**
+    - [x] **Display Balances View:** (Implemented, language refined)
         *   Clearly show who owes whom and the respective amounts (e.g., "You owe Member X: $Y", "Member Z owes you: $W").
         *   Consider how to present a summary of all interpersonal debts.
-    - [ ] **Record Settlement UI:**
+    - [x] **Record Settlement UI:** (Dialog implemented and integrated)
         *   A form/dialog to input settlement details (payer, payee, amount, date, note).
         *   This UI will interact with the `POST /settlements` API.
-    - [ ] **Settlement History View:**
+    - [ ] **Settlement History View:** (Component created, integration next)
         *   Display a chronological list of recorded settlements.
-    - [ ] **Store Logic (Pinia - `settlementStore.ts`):**
+    - [x] **Store Logic (Pinia - `settlementStore.ts`):** (Implemented for balances, creation, history)
         *   Create a new store to manage settlement-related state and API calls.
 
 ### 3. Core Logic:
