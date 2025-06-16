@@ -22,6 +22,7 @@ model User {
   transactions     Transaction[]
   householdMembers HouseholdMember[]
   predefinedSplitRatios PredefinedSplitRatio[] // Added inverse relation
+  settlements      Settlement[] // Opposite relation for Settlement.user
 }
 
 model Category {
@@ -79,6 +80,9 @@ model HouseholdMember {
 
   userId String
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  paidSettlements     Settlement[] @relation("PaidSettlements") // Opposite relation for Settlement.payer
+  receivedSettlements Settlement[] @relation("ReceivedSettlements") // Opposite relation for Settlement.payee
 }
 
 model PredefinedSplitRatio {
@@ -93,4 +97,27 @@ model PredefinedSplitRatio {
 
   @@unique([userId, name]) // Ensure unique name per user
   @@index([userId])
+}
+
+model Settlement {
+  id        String   @id @default(uuid())
+  amount    Float
+  date      DateTime @db.Timestamptz(3) // Use Timestamptz for consistency with Transaction dates
+  note      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relationships
+  payerId String // The member who paid in this settlement
+  payer   HouseholdMember @relation("PaidSettlements", fields: [payerId], references: [id])
+
+  payeeId String // The member who received the payment in this settlement
+  payee   HouseholdMember @relation("ReceivedSettlements", fields: [payeeId], references: [id])
+
+  userId String // Link settlement to a specific user/household
+  user   User   @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([payerId])
+  @@index([payeeId])
 }

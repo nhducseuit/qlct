@@ -43,6 +43,13 @@ The project is now ready to move into Sprint 3. The immediate next focus will li
             *   Ensured the "Payer" field retains its value after a successful transaction addition.
         *   **Reporting:** Implemented a user-controlled global filter (checkbox) to exclude/include income transactions from all reports, with backend services updated to respect this filter. Income aggregation logic in `CategoryBreakdown` and `MemberBreakdown` services was corrected to display income when not excluded.
         *   **PDF Export:** Added client-side PDF export functionality for reports using `jspdf` and `html2canvas`, including layout adjustments for A4 portrait and basic pagination. Optimized image scale and provided print-specific CSS for better PDF output and reduced file size.
+
+*   **Sprint 4 (Shared Expense Balancing & Settlements)** - In Progress:
+    *   **Backend:**
+        *   Defined `Settlement` data model in Prisma schema, including relationships with `User` and `HouseholdMember`.
+        *   Implemented API endpoint (`GET /settlements/balances`) and service logic to calculate net balances between household members. The calculation considers shared transactions, their split ratios, and adjusts for any previously recorded settlements.
+        *   Implemented API endpoint (`POST /settlements`) and service logic to record new settlements between members, including validation for payer/payee and active status.
+        *   Created necessary DTOs (`MemberBalanceDto`, `DetailedMemberBalanceDto`, `BalancesResponseDto`, `CreateSettlementDto`, `SettlementDto`) for these operations.
 **Next Sprints:**
 *   Sprint 4: Shared Expense Balancing & Settlements
 *   Sprint 5: AI & remaining UI enhancements
