@@ -5,6 +5,10 @@ WORKDIR /usr/src/app
 COPY package*.json ./
 RUN npm install
 COPY . .
+
+# Add this before your Prisma-related commands or application setup
+RUN apk add --no-cache openssl-dev
+
 # Generate Prisma client to src/generated/prisma first, so tsc can use it
 RUN npx prisma generate 
 RUN npm run build # This compiles src/* (including src/generated/prisma) to dist/*
@@ -14,6 +18,10 @@ RUN npx tsc prisma/seed.ts --outDir dist/seed --esModuleInterop --resolveJsonMod
 # Stage 2: Create the production image
 FROM node:18-alpine
 WORKDIR /usr/src/app
+
+# Explicitly install openssl and openssl-dev in the final stage for diagnostics
+# and to ensure all necessary libraries are available for Prisma's engine.
+RUN apk add --no-cache openssl openssl-dev
 COPY --from=builder /usr/src/app/dist ./dist
 # We will reinstall production dependencies to ensure a clean state
 COPY --from=builder /usr/src/app/package*.json ./
