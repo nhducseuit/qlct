@@ -32,6 +32,7 @@ export interface GetCategoryBreakdownQueryDto {
   categoryIds?: string[]; // Added for global category filter
   memberIds?: string[];   // Added for global member filter
   transactionType?: 'expense' | 'all';
+  isStrictMode?: boolean; // Optional: For strict member filtering
 }
 
 // Matches CategoryBreakdownItemDto from backend
@@ -57,6 +58,7 @@ export interface GetMemberBreakdownQueryDto {
   quarter?: number;
   memberIds?: string[];   // Added for global member filter
   transactionType?: 'expense' | 'all';
+  isStrictMode?: boolean; // Optional: For strict member filtering
 }
 
 // Matches MemberBreakdownItemDto from backend
@@ -125,6 +127,7 @@ export interface GetBudgetTrendQueryDto {
   categoryIds?: string[];
   memberIds?: string[];   // Added for global member filter
   transactionType?: 'expense' | 'all';
+  isStrictMode?: boolean; // Optional: For strict member filtering
 }
 
 // Matches BudgetTrendItemDto from backend

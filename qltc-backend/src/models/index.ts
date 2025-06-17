@@ -22,6 +22,11 @@ export interface Category {
   updatedAt: Date;
 }
 
+export interface SplitRatioItem {
+  memberId: string;
+  percentage: number;
+}
+
 export interface Transaction {
   id: string; // UUID
   userId: string; // Foreign key to User table
@@ -32,13 +37,12 @@ export interface Transaction {
   type: 'income' | 'expense';
   // Payer information might be more complex in a multi-user system.
   // For simplicity, if 'payer' refers to one of the household members linked to the 'userId' account,
-  // this might need a different structure or be handled via splitRatio.
-  // Let's assume 'payer' is a simple string for now, representing who initiated within the user's account.
-  payer?: 'Chồng' | 'Vợ' | string | null; // Could be specific user sub-identifier or role
+  // this will store the HouseholdMember ID.
+  payer?: string | null; 
   isShared: boolean;
   // splitRatio could reference other user IDs within a shared group in a more advanced system.
-  // For now, it's a string like "50/50" or "payerName:percentage"
-  splitRatio?: string | null;
+  splitRatio?: SplitRatioItem[] | null; // Updated to be an array of objects
+  predefinedSplitRatioId?: string | null; // For linking to a PredefinedSplitRatio
   createdAt: Date;
   updatedAt: Date;
 }

@@ -8,9 +8,9 @@ export interface Transaction {
   payer?: string | null; // userId of the user who made the payment/received income. Null if not applicable or system-level.
   isShared: boolean; // Default: false
   splitRatio?: SplitRatioItem[] | null; // Updated to match backend and NewTransactionData
-  userId?: string; // Added: Foreign key to User, set by backend
-  createdAt?: string; // Added: ISO 8601 string, set by backend
-  updatedAt?: string; // Added: ISO 8601 string, set by backend
+  userId: string; // Foreign key to User, set by backend (assuming it's always present on fetched Transaction)
+  createdAt: string | Date; // ISO 8601 string or Date object
+  updatedAt: string | Date; // ISO 8601 string or Date object
 }
 
 // In src/stores/transactionStore.ts

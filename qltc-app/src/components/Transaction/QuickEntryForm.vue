@@ -1,47 +1,7 @@
 <template>
-  <q-page padding class="q-pa-md" style="padding-bottom: 60px;"> <!-- Increased bottom padding -->
+  <q-page padding class="q-pa-md" style="padding-bottom: 80px;"> <!-- Increased bottom padding -->
     <q-form @submit.prevent="onSubmit" ref="entryForm" class="q-gutter-md">
       <div class="text-h6 q-mb-md">Thêm khoản chi tiêu / thu nhập mới</div>
-
-      <!-- Task 3.2: Danh mục "Chọn nhanh" -->
-      <div class="q-mb-md">
-        <div class="text-subtitle1">Chọn nhanh:</div>
-        <q-scroll-area horizontal style="height: 100px; max-width: 100%;">
-          <div class="row no-wrap q-gutter-sm q-pa-xs">
-            <q-btn
-              v-for="cat in pinnedCategories"
-              :key="cat.id"
-              :icon="cat.icon ? undefined : 'sym_o_label'"
-              :color="form.categoryId === cat.id ? 'primary' : 'grey-7'"
-              :label="cat.name"
-              size="sm"
-              unelevated
-              no-caps
-              @click="selectCategory(cat.id)"
-            >
-              <TablerIcon v-if="cat.icon" :name="cat.icon" class="q-mr-sm" />
-            </q-btn>
-            <div v-if="!pinnedCategories.length" class="text-grey-7">
-              Chưa có danh mục nào được ghim.
-            </div>
-          </div>
-        </q-scroll-area>
-      </div>
-
-      <!-- Task 3.3: Chọn danh mục đầy đủ -->
-      <q-select
-        filled
-        v-model="form.categoryId"
-        :options="categoryOptions"
-        label="Hoặc chọn danh mục"
-        emit-value
-        map-options
-        option-value="id"
-        option-label="name"
-        :rules="[val => !!val || 'Vui lòng chọn danh mục']"
-        clearable
-        @update:model-value="onCategorySelected"
-      />
 
       <!-- Task 3.4: Chọn ngày -->
       <q-input
@@ -75,6 +35,41 @@
         </template>
       </q-input>
 
+      <!-- Task 3.6: Input ghi chú -->
+      <q-input
+        filled
+        v-model="form.note"
+        label="Ghi chú (không bắt buộc)"
+        type="textarea"
+        autogrow
+      />
+
+      <!-- Task 3.2: Danh mục "Chọn nhanh" -->
+      <div class="q-mb-md">
+        <div class="text-subtitle1">Chọn nhanh danh mục:</div>
+        <q-scroll-area horizontal style="height: 100px; max-width: 100%;">
+          <div class="row no-wrap q-gutter-sm q-pa-xs">
+            <q-btn
+              v-for="cat in pinnedCategories"
+              :key="cat.id"
+              :icon="cat.icon ? undefined : 'sym_o_label'"
+              :color="form.categoryId === cat.id ? 'primary' : 'grey-7'"
+              :label="cat.name"
+              size="sm"
+              unelevated
+              no-caps
+              @click="selectCategory(cat.id)"
+            >
+              <TablerIcon v-if="cat.icon" :name="cat.icon" class="q-mr-sm" />
+            </q-btn>
+            <div v-if="!pinnedCategories.length" class="text-grey-7">
+              Chưa có danh mục nào được ghim.
+            </div>
+          </div>
+        </q-scroll-area>
+      </div>
+
+      <!-- Task 3.3: Chọn danh mục đầy đủ -->
       <!-- Task 3.12: Chọn loại giao dịch (Thu/Chi) -->
       <div class="q-mt-md">
         <div class="text-subtitle2 q-mb-xs">Loại giao dịch:</div>
@@ -89,13 +84,18 @@
         />
       </div>
 
-      <!-- Task 3.6: Input ghi chú -->
-      <q-input
+      <q-select
         filled
-        v-model="form.note"
-        label="Ghi chú (không bắt buộc)"
-        type="textarea"
-        autogrow
+        v-model="form.categoryId"
+        :options="categoryOptions"
+        label="Hoặc chọn danh mục từ danh sách"
+        emit-value
+        map-options
+        option-value="id"
+        option-label="name"
+        :rules="[val => !!val || 'Vui lòng chọn danh mục']"
+        clearable
+        @update:model-value="onCategorySelected"
       />
 
       <!-- Task 3.7: Lựa chọn "Ai chi" -->

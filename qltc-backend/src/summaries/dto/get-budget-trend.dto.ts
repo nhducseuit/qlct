@@ -1,5 +1,5 @@
 // src/summaries/dto/get-budget-trend.dto.ts
-import { IsEnum, IsInt, IsOptional, Max, Min, IsUUID, IsArray, IsString, IsIn } from 'class-validator';
+import { IsEnum, IsInt, IsOptional, Max, Min, IsUUID, IsArray, IsString, IsIn, IsBoolean } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type, Transform } from 'class-transformer';
 import { PeriodType } from './get-totals-summary.dto'; // Reuse PeriodType
@@ -79,4 +79,15 @@ export class GetBudgetTrendQueryDto {
   @IsString()
   @IsIn(['expense', 'all'])
   transactionType?: 'expense' | 'all';
+
+  @ApiPropertyOptional({
+    type: Boolean,
+    description: "Optional: Apply strict mode filtering for members. Send 'true' or 'false' as a string. If true, only transactions where ALL selected members participated are included, and only their share of the amount is counted.",
+  })
+  @IsOptional()
+  @IsString()
+  @IsIn(['true', 'false'], {
+    message: "isStrictMode must be either 'true' or 'false'",
+  })
+  isStrictMode?: string; // Changed to string
 }

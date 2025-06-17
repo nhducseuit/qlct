@@ -96,7 +96,8 @@ export const useSummaryStore = defineStore('summaries', () => {
     parentCategoryId?: string,
     categoryIds?: string[], // Added for global category filter
     memberIds?: string[],   // Added for global member filter
-    transactionType?: 'expense' | 'all' // Added transactionType
+    transactionType?: 'expense' | 'all', // Added transactionType
+    isStrictMode?: boolean // Added for strict member filtering
   ) => {
     if (!authStore.isAuthenticated) {
       categoryBreakdownError.value = 'Người dùng chưa được xác thực.';
@@ -136,6 +137,9 @@ export const useSummaryStore = defineStore('summaries', () => {
       if (transactionType) {
         query.transactionType = transactionType;
       }
+      if (isStrictMode !== undefined) { // Pass strict mode flag
+        query.isStrictMode = isStrictMode;
+      }
 
       console.log('[SummaryStore] Fetching category breakdown with query:', query);
       const data = await fetchCategoryBreakdownAPI(query);
@@ -166,7 +170,8 @@ export const useSummaryStore = defineStore('summaries', () => {
     year: number,
     categoryIds?: string[],
     memberIds?: string[], // Added for global member filter
-    transactionType?: 'expense' | 'all' // Added transactionType
+    transactionType?: 'expense' | 'all', // Added transactionType
+    isStrictMode?: boolean // Added for strict member filtering
   ) => {
     if (!authStore.isAuthenticated) {
       budgetTrendError.value = 'Người dùng chưa được xác thực.';
@@ -189,6 +194,9 @@ export const useSummaryStore = defineStore('summaries', () => {
       }
       if (transactionType) {
         query.transactionType = transactionType;
+      }
+      if (isStrictMode !== undefined) { // Pass strict mode flag
+        query.isStrictMode = isStrictMode;
       }
 
       console.log('[SummaryStore] Fetching budget trend with query:', query);
@@ -221,7 +229,8 @@ export const useSummaryStore = defineStore('summaries', () => {
     month?: number,
     quarter?: number,
     memberIds?: string[], // Added for global member filter
-    transactionType?: 'expense' | 'all' // Added transactionType
+    transactionType?: 'expense' | 'all', // Added transactionType
+    isStrictMode?: boolean // Added for strict member filtering
   ) => {
     if (!authStore.isAuthenticated) {
       memberBreakdownError.value = 'Người dùng chưa được xác thực.';
@@ -243,6 +252,9 @@ export const useSummaryStore = defineStore('summaries', () => {
       }
       if (transactionType) {
         query.transactionType = transactionType;
+      }
+      if (isStrictMode !== undefined) { // Pass strict mode flag
+        query.isStrictMode = isStrictMode;
       }
 
       console.log('[SummaryStore] Fetching member breakdown with query:', query);

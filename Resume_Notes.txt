@@ -42,7 +42,13 @@ The project is now ready to move into Sprint 3. The immediate next focus will li
             *   Fixed issue preventing falsy validation errors after successful transaction addition by using `nextTick`.
             *   Ensured the "Payer" field retains its value after a successful transaction addition.
         *   **Reporting:** Implemented a user-controlled global filter (checkbox) to exclude/include income transactions from all reports, with backend services updated to respect this filter. Income aggregation logic in `CategoryBreakdown` and `MemberBreakdown` services was corrected to display income when not excluded.
+        *   **Reporting (Strict Mode & Filters):**
+            *   Resolved issues with the initial default view of the reports page (Strict Mode OFF, no member filters) now correctly displaying data. This involved ensuring the frontend consistently sends `isStrictMode=false` and the backend correctly interprets this parameter, including changing DTOs to accept `isStrictMode` as a string (`"true"`/`"false"`) and parsing it explicitly in the service layer to avoid DTO transformation ambiguities.
+            *   Corrected budget trend chart calculations to accurately reflect member-specific expense portions when member filters are active in non-strict mode.
+            *   Fixed frontend error "Cannot read properties of null (reading 'length')" when no members were selected with strict mode active by adding null checks in `ReportsPage.vue`.
+            *   Most strict mode test cases (TC3.x series) are now passing, with the UI correctly displaying "No data" messages when the filtering logic results in an empty dataset as per test case definitions.
         *   **PDF Export:** Added client-side PDF export functionality for reports using `jspdf` and `html2canvas`, including layout adjustments for A4 portrait and basic pagination. Optimized image scale and provided print-specific CSS for better PDF output and reduced file size.
+        *   **UI (Reports Page):** Improved layout of global filter action buttons, preventing the "View Report" button from appearing square.
 
 *   **Sprint 4 (Shared Expense Balancing & Settlements)** - In Progress:
     *   **Backend:**

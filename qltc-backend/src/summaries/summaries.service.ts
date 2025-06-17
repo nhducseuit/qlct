@@ -13,16 +13,90 @@ import { BudgetComparisonItemDto, BudgetComparisonResponseDto, BudgetStatus } fr
 import { GetBudgetTrendQueryDto } from './dto/get-budget-trend.dto';
 import { BudgetTrendItemDto, BudgetTrendResponseDto } from './dto/budget-trend-response.dto';
 import { Prisma } from '@generated/prisma'; // Import Prisma
-import dayjs from 'dayjs';
-import quarterOfYear from 'dayjs/plugin/quarterOfYear';
-import isBetween from 'dayjs/plugin/isBetween'; // Import isBetween plugin
-
-dayjs.extend(quarterOfYear);
-dayjs.extend(isBetween); // Extend dayjs with isBetween plugin
+import type { Transaction } from '@generated/prisma';
+import dayjs from '../utils/dayjs'; // Import the configured dayjs instance
 
 @Injectable()
 export class SummariesService {
   constructor(private readonly prisma: PrismaService) {}
+  /**
+   * Define the expected structure of the splitRatio JSON stored in the database.
+   */
+  private parseSplitRatio(splitRatioJson: Prisma.JsonValue | null): Array<{ memberId: string; percentage: number }> | null {
+    if (splitRatioJson === null || splitRatioJson === undefined) {
+      return null;
+    }
+    try {
+      const parsed = typeof splitRatioJson === 'string' ? JSON.parse(splitRatioJson) : splitRatioJson;
+      if (Array.isArray(parsed) && parsed.every(item =>
+        typeof item === 'object' && item !== null &&
+        typeof item.memberId === 'string' &&
+        typeof item.percentage === 'number'
+      )) {
+        return parsed as Array<{ memberId: string; percentage: number }>;
+      }
+      console.warn('Invalid splitRatio format:', parsed);
+      return null;
+    } catch (e) {
+      console.error('Failed to parse splitRatio JSON:', splitRatioJson, e);
+      return null;
+    }
+  }
+
+  /**
+   * Applies strict mode filtering and amount adjustment to a list of transactions.
+   * In strict mode, only shared expense transactions where ALL selected members
+   * are in the splitRatio are included. The amount is adjusted to be the sum
+   * of the shares of the selected members based on their original percentages.
+   * Non-shared expenses and incomes are excluded.
+   */
+  private applyStrictMode(
+    transactions: Transaction[], // Prisma's Transaction type
+    selectedMemberIds: string[], // Must be provided if isStrictMode is true
+  ): Transaction[] {
+    const filteredAndAdjusted: Transaction[] = [];
+    for (const transaction of transactions) {
+      if (transaction.type === 'expense' && transaction.isShared) {
+        const splitRatioArray = this.parseSplitRatio(transaction.splitRatio);
+        if (splitRatioArray && splitRatioArray.length > 0) {
+          const allSelectedMembersPresent = selectedMemberIds.every(smId =>
+            splitRatioArray.some(srItem => srItem.memberId === smId)
+          );
+          if (allSelectedMembersPresent) {
+            const selectedMembersTotalPercentage = splitRatioArray
+              .filter(srItem => selectedMemberIds.includes(srItem.memberId))
+              .reduce((sum, srItem) => sum + (srItem.percentage || 0), 0);
+
+            // Only include the transaction if the selected members' total percentage is > 0
+            if (selectedMembersTotalPercentage > 0) {
+                 const adjustedAmount = transaction.amount * (selectedMembersTotalPercentage / 100);
+                 filteredAndAdjusted.push({ ...transaction, amount: adjustedAmount });
+            } else {
+                 // If all selected members are present but their total share is 0%, exclude the transaction
+                 console.log(`[DEBUG] StrictMode - Transaction ${transaction.id} excluded: selected members present but total share is 0%.`);
+            }
+          }
+        }
+      }
+      // Non-shared expenses and incomes are excluded in strict mode.
+    }
+    return filteredAndAdjusted;
+  }
+
+  private applyNonStrictModeMemberFilter(
+    transactions: Transaction[], // Prisma's Transaction type
+    selectedMemberIds: string[],
+  ): Transaction[] {
+    return transactions.filter(transaction => {
+      if (transaction.isShared) {
+        const splitRatioArray = this.parseSplitRatio(transaction.splitRatio);
+        return splitRatioArray?.some(srItem => selectedMemberIds.includes(srItem.memberId)) || false;
+      } else { // Non-shared transaction
+        return transaction.payer ? selectedMemberIds.includes(transaction.payer) : false;
+      }
+    });
+  }
+
 
   async getTotalsSummary(
     userId: string,
@@ -136,6 +210,10 @@ export class SummariesService {
     userId: string,
     query: GetCategoryBreakdownQueryDto,
   ): Promise<CategoryBreakdownResponseDto> {
+    console.log(`[DEBUG] getCategoryBreakdown - Received Query: ${JSON.stringify(query)}`);
+    const { memberIds } = query; // Extract member and strict mode filters
+    const isStrictModeEnabled = query.isStrictMode === 'true'; // Convert string to boolean
+    console.log(`[DEBUG] getCategoryBreakdown - Received isStrictMode string: '${query.isStrictMode}', Parsed to boolean: ${isStrictModeEnabled}`);
     const year = query.year || dayjs().year();
     let startDate: Date;
     let endDate: Date;
@@ -195,58 +273,81 @@ export class SummariesService {
     // Fetch initial set of transactions based on date and category filters
     let periodTransactions = await this.prisma.transaction.findMany({
       where: transactionWhereInput,
+      // Ensure all fields required by the Transaction type are selected
       select: {
+        id: true,
         amount: true,
+        date: true,
+        note: true,
         type: true,
+        payer: true,
+        isShared: true,
+        createdAt: true,
+        updatedAt: true,
+        splitRatio: true,
+        userId: true,
         categoryId: true,
-        isShared: true, // Needed for member filtering
-        payer: true,    // Needed for member filtering
-        splitRatio: true, // Needed for member filtering
       },
     });
 
-    // Further filter transactions by selected members if memberIds are provided
-    if (query.memberIds && query.memberIds.length > 0) {
-      periodTransactions = periodTransactions.filter(tx => {
-        if (!tx.isShared) {
-          return tx.payer ? query.memberIds!.includes(tx.payer) : false;
+    console.log(`[DEBUG] getCategoryBreakdown - Period Transactions Count: ${periodTransactions.length}, For period: ${startDate.toISOString()} to ${endDate.toISOString()}`);
+    // console.log(`[DEBUG] getCategoryBreakdown - Period Transactions Content: ${JSON.stringify(periodTransactions)}`); // Uncomment for deep inspection if needed
+    console.log(`[DEBUG] getCategoryBreakdown - Values before filtering: memberIds=${JSON.stringify(memberIds)}, isStrictModeEnabled=${isStrictModeEnabled}`);
+    // Apply memberIds filter (if not strict mode) and strict mode filtering/adjustment
+    let filteredAndAdjustedTransactions = periodTransactions;
+
+    if (memberIds && memberIds.length > 0) {
+        console.log(`[DEBUG] getCategoryBreakdown - Filtering by memberIds. isStrictModeEnabled: ${isStrictModeEnabled}`);
+        if (isStrictModeEnabled) {
+            filteredAndAdjustedTransactions = this.applyStrictMode(periodTransactions, memberIds);
         } else {
-          const split = tx.splitRatio as unknown as Array<{ memberId: string; percentage: number }>;
-          return split && split.some(s => query.memberIds!.includes(s.memberId));
+            filteredAndAdjustedTransactions = this.applyNonStrictModeMemberFilter(periodTransactions, memberIds);
         }
-      });
-    };
+    } else if (isStrictModeEnabled) { 
+        // Strict mode ON but no members selected.
+        console.log('[DEBUG] Strict mode is ON, but no memberIds are selected. Filtering to empty list.');
+        filteredAndAdjustedTransactions = []; 
+    } else {
+        console.log('[DEBUG] getCategoryBreakdown - No memberId filter AND strict mode is OFF. Using all periodTransactions.');
+    }
+    console.log(`[DEBUG] getCategoryBreakdown - Filtered/Adjusted Transactions Count: ${filteredAndAdjustedTransactions.length}`);
 
     const categoryTotals: Record<string, { income: number; expense: number }> = {};
 
-    for (const t of periodTransactions) { // Use the filtered periodTransactions
+    for (const t of filteredAndAdjustedTransactions) { // Use the filtered and adjusted transactions
+      // console.log(`[DEBUG] getCategoryBreakdown - Processing transaction: ${t.id}, Amount: ${t.amount}, Type: ${t.type}, Category: ${t.categoryId}, isShared: ${t.isShared}, Payer: ${t.payer}`);
       if (!categoryTotals[t.categoryId]) {
         categoryTotals[t.categoryId] = { income: 0, expense: 0 };
       }
-      // If member filter is applied, we need to consider the portion for shared expenses
+
       let amountToConsider = t.amount;
-      if (query.memberIds && query.memberIds.length > 0 && t.isShared) {
-        const split = t.splitRatio as unknown as Array<{ memberId: string; percentage: number }>;
-        amountToConsider = 0;
-        if (split) {
-          split.forEach(s => {
-            if (query.memberIds!.includes(s.memberId)) {
-              amountToConsider += t.amount * (s.percentage / 100);
-            }
-          });
+
+      // If member filters are active AND it's NOT strict mode, recalculate amountToConsider for shared expenses
+      if (memberIds && memberIds.length > 0 && !isStrictModeEnabled) {
+        if (t.isShared) {
+          const splitRatioArray = this.parseSplitRatio(t.splitRatio);
+          if (splitRatioArray) {
+            amountToConsider = splitRatioArray
+              .filter(srItem => memberIds.includes(srItem.memberId)) // Sum shares of selected members
+              .reduce((sum, srItem) => sum + (srItem.percentage || 0), 0) * (t.amount / 100);
+          } else {
+            amountToConsider = 0; // Invalid split ratio for shared transaction
+          }
+        } else {
+          // For non-shared transactions in non-strict mode with member filter,
+          // applyNonStrictModeMemberFilter already ensured payer is selected.
+          // So, t.amount is correct. amountToConsider is already t.amount.
         }
       }
+      // If no member filters, or if it IS strict mode, t.amount is already correct (original or strict-adjusted by applyStrictMode).
 
-      // If query.transactionType is 'expense', periodTransactions only contains expenses.
-      // If query.transactionType is 'all' (or undefined), periodTransactions contains all types.
-      // This report focuses on expense breakdown, so we only sum expenses.
-      // If income were to be part of this report's display, categoryTotals and DTOs would need 'income' fields. - THIS IS NOW THE CASE
-      if (t.type === 'income') {
+      if (t.type === 'income' && amountToConsider > 0) {
         categoryTotals[t.categoryId].income += amountToConsider;
-      } else if (t.type === 'expense') {
+      } else if (t.type === 'expense' && amountToConsider > 0) {
         categoryTotals[t.categoryId].expense += amountToConsider;
       }
     }
+    console.log('[DEBUG] getCategoryBreakdown - Calculated Category Totals:', JSON.stringify(categoryTotals));
 
     // Determine the set of category IDs we need to fetch details for.
     // This will be either the globally filtered category IDs, or all categories that had transactions.
@@ -258,6 +359,7 @@ export class SummariesService {
     }
 
     if (idsForCategoryFetch.length === 0) {
+      console.log('[DEBUG] getCategoryBreakdown - No categories to display (idsForCategoryFetch is empty).');
       // No categories to display based on filters or transaction activity for the period.
       return [];
     }
@@ -307,6 +409,9 @@ export class SummariesService {
     userId: string,
     query: GetMemberBreakdownQueryDto,
   ): Promise<MemberBreakdownResponseDto> {
+    console.log(`[DEBUG] getMemberBreakdown - Received Query: ${JSON.stringify(query)}`);
+    const { memberIds, transactionType } = query;
+    const isStrictModeEnabled = query.isStrictMode === 'true'; // Convert string to boolean
     const year = query.year || dayjs().year();
     let startDate: Date;
     let endDate: Date;
@@ -339,61 +444,108 @@ export class SummariesService {
         gte: startDate,
         lte: endDate,
       },
-      // type: 'expense', // Removed hardcoded filter
-      isShared: true,
-      splitRatio: { not: Prisma.DbNull },
+      // Fetch broadly, filter by type, shared, splitRatio, payer in code
     };
 
-    if (query.transactionType === 'expense') {
+    // Apply transactionType filter from query if present
+    if (transactionType === 'expense') {
       transactionWhereInput.type = 'expense';
     }
     const transactions = await this.prisma.transaction.findMany({
       where: transactionWhereInput,
+      // Ensure all fields required by the Transaction type are selected
       select: {
+        id: true,
         amount: true,
+        date: true,
+        note: true,
         type: true,
-        splitRatio: true, // Prisma.JsonValue
-        // No need to select payer here as member breakdown is based on splitRatio of shared expenses
+        payer: true,
+        isShared: true,
+        createdAt: true,
+        updatedAt: true,
+        splitRatio: true,
+        userId: true,
+        categoryId: true,
       },
     });
 
-    const memberTotals: Record<string, { income: number; expense: number }> = {};
-
-    for (const t of transactions) {
-      const splitRatio = t.splitRatio as unknown as Array<{ memberId: string; percentage: number }>;
-      if (!splitRatio || !Array.isArray(splitRatio)) continue;
-
-      for (const split of splitRatio) {
-        if (!memberTotals[split.memberId]) {
-          memberTotals[split.memberId] = { income: 0, expense: 0 };
-        }
-        const memberPortion = t.amount * (split.percentage / 100);
-        // This report focuses on expense breakdown for members.
-        // If query.transactionType is 'expense', all 't' are expenses.
-        if (t.type === 'income') {
-          memberTotals[split.memberId].income += memberPortion;
-        } else if (t.type === 'expense') {
-          memberTotals[split.memberId].expense += memberPortion;
-        }
-      }
-    }
-
-    const memberIds = Object.keys(memberTotals);
-    const memberWhere: Prisma.HouseholdMemberWhereInput = {
-      id: { in: memberIds },
-      userId,
-      isActive: true,
-    };
-    if (query.memberIds && query.memberIds.length > 0) { // Filter output by selected members
-      memberWhere.id = { in: query.memberIds.filter(id => memberIds.includes(id)) };
-    }
-
-    const householdMembers = await this.prisma.householdMember.findMany({
-      where: memberWhere,
+    console.log(`[DEBUG] getMemberBreakdown - Initial Transactions Count: ${transactions.length}, For period: ${startDate.toISOString()} to ${endDate.toISOString()}`);
+    // console.log(`[DEBUG] getMemberBreakdown - Initial Transactions Content: ${JSON.stringify(transactions)}`); // Uncomment for deep inspection if needed
+    console.log(`[DEBUG] getMemberBreakdown - Values before filtering: memberIds=${JSON.stringify(memberIds)}, isStrictModeEnabled=${isStrictModeEnabled}`);
+    const allUserMembers = await this.prisma.householdMember.findMany({
+      where: { userId, isActive: true }, // Consider only active members by default
       select: { id: true, name: true },
     });
 
-    const result: MemberBreakdownItemDto[] = householdMembers.map(member => ({
+    const membersToReportOn = (memberIds && memberIds.length > 0)
+      ? allUserMembers.filter(m => memberIds.includes(m.id))
+      : allUserMembers; // If no specific members selected, report on all active members
+
+    const memberTotals: Record<string, { income: number; expense: number }> = {};
+    membersToReportOn.forEach(m => {
+      memberTotals[m.id] = { income: 0, expense: 0 };
+    });
+
+    let filteredAndAdjustedTransactions = transactions;
+    if (memberIds && memberIds.length > 0) {
+      console.log(`[DEBUG] getMemberBreakdown - Filtering by memberIds. isStrictModeEnabled: ${isStrictModeEnabled}`);
+      if (isStrictModeEnabled) {
+        filteredAndAdjustedTransactions = this.applyStrictMode(transactions, memberIds);
+      } else {
+        filteredAndAdjustedTransactions = this.applyNonStrictModeMemberFilter(transactions, memberIds);
+      }
+    } else if (isStrictModeEnabled) { 
+        console.log('[DEBUG] Strict mode is ON, but no memberIds are selected for MemberBreakdown. Filtering to empty list.');
+        filteredAndAdjustedTransactions = [];
+    } else {
+        console.log('[DEBUG] getMemberBreakdown - No memberId filter AND strict mode is OFF. Using all transactions.');
+    }
+    console.log(`[DEBUG] getMemberBreakdown - Filtered/Adjusted Transactions Count: ${filteredAndAdjustedTransactions.length}`);
+
+    for (const t of filteredAndAdjustedTransactions) {
+      // console.log(`[DEBUG] getMemberBreakdown - Processing transaction: ${t.id}, Amount: ${t.amount}, Type: ${t.type}, Payer: ${t.payer}, isShared: ${t.isShared}`);
+      if (t.type === 'income') {
+        // Attribute income to the payer if the payer is in membersToReportOn
+        if (t.payer && memberTotals[t.payer]) {
+          memberTotals[t.payer].income += t.amount;
+        }
+      } else if (t.type === 'expense') {
+        if (t.isShared) {
+          const splitRatioArray = this.parseSplitRatio(t.splitRatio);
+          if (splitRatioArray) {
+            if (isStrictModeEnabled && memberIds && memberIds.length > 0) {
+              // In strict mode, t.amount is the sum of selected members' shares.
+              // Distribute this adjusted amount proportionally among the selected members.
+              const selectedMembersInSplit = splitRatioArray.filter(item => memberIds.includes(item.memberId));
+              const totalPercentageOfSelected = selectedMembersInSplit.reduce((sum, item) => sum + item.percentage, 0);
+
+              if (totalPercentageOfSelected > 0) {
+                selectedMembersInSplit.forEach(item => {
+                  if (memberTotals[item.memberId]) { // Ensure member is in the report
+                    memberTotals[item.memberId].expense += t.amount * (item.percentage / totalPercentageOfSelected);
+                  }
+                });
+              }
+            } else { // Non-strict mode or strict mode OFF
+              // Distribute original transaction amount based on splitRatio to members in the report
+              splitRatioArray.forEach(item => {
+                if (memberTotals[item.memberId]) {
+                  memberTotals[item.memberId].expense += t.amount * (item.percentage / 100);
+                }
+              });
+            }
+          }
+        } else { // Non-shared expense
+          // Attribute to payer if payer is in membersToReportOn (only if not strict mode)
+          if (t.payer && memberTotals[t.payer] && !isStrictModeEnabled) {
+            memberTotals[t.payer].expense += t.amount;
+          }
+        }
+      }
+    }
+    console.log('[DEBUG] getMemberBreakdown - Calculated Member Totals:', JSON.stringify(memberTotals));
+    const result: MemberBreakdownItemDto[] = membersToReportOn.map(member => ({
       memberId: member.id,
       memberName: member.name,
       totalIncome: memberTotals[member.id]?.income || 0,
@@ -597,6 +749,9 @@ export class SummariesService {
     userId: string,
     query: GetBudgetTrendQueryDto,
   ): Promise<BudgetTrendResponseDto> {
+    console.log(`[DEBUG] getBudgetTrend - Received Query: ${JSON.stringify(query)}`);
+    const { memberIds } = query; // Extract member and strict mode filters
+    const isStrictModeEnabled = query.isStrictMode === 'true'; // Convert string to boolean
     const trendItems: BudgetTrendItemDto[] = [];
     const year = query.year; // year is mandatory in GetBudgetTrendQueryDto
 
@@ -642,17 +797,49 @@ export class SummariesService {
     if (query.transactionType === 'expense') {
       yearTransactionsWhere.type = 'expense'; // Apply if specified, for actuals
     }
-
+    console.log(`[DEBUG] getBudgetTrend - Year Transactions Query Where:`, JSON.stringify(yearTransactionsWhere));
     const yearTransactions = relevantCategories.length > 0 ? await this.prisma.transaction.findMany({
       where: yearTransactionsWhere,
-      select: { amount: true, date: true, isShared: true, payer: true, splitRatio: true, categoryId: true, type: true }, // Added type here
+      // Ensure all fields required by the Transaction type are selected
+      select: {
+        id: true,
+        amount: true,
+        date: true,
+        note: true,
+        type: true,
+        payer: true,
+        isShared: true,
+        createdAt: true,
+        updatedAt: true,
+        splitRatio: true,
+        userId: true,
+        categoryId: true },
     }) : [];
+
+    console.log(`[DEBUG] getBudgetTrend - Initial Year Transactions Count: ${yearTransactions.length}`);
+    // console.log(`[DEBUG] getBudgetTrend - Initial Year Transactions Content: ${JSON.stringify(yearTransactions)}`); // Uncomment for deep inspection if needed
+    console.log(`[DEBUG] getBudgetTrend - Values before filtering: memberIds=${JSON.stringify(memberIds)}, isStrictModeEnabled=${isStrictModeEnabled}`);
+    // Apply memberIds filter (if not strict mode) and strict mode filtering/adjustment to YEARLY transactions
+    let filteredAndAdjustedYearTransactions = yearTransactions;
+
+    if (memberIds && memberIds.length > 0) {
+        console.log(`[DEBUG] getBudgetTrend - Filtering by memberIds. isStrictModeEnabled: ${isStrictModeEnabled}`);
+        if (isStrictModeEnabled) {
+            filteredAndAdjustedYearTransactions = this.applyStrictMode(yearTransactions, memberIds);
+        } else {
+            filteredAndAdjustedYearTransactions = this.applyNonStrictModeMemberFilter(yearTransactions, memberIds);
+        }
+    } else if (isStrictModeEnabled) { 
+        console.log('[DEBUG] Strict mode is ON, but no memberIds are selected for BudgetTrend. Filtering to empty list.');
+        filteredAndAdjustedYearTransactions = [];
+    } else {
+        console.log('[DEBUG] getBudgetTrend - No memberId filter AND strict mode is OFF. Using all yearTransactions.');
+    }
+    console.log(`[DEBUG] getBudgetTrend - Filtered/Adjusted Year Transactions Count: ${filteredAndAdjustedYearTransactions.length}`);
 
     if (query.periodType === PeriodType.Monthly) {
       for (let i = 0; i < 12; i++) { // Iterate through 12 months
-        const currentMonthDate = dayjs().year(year).month(i);
-        const startDate = currentMonthDate.startOf('month').toDate();
-        const endDate = currentMonthDate.endOf('month').toDate();
+        const currentMonthDate = dayjs.utc().year(year).month(i); // Use UTC for consistency
         const periodLabel = currentMonthDate.format('YYYY-MM');
         let totalBudgetLimitForPeriod = 0;
         relevantCategories.forEach(cat => {
@@ -660,31 +847,31 @@ export class SummariesService {
         });
 
         let totalActualExpensesForPeriod = 0;
-        const monthTransactions = yearTransactions.filter(tx => dayjs(tx.date).isBetween(startDate, endDate, null, '[]'));
+        // Filter the already filtered/adjusted yearly transactions by month
+        const monthTransactions = filteredAndAdjustedYearTransactions.filter(tx => dayjs.utc(tx.date).isSame(currentMonthDate, 'month'));
 
         monthTransactions.forEach(tx => {
-          // Only sum up if it's an expense transaction, especially if transactionType was 'all'
           if (tx.type === 'expense') {
-            let expenseAmountForTx = tx.amount;
-            if (query.memberIds && query.memberIds.length > 0) { // Filter by member
-              if (!tx.isShared) {
-                if (!tx.payer || !query.memberIds.includes(tx.payer)) {
-                  expenseAmountForTx = 0; // Exclude if payer not in selected members
+            let amountToConsiderForTrend = tx.amount;
+            // If member filters are active AND it's NOT strict mode, recalculate amountToConsider for shared expenses
+            if (memberIds && memberIds.length > 0 && !isStrictModeEnabled) {
+              if (tx.isShared) {
+                const splitRatioArray = this.parseSplitRatio(tx.splitRatio);
+                if (splitRatioArray) {
+                  amountToConsiderForTrend = splitRatioArray
+                    .filter(srItem => memberIds.includes(srItem.memberId)) // Sum shares of selected members
+                    .reduce((sum, srItem) => sum + (srItem.percentage || 0), 0) * (tx.amount / 100);
+                } else {
+                  amountToConsiderForTrend = 0; // Invalid split ratio for shared transaction
                 }
-              } else { // Shared expense
-                const split = tx.splitRatio as unknown as Array<{ memberId: string; percentage: number }>;
-                let memberPortion = 0;
-                if (split) {
-                  split.forEach(s => {
-                    if (query.memberIds!.includes(s.memberId)) {
-                      memberPortion += tx.amount * (s.percentage / 100);
-                    }
-                  });
-                }
-                expenseAmountForTx = memberPortion;
+              } else {
+                // For non-shared transactions in non-strict mode with member filter,
+                // applyNonStrictModeMemberFilter already ensured payer is selected.
+                // So, tx.amount is correct. amountToConsiderForTrend is already tx.amount.
               }
             }
-            totalActualExpensesForPeriod += expenseAmountForTx;
+            // If no member filters, or if it IS strict mode, tx.amount is already correct (original or strict-adjusted by applyStrictMode).
+            totalActualExpensesForPeriod += amountToConsiderForTrend;
           }
         });
 
@@ -697,39 +884,27 @@ export class SummariesService {
     } else if (query.periodType === PeriodType.Yearly) {
       // For yearly trend, the DTO currently only supports a single year.
       // A true multi-year trend would need startYear/endYear in DTO.
-      // This will produce a single data point for the specified year.
-      const startDate = dayjs().year(year).startOf('year').toDate();
-      const endDate = dayjs().year(year).endOf('year').toDate();
-
       let totalBudgetLimitForYear = 0;
       relevantCategories.forEach(cat => {
         totalBudgetLimitForYear += (cat.budgetLimit || 0) * 12; // Annualize monthly budget
       });
-
       let totalActualExpensesForYear = 0;
-      yearTransactions.forEach(tx => {
-        // Only sum up if it's an expense transaction
+      filteredAndAdjustedYearTransactions.forEach(tx => {
         if (tx.type === 'expense') {
-          let expenseAmountForTx = tx.amount;
-          if (query.memberIds && query.memberIds.length > 0) { // Filter by member
-            if (!tx.isShared) {
-              if (!tx.payer || !query.memberIds.includes(tx.payer)) {
-                expenseAmountForTx = 0;
+          let amountToConsiderForTrend = tx.amount;
+          if (memberIds && memberIds.length > 0 && !isStrictModeEnabled) {
+            if (tx.isShared) {
+              const splitRatioArray = this.parseSplitRatio(tx.splitRatio);
+              if (splitRatioArray) {
+                amountToConsiderForTrend = splitRatioArray
+                  .filter(srItem => memberIds.includes(srItem.memberId))
+                  .reduce((sum, srItem) => sum + (srItem.percentage || 0), 0) * (tx.amount / 100);
+              } else {
+                amountToConsiderForTrend = 0;
               }
-            } else { // Shared expense
-              const split = tx.splitRatio as unknown as Array<{ memberId: string; percentage: number }>;
-              let memberPortion = 0;
-              if (split) {
-                split.forEach(s => {
-                  if (query.memberIds!.includes(s.memberId)) {
-                    memberPortion += tx.amount * (s.percentage / 100);
-                  }
-                });
-              }
-              expenseAmountForTx = memberPortion;
             }
           }
-          totalActualExpensesForYear += expenseAmountForTx;
+          totalActualExpensesForYear += amountToConsiderForTrend;
         }
       });
 

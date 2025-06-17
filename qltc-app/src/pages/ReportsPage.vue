@@ -88,22 +88,29 @@
           </q-select>
         </div>
 
-        <div class="col-12 col-md-4 col-sm-12 col-xs-12 row items-center q-gutter-md">
-          <div class="col-12 col-sm-auto">
+        <div class="col-12 col-md-4 col-sm-12 col-xs-12 row items-end q-gutter-x-md q-gutter-y-sm">
+          <div class="col-12 col-sm-auto column">
             <q-checkbox
               v-model="excludeIncomeFilter"
               label="Loại trừ thu nhập"
               dense
             />
+            <q-checkbox
+              v-model="isStrictModeActive"
+              label="Chế độ nghiêm ngặt"
+              dense
+            >
+              <q-tooltip max-width="250px">Chỉ tính các khoản chi có sự tham gia của TẤT CẢ thành viên đã chọn, và chỉ tính phần tiền của họ.</q-tooltip>
+            </q-checkbox>
           </div>
-          <div class="col row q-gutter-sm">
+          <div class="col row q-gutter-sm items-center justify-end">
             <!-- Apply Button -->
-            <div class="col">
+            <div class="col-auto">
               <q-btn
                 color="primary"
                 label="Xem báo cáo"
                 @click="applyFiltersAndLoadReports"
-                class="full-width"
+                class=""
                 :loading="isLoadingAnyReport"
               />
             </div>
@@ -215,6 +222,7 @@ const selectedMonthForDetail = ref<number | undefined>(currentMonth); // Driven 
 const selectedYearForDetail = ref<number>(currentYear); // Primarily driven by global year filter
 
 const categoryFilterOptions = computed(() =>
+  // Sort by name for consistent display
   categoryStore.visibleCategories
     .map(cat => ({
       label: cat.name,
@@ -290,6 +298,7 @@ const memberBreakdownPeriodLabel = computed(() => { // Label for the new report
 });
 
 const excludeIncomeFilter = ref<boolean>(true); // Default to excluding income
+const isStrictModeActive = ref<boolean>(false); // New filter for strict mode
 
 const loadDetailReports = async (year: number, month?: number, quarter?: number) => {
   const periodType = PeriodType.Monthly; // Assuming details are always monthly for now
@@ -301,15 +310,17 @@ const loadDetailReports = async (year: number, month?: number, quarter?: number)
       month,
       quarter,
       undefined, // parentCategoryId
-      selectedCategoryIdsGlobal.value.length > 0 ? selectedCategoryIdsGlobal.value : undefined,
-      selectedMemberIdsGlobal.value.length > 0 ? selectedMemberIdsGlobal.value : undefined // Pass selected members
-      , excludeIncomeFilter.value ? 'expense' : 'all' // Pass transaction type filter
+      selectedCategoryIdsGlobal.value && selectedCategoryIdsGlobal.value.length > 0 ? selectedCategoryIdsGlobal.value : undefined,
+      selectedMemberIdsGlobal.value && selectedMemberIdsGlobal.value.length > 0 ? selectedMemberIdsGlobal.value : undefined // Pass selected members
+      , excludeIncomeFilter.value ? 'expense' : 'all', // Pass transaction type filter
+      isStrictModeActive.value // Pass strict mode flag
     ),
     summaryStore.loadMemberBreakdown(
         periodType, year, month, quarter,
-        selectedMemberIdsGlobal.value.length > 0 ? selectedMemberIdsGlobal.value : undefined,
-        excludeIncomeFilter.value ? 'expense' : 'all' // Pass transaction type filter
-      )
+        selectedMemberIdsGlobal.value && selectedMemberIdsGlobal.value.length > 0 ? selectedMemberIdsGlobal.value : undefined,
+        excludeIncomeFilter.value ? 'expense' : 'all', // Pass transaction type filter
+        isStrictModeActive.value // Pass strict mode flag
+      ),
   ];
   await Promise.all(promises);
 };
@@ -341,6 +352,7 @@ const onGlobalMonthChange = (newMonth: number | undefined | null) => {
 };
 
 const applyFiltersAndLoadReports = async () => {
+  console.log('[ReportsPage DEBUG] applyFiltersAndLoadReports called. Filters to be sent -> isStrictMode:', isStrictModeActive.value, 'memberIds:', selectedMemberIdsGlobal.value, 'categoryIds:', selectedCategoryIdsGlobal.value, 'transactionType:', excludeIncomeFilter.value ? 'expense' : 'all');
   selectedYearForDetail.value = selectedYear.value; // Sync detail year with global year
   // If global month is not set, but detail month was (e.g. from trend click), keep detail month.
   // Otherwise, if global month is cleared, detail month should also be cleared or defaulted.
@@ -354,9 +366,10 @@ const applyFiltersAndLoadReports = async () => {
     summaryStore.loadBudgetTrend(
       PeriodType.Monthly,
       selectedYear.value,
-      selectedCategoryIdsGlobal.value.length > 0 ? selectedCategoryIdsGlobal.value : undefined,
-      selectedMemberIdsGlobal.value.length > 0 ? selectedMemberIdsGlobal.value : undefined, // Pass selected members
-      excludeIncomeFilter.value ? 'expense' : 'all' // Pass transaction type filter
+      selectedCategoryIdsGlobal.value && selectedCategoryIdsGlobal.value.length > 0 ? selectedCategoryIdsGlobal.value : undefined,
+      selectedMemberIdsGlobal.value && selectedMemberIdsGlobal.value.length > 0 ? selectedMemberIdsGlobal.value : undefined, // Pass selected members
+      excludeIncomeFilter.value ? 'expense' : 'all', // Pass transaction type filter
+      isStrictModeActive.value // Pass strict mode flag
     )
   ];
   await Promise.all(promises);
@@ -469,4 +482,7 @@ onMounted(() => {
       void applyFiltersAndLoadReports(); // Explicitly ignore the promise
     });
 });
+
+// Initial load on component creation
+onMounted(() => applyFiltersAndLoadReports());
 </script>
