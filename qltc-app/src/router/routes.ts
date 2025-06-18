@@ -41,9 +41,9 @@ const routes: RouteRecordRaw[] = [
         meta: { requiresAuth: true },
       },
       {
-        path: 'settlements', // Or 'balances' if you prefer
+        path: 'settlements',
         name: 'Settlements',
-        component: () => import('components/Settlements/BalancesView.vue'), // Corrected path
+        component: () => import('pages/SettlementsPage.vue'),
         meta: { requiresAuth: true, title: 'Cân đối & Thanh toán', icon: 'sym_o_account_balance' },
       },
     ],

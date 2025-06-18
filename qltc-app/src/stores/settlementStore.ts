@@ -83,7 +83,7 @@ export const useSettlementStore = defineStore('settlements', () => {
       console.log('[SettlementStore] Settlement recorded:', newSettlement);
       // Optionally, refresh balances or settlement history after recording
       void loadBalances(); // Refresh balances
-      // void loadSettlementHistory(); // If history is already loaded and needs refresh
+      void loadSettlementHistory(); // Refresh settlement history
       $q.notify({
         color: 'positive',
         message: 'Đã ghi nhận thanh toán thành công!',

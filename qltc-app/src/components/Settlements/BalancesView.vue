@@ -1,41 +1,43 @@
 <template>
-  <q-page padding>
-    <div class="row justify-between items-center q-mb-md">
-      <div class="text-h5">Cân đối Chi Tiêu Chung</div>
-      <q-btn
-        color="primary"
-        icon="add_circle_outline"
-        label="Ghi nhận Thanh toán"
-        @click="openRecordSettlementDialog"
-        :disabled="!canRecordSettlement"
-      >
-        <q-tooltip v-if="!canRecordSettlement">Cần ít nhất 2 thành viên đang hoạt động để ghi nhận thanh toán.</q-tooltip>
-      </q-btn>
-    </div>
+  <q-card>
+    <q-card-section>
+      <div class="row justify-between items-center">
+        <div class="text-h5">Cân đối Chi Tiêu Chung</div>
+        <q-btn
+          color="primary"
+          icon="add_circle_outline"
+          label="Ghi nhận Thanh toán"
+          @click="openRecordSettlementDialog"
+          :disabled="!canRecordSettlement"
+        >
+          <q-tooltip v-if="!canRecordSettlement">Cần ít nhất 2 thành viên đang hoạt động để ghi nhận thanh toán.</q-tooltip>
+        </q-btn>
+      </div>
+    </q-card-section>
 
     <!-- Loading, Error, Empty States -->
-    <div v-if="settlementStore.balancesLoading" class="text-center">
-      <q-spinner-dots color="primary" size="40px" />
-      <p>Đang tải thông tin cân đối...</p>
-    </div>
+    <q-card-section v-if="settlementStore.balancesLoading" class="text-center">
+        <q-spinner-dots color="primary" size="40px" />
+        <p>Đang tải thông tin cân đối...</p>
+    </q-card-section>
 
-    <div v-else-if="settlementStore.balancesError" class="text-center text-negative">
-      <q-icon name="error_outline" size="40px" color="negative" />
-      <p>{{ settlementStore.balancesError }}</p>
-    </div>
+    <q-card-section v-else-if="settlementStore.balancesError" class="text-center text-negative">
+        <q-icon name="error_outline" size="40px" color="negative" />
+        <p>{{ settlementStore.balancesError }}</p>
+    </q-card-section>
 
-    <div v-else-if="!settlementStore.balances || settlementStore.balances.balances.length === 0" class="text-center text-grey-7">
-      <q-icon name="info_outline" size="40px" />
-      <p>Hiện tại không có khoản chi tiêu chung nào cần cân đối.</p>
-    </div>
+    <q-card-section v-else-if="!settlementStore.balances || settlementStore.balances.balances.length === 0" class="text-center text-grey-7">
+        <q-icon name="info_outline" size="40px" />
+        <p>Hiện tại không có khoản chi tiêu chung nào cần cân đối.</p>
+    </q-card-section>
 
-    <div v-else>
+    <template v-else>
       <q-list bordered separator>
         <q-item v-for="balance in settlementStore.balances.balances" :key="`${balance.memberOneId}-${balance.memberTwoId}`">
           <q-item-section>
             <q-item-label>
               <template v-if="balance.netAmountMemberOneOwesMemberTwo > 0">
-                {{ balance.memberOneName }} <span class="text-negative text-weight-medium">cần trả cho</span> {{ balance.memberTwoName }}
+                <span class="text-weight-medium">{{ balance.memberOneName }}</span> <span class="text-negative">cần trả cho</span> <span class="text-weight-medium">{{ balance.memberTwoName }}</span>
               </template>
               <template v-else>
                 {{ balance.memberOneName }} <span class="text-positive text-weight-medium">sẽ nhận từ</span> {{ balance.memberTwoName }}
@@ -54,8 +56,8 @@
           </q-item-section>
         </q-item>
       </q-list>
-    </div>
-  </q-page>
+    </template>
+  </q-card>
 </template>
 
 <script setup lang="ts">

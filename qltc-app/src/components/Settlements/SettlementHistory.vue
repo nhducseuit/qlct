@@ -41,7 +41,7 @@
               <span class="text-weight-medium">{{ settlement.payee.name }}</span>
             </q-item-label>
             <q-item-label caption lines="1">
-              {{ settlement.note || 'Không có ghi chú' }}
+              Ghi chú: {{ settlement.note || 'Không có' }}
             </q-item-label>
           </q-item-section>
 
@@ -50,7 +50,7 @@
               {{ formatCurrency(settlement.amount) }}
             </q-item-label>
             <q-item-label caption>
-              {{ formatDate(settlement.date) }}
+              {{ formatDate(settlement.date) }} ({{ timeAgo(settlement.date) }})
             </q-item-label>
           </q-item-section>
         </q-item>
@@ -91,6 +91,10 @@ const itemsPerPage = 10; // Or get from store/config if dynamic
 
 const formatDate = (dateString: string): string => {
   return dayjs(dateString).format('DD/MM/YYYY HH:mm');
+};
+
+const timeAgo = (dateString: string): string => {
+  return dayjs(dateString).fromNow();
 };
 
 const fetchSettlementsForPage = async (page: number) => {

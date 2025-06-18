@@ -45,6 +45,22 @@
         *   [x] Made the section collapsible by default.
     - [x] **Highcharts Integration:** Successfully integrate and utilize Highcharts for all chart visualizations, addressing any TypeScript and ESLint challenges.
     - [x] **Export to PDF:** Add functionality to export the current report view (based on active filters) as a PDF document. (Initial client-side implementation using `jspdf` and `html2canvas` complete, with basic layout adjustments and pagination).
+### 3. [x] Implemented "Strict Mode" for Reports:
+    - **Objective:** Provide users with a "strict" filtering option for reports (Category Breakdown, Member Breakdown, Budget Trend) when specific household members are selected.
+    - **Frontend:**
+        - [x] Added a "Chế độ nghiêm ngặt" (Strict Mode) checkbox to the global filters on `ReportsPage.vue`.
+        - [x] Updated `ReportsPage.vue` to pass the `isStrictMode` (true/false) flag to all relevant `summaryStore` actions.
+        - [x] Ensured `summaryStore.ts` correctly includes `isStrictMode` in API query DTOs.
+        - [x] Handled potential `null` values for `selectedMemberIdsGlobal` when strict mode is active but no members are selected, preventing frontend errors.
+    - **Backend (`SummariesService`):**
+        - [x] Implemented `applyStrictMode` logic:
+            - For shared expenses, only includes transactions where ALL selected members participated.
+            - Adjusts the transaction amount to reflect only the sum of shares of the selected members.
+            - Excludes non-shared expenses and all income transactions when strict mode is active with member filters.
+        - [x] Implemented `applyNonStrictModeMemberFilter` for consistent non-strict member filtering.
+        - [x] Updated DTOs (e.g., `GetCategoryBreakdownQueryDto`, `GetMemberBreakdownQueryDto`, `GetBudgetTrendQueryDto`) to accept `isStrictMode` as a string (`"true"`/`"false"`) from the query parameters and parse it into a boolean within the service layer to handle DTO transformation issues with boolean query parameters.
+    - **Testing:**
+        - [x] Successfully passed relevant test cases (TC3.x series) validating the behavior of strict mode under various conditions (no members selected, single member, multiple members, etc.).
 
 ---
 
