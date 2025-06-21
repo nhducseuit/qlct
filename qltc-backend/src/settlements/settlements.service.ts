@@ -28,7 +28,7 @@ export class SettlementsService {
 
     // 1. Fetch all active household members for the user.
     const activeMembers = await this.prisma.householdMember.findMany({
-      where: { userId, isActive: true },
+      where: { isActive: true }, // Per user request, data is not siloed by user
       select: { id: true, name: true },
     });
 
@@ -40,7 +40,7 @@ export class SettlementsService {
     // For now, we consider all shared transactions. Date filtering can be added later.
     const sharedTransactions = await this.prisma.transaction.findMany({
       where: {
-        userId,
+        // userId, // Per user request, data is not siloed by user
         isShared: true,
         splitRatio: { not: Prisma.DbNull }, // Ensure splitRatio exists (is not SQL NULL)
         // type: 'expense', // Typically, only shared expenses create debts. Shared income might be distributed differently.
@@ -92,7 +92,7 @@ export class SettlementsService {
 
     // 4.5. Fetch all settlements for the user to adjust raw owed amounts.
     const settlements = await this.prisma.settlement.findMany({
-      where: { userId },
+      where: { }, // Per user request, data is not siloed by user
       select: {
         payerId: true,
         payeeId: true,
@@ -220,9 +220,7 @@ export class SettlementsService {
     const { page = 1, limit = 10, payerId, payeeId, startDate, endDate } = query;
     const skip = (page - 1) * limit;
 
-    const whereClause: Prisma.SettlementWhereInput = {
-      userId,
-    };
+    const whereClause: Prisma.SettlementWhereInput = {}; // Per user request, data is not siloed by user
 
     if (payerId) {
       whereClause.payerId = payerId;

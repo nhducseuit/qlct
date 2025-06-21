@@ -11,9 +11,11 @@ import { HouseholdMemberModule } from './household-members/household-member.modu
 import { PredefinedSplitRatioModule } from './predefined-split-ratios/predefined-split-ratio.module'; // Import the new module
 import { SummariesModule } from './summaries/summaries.module';
 import { SettlementsModule } from './settlements/settlements.module';
+import { ConfigModule } from '@nestjs/config'; // Import ConfigModule
 
 @Module({
   imports: [
+    ConfigModule.forRoot({ isGlobal: true }),
     AuthModule
     ,UserModule
     ,CategoryModule

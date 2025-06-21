@@ -1,10 +1,10 @@
 import { Controller, Get, Query, UseGuards, Req } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth, ApiOperation, ApiResponse } from '@nestjs/swagger';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { SummariesService } from './summaries.service';
 import { GetTotalsSummaryQueryDto } from './dto/get-totals-summary.dto';
 import { GetCategoryBreakdownQueryDto } from './dto/get-category-breakdown.dto';
 import { CategoryBreakdownItemDto, CategoryBreakdownResponseDto } from './dto/category-breakdown-response.dto';
+import { AuthenticatedRequest } from '../auth/interfaces/authenticated-request.interface';
 import { GetMemberBreakdownQueryDto } from './dto/get-member-breakdown.dto';
 import { MemberBreakdownItemDto, MemberBreakdownResponseDto } from './dto/member-breakdown-response.dto';
 import { GetAverageExpensesQueryDto } from './dto/get-average-expenses.dto';
@@ -12,8 +12,9 @@ import { AverageExpensesResponseDto } from './dto/average-expenses-response.dto'
 import { GetBudgetComparisonQueryDto } from './dto/get-budget-comparison.dto';
 import { BudgetComparisonItemDto, BudgetComparisonResponseDto } from './dto/budget-comparison-response.dto';
 import { GetBudgetTrendQueryDto } from './dto/get-budget-trend.dto';
-import { BudgetTrendItemDto, BudgetTrendResponseDto } from './dto/budget-trend-response.dto';
+import { BudgetTrendItemDto, BudgetTrendResponseDto } from './dto/budget-trend-response.dto'; // Import AuthenticatedRequest
 import { PeriodSummaryDto, TotalsSummaryResponseDto } from './dto/totals-summary-response.dto';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 
 @ApiTags('Summaries')
 @ApiBearerAuth()
@@ -32,10 +33,10 @@ export class SummariesController {
   @ApiResponse({ status: 400, description: 'Bad Request. Invalid query parameters.' })
   @ApiResponse({ status: 401, description: 'Unauthorized.' })
   async getTotalsSummary(
-    @Req() req: any, // Standard Express Request object where user is attached by JwtAuthGuard
+    @Req() req: AuthenticatedRequest,
     @Query() query: GetTotalsSummaryQueryDto,
   ): Promise<TotalsSummaryResponseDto> {
-    const userId = req.user.id; // Extracted from JWT payload by JwtAuthGuard
+    const userId = req.user.id;
     return this.summariesService.getTotalsSummary(userId, query);
   }
 
@@ -49,7 +50,7 @@ export class SummariesController {
   @ApiResponse({ status: 400, description: 'Bad Request. Invalid query parameters.' })
   @ApiResponse({ status: 401, description: 'Unauthorized.' })
   async getCategoryBreakdown(
-    @Req() req: any,
+    @Req() req: AuthenticatedRequest,
     @Query() query: GetCategoryBreakdownQueryDto,
   ): Promise<CategoryBreakdownResponseDto> {
     const userId = req.user.id;
@@ -66,7 +67,7 @@ export class SummariesController {
   @ApiResponse({ status: 400, description: 'Bad Request. Invalid query parameters.' })
   @ApiResponse({ status: 401, description: 'Unauthorized.' })
   async getMemberBreakdown(
-    @Req() req: any,
+    @Req() req: AuthenticatedRequest,
     @Query() query: GetMemberBreakdownQueryDto,
   ): Promise<MemberBreakdownResponseDto> {
     const userId = req.user.id;
@@ -83,7 +84,7 @@ export class SummariesController {
   @ApiResponse({ status: 400, description: 'Bad Request. Invalid query parameters.' })
   @ApiResponse({ status: 401, description: 'Unauthorized.' })
   async getAverageExpenses(
-    @Req() req: any,
+    @Req() req: AuthenticatedRequest,
     @Query() query: GetAverageExpensesQueryDto,
   ): Promise<AverageExpensesResponseDto> {
     const userId = req.user.id;
@@ -100,7 +101,7 @@ export class SummariesController {
   @ApiResponse({ status: 400, description: 'Bad Request. Invalid query parameters.' })
   @ApiResponse({ status: 401, description: 'Unauthorized.' })
   async getBudgetComparison(
-    @Req() req: any,
+    @Req() req: AuthenticatedRequest,
     @Query() query: GetBudgetComparisonQueryDto,
   ): Promise<BudgetComparisonResponseDto> {
     const userId = req.user.id;
@@ -117,7 +118,7 @@ export class SummariesController {
   @ApiResponse({ status: 400, description: 'Bad Request. Invalid query parameters.' })
   @ApiResponse({ status: 401, description: 'Unauthorized.' })
   async getBudgetTrend(
-    @Req() req: any,
+    @Req() req: AuthenticatedRequest,
     @Query() query: GetBudgetTrendQueryDto,
   ): Promise<BudgetTrendResponseDto> {
     const userId = req.user.id;

@@ -13,7 +13,7 @@
         *   Considerations: Filter by date range? "All-time" balances?
         *   DTOs: `GetBalancesQueryDto` (if filters are needed), `MemberBalanceDto`, `BalancesResponseDto`.
     - [x] **Record Settlement API:**
-        *   Endpoint: `POST /settlements` (or similar)
+        *   Endpoint: `POST /settlements`
         *   Objective: Allow users to record a settlement action (e.g., Member A paid Member B $X).
         *   This will likely involve creating a new `Settlement` entity/table.
         *   DTOs: `CreateSettlementDto`, `SettlementDto`.
@@ -32,7 +32,7 @@
     - [x] **Record Settlement UI:** (Dialog implemented and integrated)
         *   A form/dialog to input settlement details (payer, payee, amount, date, note).
         *   This UI will interact with the `POST /settlements` API.
-    - [ ] **Settlement History View:** (Component created, integration next)
+    - [x] **Settlement History View:** (Component created and integrated)
         *   Display a chronological list of recorded settlements.
     - [x] **Store Logic (Pinia - `settlementStore.ts`):** (Implemented for balances, creation, history)
         *   Create a new store to manage settlement-related state and API calls.

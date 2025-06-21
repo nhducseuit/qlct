@@ -113,8 +113,8 @@ export class SummariesService {
     const startDate = dayjs().year(year).startOf('year').toDate();
     const endDate = dayjs().year(year).endOf('year').toDate();
 
-    const whereClause: Prisma.TransactionWhereInput = {
-      userId,
+    const whereClause: Prisma.TransactionWhereInput = { // Per user request, data is not siloed by user
+      // userId,
       date: {
         gte: startDate,
         lte: endDate,
@@ -254,8 +254,8 @@ export class SummariesService {
         throw new BadRequestException('Invalid period type for category breakdown.');
     }
 
-    const transactionWhereInput: Prisma.TransactionWhereInput = {
-      userId,
+    const transactionWhereInput: Prisma.TransactionWhereInput = { // Per user request, data is not siloed by user
+      // userId,
       date: {
         gte: startDate,
         lte: endDate,
@@ -364,8 +364,8 @@ export class SummariesService {
       return [];
     }
 
-    const categoryQueryWhere: Prisma.CategoryWhereInput = {
-      userId,
+    const categoryQueryWhere: Prisma.CategoryWhereInput = { // Per user request, data is not siloed by user
+      // userId,
       id: { in: idsForCategoryFetch },
       // isHidden: false, // Optional: consider if hidden categories should be excluded by default
     };
@@ -438,8 +438,8 @@ export class SummariesService {
         throw new BadRequestException('Invalid period type for member breakdown.');
     }
 
-    const transactionWhereInput: Prisma.TransactionWhereInput = {
-      userId,
+    const transactionWhereInput: Prisma.TransactionWhereInput = { // Per user request, data is not siloed by user
+      // userId,
       date: {
         gte: startDate,
         lte: endDate,
@@ -474,7 +474,7 @@ export class SummariesService {
     // console.log(`[DEBUG] getMemberBreakdown - Initial Transactions Content: ${JSON.stringify(transactions)}`); // Uncomment for deep inspection if needed
     console.log(`[DEBUG] getMemberBreakdown - Values before filtering: memberIds=${JSON.stringify(memberIds)}, isStrictModeEnabled=${isStrictModeEnabled}`);
     const allUserMembers = await this.prisma.householdMember.findMany({
-      where: { userId, isActive: true }, // Consider only active members by default
+      where: { isActive: true }, // Per user request, data is not siloed by user
       select: { id: true, name: true },
     });
 
@@ -594,8 +594,8 @@ export class SummariesService {
         throw new BadRequestException('Invalid period type for average expenses.');
     }
 
-    const whereClause: Prisma.TransactionWhereInput = {
-      userId,
+    const whereClause: Prisma.TransactionWhereInput = { // Per user request, data is not siloed by user
+      // userId,
       type: 'expense',
       date: {
         gte: startDate.toDate(),
@@ -668,8 +668,8 @@ export class SummariesService {
 
     // Fetch categories that have a budget limit set by the user
     const categoriesWithBudget = await this.prisma.category.findMany({
-      where: {
-        userId,
+      where: { // Per user request, data is not siloed by user
+        // userId,
         budgetLimit: { not: null }, // Only categories with a budget
         isHidden: false, // Optionally, only consider visible categories
       },
@@ -691,8 +691,8 @@ export class SummariesService {
     // Fetch all expenses for these categories within the period
     const expenses = await this.prisma.transaction.groupBy({
       by: ['categoryId'],
-      where: {
-        userId,
+      where: { // Per user request, data is not siloed by user
+        // userId,
         type: 'expense',
         categoryId: { in: categoryIdsWithBudget },
         date: {
@@ -765,8 +765,8 @@ export class SummariesService {
       // If no specific categories are requested, consider ALL non-hidden categories of the user.
       // We are not filtering by budgetLimit here anymore for selecting categories for expense sum.
       const allUserCategories = await this.prisma.category.findMany({
-        where: {
-          userId,
+        where: { // Per user request, data is not siloed by user
+          // userId,
           isHidden: false, // Consider only visible categories
         },
         select: { id: true },
@@ -780,15 +780,15 @@ export class SummariesService {
     const relevantCategories = await this.prisma.category.findMany({
       where: {
         id: { in: categoryIdsToConsider || [] }, // Use empty array if categoryIdsToConsider is undefined
-        userId, // Ensure categories belong to the user
+        // userId, // Per user request, data is not siloed by user
       },
       select: { id: true, budgetLimit: true },
     });
 
     // Fetch all transactions for the relevant categories for the entire year first
     // We will then filter them per month and per member in the loop
-    const yearTransactionsWhere: Prisma.TransactionWhereInput = {
-      userId,
+    const yearTransactionsWhere: Prisma.TransactionWhereInput = { // Per user request, data is not siloed by user
+      // userId,
       // type: 'expense', // Removed hardcoded filter for actuals
       categoryId: { in: relevantCategories.map(c => c.id) },
       date: { gte: dayjs().year(year).startOf('year').toDate(), lte: dayjs().year(year).endOf('year').toDate() },

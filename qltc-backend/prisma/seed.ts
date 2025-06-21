@@ -4,28 +4,27 @@ import * as bcrypt from 'bcryptjs';
 const prisma = new PrismaClient();
 
 async function main() {
-  const devUserId = 'dev-user';
-  const devUserEmail = 'dev@example.com';
+  const testUserEmail = 'test@example.com';
+  const testUserPassword = 'testpassword'; // Use a known password for testing
 
-  console.log(`Checking for dev user: ${devUserEmail} with ID: ${devUserId}`);
+  console.log(`Checking for test user: ${testUserEmail}`);
 
   let user = await prisma.user.findUnique({
-    where: { id: devUserId },
+    where: { email: testUserEmail },
   });
 
   if (!user) {
-    console.log(`Dev user with ID ${devUserId} not found, attempting to create...`);
+    console.log(`Test user with email ${testUserEmail} not found, attempting to create...`);
     const hashedPassword = await bcrypt.hash('devpassword', 10); // Use a secure password
     user = await prisma.user.create({
       data: {
-        id: devUserId, // Explicitly set the ID to 'dev-user'
-        email: devUserEmail,
+        email: testUserEmail,
         password: hashedPassword,
       },
     });
-    console.log(`Created dev user: ${user.email} with ID: ${user.id}`);
+    console.log(`Created test user: ${user.email} with ID: ${user.id}`);
   } else {
-    console.log(`Dev user ${user.email} (ID: ${user.id}) already exists.`);
+    console.log(`test user ${user.email} (ID: ${user.id}) already exists.`);
   }
 
   // Seed PredefinedSplitRatios
@@ -39,7 +38,7 @@ async function main() {
         { memberId: '577ee6f9-283e-46c7-bbb3-9910bc70e2d5', percentage: 50 },
         { memberId: '910b287d-d365-4daa-83d5-11c096b07068', percentage: 50 },
       ],
-      userId: devUserId,
+      userId: user.id, // Link to the created/found test user
       // Let Prisma handle createdAt and updatedAt by default
     },
     {
@@ -50,8 +49,8 @@ async function main() {
         { memberId: '910b287d-d365-4daa-83d5-11c096b07068', percentage: 25 },
         { memberId: '94e6e8bf-3a8a-4234-a07c-28c54c1a06e6', percentage: 25 },
         { memberId: '577ee6f9-283e-46c7-bbb3-9910bc70e2d5', percentage: 25 },
-      ],
-      userId: devUserId,
+      ].filter(item => user.id !== 'dev-user' || ['577ee6f9-283e-46c7-bbb3-9910bc70e2d5', '910b287d-d365-4daa-83d5-11c096b07068', '94e6e8bf-3a8a-4234-a07c-28c54c1a06e6', '16e9f4a9-2cc9-4c42-b0df-445a3a48ad44'].includes(item.memberId)), // Filter out members not linked to dev user if dev user ID is hardcoded
+      userId: user.id,
     },
   ];
 
@@ -64,7 +63,7 @@ async function main() {
       update: {
         name: ratioData.name,
         splitRatio: ratioData.splitRatio, // This is already a JS object/array
-        userId: ratioData.userId,
+        userId: user.id, // Ensure it's linked to the test user
         // updatedAt will be handled by Prisma
       },
       create: {
@@ -72,7 +71,7 @@ async function main() {
         name: ratioData.name,
         splitRatio: ratioData.splitRatio,
         userId: ratioData.userId,
-        // createdAt and updatedAt will be handled by Prisma
+        // createdAt and updatedAt handled by Prisma
       },
     });
     console.log(`Upserted PredefinedSplitRatio: ${ratioData.name}`);

@@ -48,7 +48,7 @@ export default defineBoot(({ app }) => {
       if (error.response && error.response.status === 401) {
         const authStore = useAuthStore(); // Try to get authStore instance directly
         // Handle the promise returned by logout
-        void authStore.logout().catch(logoutError => {
+        void authStore.logout().catch((logoutError: unknown) => {
           console.error('Error during automatic logout:', logoutError);
         });
         // Potentially redirect to login page

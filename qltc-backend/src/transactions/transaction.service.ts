@@ -9,6 +9,11 @@ import { Transaction, Prisma } from '@generated/prisma';
 import { GetTransactionsQueryDto } from './dto/get-transactions-query.dto';
 import dayjs from 'dayjs';
 
+interface SplitRatioItem {
+  memberId: string;
+  percentage: number;
+}
+
 @Injectable()
 export class TransactionService {
   constructor(
@@ -18,6 +23,78 @@ export class TransactionService {
     private readonly notificationsGateway: NotificationsGateway,
   ) {}
 
+  private parseSplitRatio(splitRatioJson: Prisma.JsonValue | null): Array<{ memberId: string; percentage: number }> | null {
+    if (splitRatioJson === null || splitRatioJson === undefined) {
+      return null;
+    }
+    try {
+      const parsed = typeof splitRatioJson === 'string' ? JSON.parse(splitRatioJson) : splitRatioJson;
+      if (Array.isArray(parsed) && parsed.every(item =>
+        typeof item === 'object' && item !== null &&
+        typeof item.memberId === 'string' &&
+        typeof item.percentage === 'number'
+      )) {
+        return parsed as Array<{ memberId: string; percentage: number }>;
+      }
+      console.warn('Invalid splitRatio format:', parsed);
+      return null;
+    } catch (e) {
+      console.error('Failed to parse splitRatio JSON:', splitRatioJson, e);
+      return null;
+    }
+  }
+
+  /**
+   * Applies strict mode filtering and amount adjustment to a list of transactions.
+   * In strict mode, only shared expense transactions where ALL selected members
+   * are in the splitRatio are included. The amount is adjusted to be the sum
+   * of the shares of the selected members based on their original percentages.
+   * Non-shared expenses and incomes are excluded.
+   */
+  private applyStrictMode(
+    transactions: Transaction[], // Prisma's Transaction type
+    selectedMemberIds: string[], // Must be provided if isStrictMode is true
+  ): Transaction[] {
+    const filteredAndAdjusted: Transaction[] = [];
+    for (const transaction of transactions) {
+      if (transaction.type === 'expense' && transaction.isShared) {
+        const splitRatioArray = this.parseSplitRatio(transaction.splitRatio);
+        if (splitRatioArray && splitRatioArray.length > 0) {
+          const allSelectedMembersPresent = selectedMemberIds.every(smId =>
+            splitRatioArray.some(srItem => srItem.memberId === smId)
+          );
+          if (allSelectedMembersPresent) {
+            const selectedMembersTotalPercentage = splitRatioArray
+              .filter(srItem => selectedMemberIds.includes(srItem.memberId))
+              .reduce((sum, srItem) => sum + (srItem.percentage || 0), 0);
+
+            if (selectedMembersTotalPercentage > 0) {
+                 const adjustedAmount = transaction.amount * (selectedMembersTotalPercentage / 100);
+                 filteredAndAdjusted.push({ ...transaction, amount: adjustedAmount });
+            } else {
+                 console.log(`[DEBUG] StrictMode - Transaction ${transaction.id} excluded: selected members present but total share is 0%.`);
+            }
+          }
+        }
+      }
+      // Non-shared expenses and incomes are excluded in strict mode.
+    }
+    return filteredAndAdjusted;
+  }
+
+  private applyNonStrictModeMemberFilter(
+    transactions: Transaction[], // Prisma's Transaction type
+    selectedMemberIds: string[],
+  ): Transaction[] {
+    return transactions.filter(transaction => {
+      if (transaction.isShared) {
+        const splitRatioArray = this.parseSplitRatio(transaction.splitRatio);
+        return splitRatioArray?.some(srItem => selectedMemberIds.includes(srItem.memberId)) || false;
+      } else { // Non-shared transaction
+        return transaction.payer ? selectedMemberIds.includes(transaction.payer) : false;
+      }
+    });
+  }
 
   async create(createTransactionDto: CreateTransactionDto, userId: string): Promise<Transaction> {
     const category = await this.categoryService.findOne(createTransactionDto.categoryId, userId);
@@ -53,7 +130,7 @@ export class TransactionService {
   }
 
   async findFiltered(userId: string, query: GetTransactionsQueryDto): Promise<Transaction[]> {
-    const where: Prisma.TransactionWhereInput = { userId };
+    const where: Prisma.TransactionWhereInput = { }; // No userId filter here, as per global access
 
     if (query.categoryId) {
       where.categoryId = query.categoryId;
@@ -94,24 +171,38 @@ export class TransactionService {
       if (startDate) where.date.gte = startDate;
       if (endDate) where.date.lte = endDate;
     }
-
-    if (query.memberIds && query.memberIds.length > 0) {
-      where.OR = [
-        { payer: { in: query.memberIds } },
-        {
-          isShared: true,
-          splitRatio: {
-            path: '$[*].memberId',
-            array_contains: query.memberIds,
-          } as Prisma.JsonFilter,
-        },
-      ];
-    }
-
-    return this.prisma.transaction.findMany({
+    
+    let transactions = await this.prisma.transaction.findMany({
       where,
       orderBy: { date: 'desc' },
     });
+    
+    const isStrictModeEnabled = query.isStrictMode === 'true'; // Convert string to boolean
+    const memberIds = query.memberIds;
+
+    if (memberIds && memberIds.length > 0) {
+        console.log(`[DEBUG] TransactionService.findFiltered - Applying member filters. isStrictModeEnabled: ${isStrictModeEnabled}`);
+        if (isStrictModeEnabled) {
+            transactions = this.applyStrictMode(transactions, memberIds);
+        } else {
+            transactions = this.applyNonStrictModeMemberFilter(transactions, memberIds);
+        }
+    } else if (isStrictModeEnabled) {
+        // Strict mode ON but no members selected.
+        console.log('[DEBUG] TransactionService.findFiltered - Strict mode is ON, but no memberIds are selected. Filtering to empty list.');
+        transactions = [];
+    } else {
+        console.log('[DEBUG] TransactionService.findFiltered - No memberId filter AND strict mode is OFF. Using all transactions.');
+    }
+
+    // Apply transaction type filter (income/expense)
+    if (query.transactionType === 'expense') {
+      transactions = transactions.filter(tx => tx.type === 'expense');
+    } else if (query.transactionType === 'income') {
+      transactions = transactions.filter(tx => tx.type === 'income');
+    }
+
+    return transactions;
   }
 
   async findOne(id: string, userId: string): Promise<Transaction> {
@@ -119,9 +210,11 @@ export class TransactionService {
     if (!transaction) {
       throw new NotFoundException(`Transaction with ID "${id}" not found`);
     }
-    if (transaction.userId !== userId) {
-      throw new ForbiddenException('You do not have permission to access this transaction');
-    }
+    // Per user request, any authenticated user can access any transaction.
+    // The ownership check is removed.
+    // if (transaction.userId !== userId) {
+    //   throw new ForbiddenException('You do not have permission to access this transaction');
+    // }
     return transaction;
   }
 

@@ -1,21 +1,30 @@
 import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
-import { jwtConstants } from '../../config/constants'; // Adjusted path
-import { UserService } from '../../users/user.service'; // Adjusted path
+import { ConfigService } from '@nestjs/config'; // Import ConfigService
+import { UserPayload } from '../interfaces/user-payload.interface';
+import { AuthService } from '../auth.service'; // Import AuthService
 
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
-  constructor(private userService: UserService) { // Inject UserService if you need to fetch full user object
+  constructor(
+    private configService: ConfigService, // Inject ConfigService
+    private authService: AuthService,     // Inject AuthService
+  ) {
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
       ignoreExpiration: false,
-      secretOrKey: jwtConstants.secret,
+      secretOrKey: configService.get<string>('JWT_SECRET'), // Get secret from environment
     });
   }
 
-  async validate(payload: { sub: string; email: string }) {
-    // Payload here is the decoded JWT. You can add more user info to JWT if needed.
-    return { userId: payload.sub, email: payload.email }; // This will be attached to req.user
+  async validate(payload: UserPayload): Promise<UserPayload> {
+    // Validate that the user still exists in the database based on the payload ID
+    // The payload here is what you put into the JWT (e.g., { id: user.id, email: user.email })
+    const user = await this.authService.findUserById(payload.id);
+    if (!user) {
+      throw new UnauthorizedException('User not found');
+    }
+    return user; // This will be attached to req.user
   }
 }

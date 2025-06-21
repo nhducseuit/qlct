@@ -18,16 +18,13 @@ import { UpdateTransactionDto } from './dto/update-transaction.dto';
 import { Transaction as TransactionModel } from '@generated/prisma'; // Use Prisma's generated type
 import { TransactionResponseDto } from './dto/transaction-response.dto'; // Import the new DTO
 import { GetTransactionsQueryDto } from './dto/get-transactions-query.dto';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard'; // Assuming you'll re-enable this
-
-interface AuthenticatedRequest extends Request {
-  user?: { id: string; email: string }; // Ensure this matches what JwtAuthGuard sets
-}
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { AuthenticatedRequest } from '../auth/interfaces/authenticated-request.interface';
 
 @ApiBearerAuth()
 @ApiTags('transactions')
 @Controller('transactions')
-@UseGuards(JwtAuthGuard) // Apply guard at controller level
+@UseGuards(JwtAuthGuard)
 export class TransactionController {
   constructor(private readonly transactionService: TransactionService) {}
 
@@ -37,7 +34,7 @@ export class TransactionController {
   @ApiResponse({ status: 400, description: 'Bad Request.' })
   @ApiResponse({ status: 401, description: 'Unauthorized.' })
   create(@Body() createTransactionDto: CreateTransactionDto, @Req() req: AuthenticatedRequest): Promise<TransactionModel> {
-    const userId = req.user?.id || 'dev-user'; // Correctly access req.user.id
+    const userId = req.user.id;
     return this.transactionService.create(createTransactionDto, userId);
   }
 
@@ -49,7 +46,7 @@ export class TransactionController {
     @Req() req: AuthenticatedRequest,
     @Query() queryDto: GetTransactionsQueryDto
   ): Promise<TransactionModel[]> {
-    const userId = req.user?.id || 'dev-user'; // Correctly access req.user.id
+    const userId = req.user.id;
     return this.transactionService.findFiltered(userId, queryDto);
   }
 
@@ -61,7 +58,7 @@ export class TransactionController {
   @ApiResponse({ status: 403, description: 'Forbidden.' })
   @ApiResponse({ status: 404, description: 'Transaction not found.' })
   findOne(@Param('id', ParseUUIDPipe) id: string, @Req() req: AuthenticatedRequest): Promise<TransactionModel> {
-    const userId = req.user?.id || 'dev-user'; // Correctly access req.user.id
+    const userId = req.user.id;
     return this.transactionService.findOne(id, userId);
   }
 
@@ -78,7 +75,7 @@ export class TransactionController {
     @Body() updateTransactionDto: UpdateTransactionDto,
     @Req() req: AuthenticatedRequest
   ): Promise<TransactionModel> {
-    const userId = req.user?.id || 'dev-user'; // Correctly access req.user.id
+    const userId = req.user.id;
     return this.transactionService.update(id, updateTransactionDto, userId);
   }
 
@@ -90,7 +87,7 @@ export class TransactionController {
   @ApiResponse({ status: 403, description: 'Forbidden.' })
   @ApiResponse({ status: 404, description: 'Transaction not found.' })
   remove(@Param('id', ParseUUIDPipe) id: string, @Req() req: AuthenticatedRequest): Promise<{ message: string }> {
-    const userId = req.user?.id || 'dev-user'; // Correctly access req.user.id
+    const userId = req.user.id;
     return this.transactionService.remove(id, userId);
   }
 }

@@ -193,8 +193,8 @@ export const usePredefinedSplitRatioStore = defineStore('predefinedSplitRatios',
       void loadPredefinedRatios();
       void setupSocketListeners();
     }
-    authStore.$subscribe((_mutation, state) => {
-      if (state.isAuthenticated) {
+    authStore.$subscribe(() => { // Removed unused _mutation and state params
+      if (authStore.isAuthenticated) { // Access isAuthenticated from the store instance
         void loadPredefinedRatios();
         void setupSocketListeners();
       } else {

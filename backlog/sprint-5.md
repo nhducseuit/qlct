@@ -10,6 +10,30 @@
 
 ## Sprint Backlog:
 
+### Authentication (Started)
+- **Feature:** Implement real user registration, login, and authentication using JWT.
+- **Status (Start of Sprint 5):** Backend authentication module setup complete.
+- **Completed Backend Tasks:**
+    - [x] Added Passport, JWT, bcryptjs dependencies.
+    - [x] Created `AuthModule` with controller, service, and strategies.
+    - [x] Implemented `AuthService` for login/register/validate logic using Prisma.
+    - [x] Implemented `JwtStrategy` for token validation.
+    - [x] Implemented `LocalStrategy` for credential validation.
+    - [x] Created `JwtAuthGuard` and `LocalAuthGuard`.
+    - [x] Created DTOs (`LoginDto`, `RegisterDto`, `AuthResponseDto`).
+    - [x] Updated `UserPayload` and `AuthenticatedRequest` interfaces.
+    - [x] Integrated `AuthModule` into `AppModule`.
+    - [x] Protected existing controllers with `@UseGuards(JwtAuthGuard)`.
+    - [x] Updated `seed.ts` to create a test user with a known password for login testing.
+    - [x] Added `JWT_SECRET` environment variable configuration.
+- **Remaining Frontend Tasks for Sprint 5:**
+    - [ ] Create `LoginPage.vue` component.
+    - [ ] Update `RegisterPage.vue` to use the backend `/auth/register` API.
+    - [ ] Update `authStore.ts` to handle real login/registration API calls, store JWT token, manage user state, and handle logout.
+    - [ ] Update `api.ts` interceptor to attach the real JWT token.
+    - [ ] Update router guards (`router/index.ts`) to use the real authentication state from `authStore`.
+    - [ ] Remove development user bypass logic from frontend (authStore, router guards, api.ts).
+
 ### Predefined Share Ratios (Continued)
 
 - **Feature:** Provide functionality to configure and reuse sets of predefined share ratios.

@@ -1,5 +1,7 @@
 <template>
   <q-page class="flex flex-center bg-grey-2">
+    <q-inner-loading :showing="isLoading" label="Đang xử lý..." />
+
     <q-card class="q-pa-md shadow-2 my-card" bordered style="width: 400px;">
       <q-card-section class="text-center">
         <div class="text-grey-9 text-h5 text-weight-bold">Đăng Ký</div>
@@ -31,7 +33,12 @@
             lazy-rules
             :rules="[val => !!val || 'Vui lòng xác nhận mật khẩu', val => val === password || 'Mật khẩu không khớp']"
           />
-          <q-btn label="Đăng ký" color="primary" class="full-width" type="submit" />
+          <q-btn
+            label="Đăng ký"
+            color="primary"
+            class="full-width"
+            type="submit"
+            :loading="isLoading" />
         </q-form>
       </q-card-section>
       <q-card-section class="text-center q-pt-none">
@@ -49,17 +56,31 @@
 <script setup lang="ts">
 import { ref } from 'vue';
 import { useQuasar } from 'quasar';
-import { useRouter } from 'vue-router';
+// import { useRouter } from 'vue-router'; // Not used if authStore handles navigation
+import { useAuthStore } from 'src/stores/authStore'; // We'll update this store later
+// import { registerAPI } from 'src/services/authApiService'; // No longer needed if authStore.register handles it
+import type { RegisterDto } from 'src/models/auth';
 
 const $q = useQuasar();
-const router = useRouter();
+const authStore = useAuthStore(); // For setting user state after registration
+
 const email = ref('');
 const password = ref('');
 const confirmPassword = ref('');
+const isLoading = ref(false);
 
 const handleRegister = async () => {
-  // Placeholder for actual registration API call
-  $q.notify({ type: 'positive', message: 'Đăng ký thành công! Vui lòng đăng nhập.' });
-  await router.push({ name: 'login' });
+  if (password.value !== confirmPassword.value) {
+    $q.notify({ type: 'negative', message: 'Mật khẩu xác nhận không khớp.' });
+    return;
+  }
+
+  isLoading.value = true;
+  const registerData: RegisterDto = {
+    email: email.value,
+    password: password.value,
+  };
+  await authStore.register(registerData); // Call store action. Notifications and routing are handled by authStore.register.
+  isLoading.value = false; // isLoading is managed here, error/success notifications by the store.
 };
 </script>

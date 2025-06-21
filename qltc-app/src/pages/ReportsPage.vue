@@ -145,6 +145,9 @@
         :breakdown-data="summaryStore.categoryBreakdown"
         :loading="summaryStore.categoryBreakdownLoading"
         :error="summaryStore.categoryBreakdownError"
+        :selected-member-ids-global="selectedMemberIdsGlobal"
+        :exclude-income-filter="excludeIncomeFilter"
+        :is-strict-mode-active="isStrictModeActive"
         :period-label="categoryBreakdownPeriodLabel"
       />
 

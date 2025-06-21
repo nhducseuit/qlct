@@ -1,18 +1,18 @@
 import { Controller, Get, Query, UseGuards, Req, Post, Body, HttpStatus } from '@nestjs/common';
 import { SettlementsService } from './settlements.service';
 import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags, ApiCreatedResponse } from '@nestjs/swagger';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { BalancesResponseDto } from './dto/balances-response.dto';
 import { CreateSettlementDto } from './dto/create-settlement.dto';
 import { SettlementDto } from './dto/settlement.dto';
 import { GetBalancesQueryDto } from './dto/get-balances-query.dto';
 import { GetSettlementsQueryDto } from './dto/get-settlements-query.dto';
 import { PaginatedSettlementsResponseDto } from './dto/paginated-settlements-response.dto';
-import { AuthenticatedRequest } from '../auth/interfaces/authenticated-request.interface';
+import { AuthenticatedRequest } from '../auth/interfaces/authenticated-request.interface'; // Assuming you'll re-enable this
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard'; // Assuming you'll re-enable this
 
 @ApiTags('Settlements')
 @ApiBearerAuth()
-@UseGuards(JwtAuthGuard)
+// @UseGuards(JwtAuthGuard) // Temporarily removed for development: "no authorization yet"
 @Controller('settlements')
 export class SettlementsController {
     constructor(private readonly settlementsService: SettlementsService) {}
@@ -27,11 +27,8 @@ export class SettlementsController {
   async getBalances(
     @Req() req: AuthenticatedRequest,
     @Query() query: GetBalancesQueryDto,
-  ): Promise<BalancesResponseDto> {
-    // Correctly access the user ID from the 'id' property of req.user
-    // as indicated by the console log of req.user.
-    // Ensure UserPayload interface matches this structure.
-    const userId = req.user.id; 
+  ): Promise<BalancesResponseDto> { // Correctly access the user ID from the 'id' property of req.user
+    const userId = req.user?.id || 'dev-user'; // DEV mode default
     return this.settlementsService.calculateBalances(userId, query);
   }
 
@@ -42,11 +39,8 @@ export class SettlementsController {
     type: SettlementDto,
   })
   async createSettlement(@Req() req: AuthenticatedRequest, @Body() createSettlementDto: CreateSettlementDto): Promise<SettlementDto> {
-    console.log('[SettlementsController] req.user (createSettlement):', JSON.stringify(req.user, null, 2));
-    // Correctly access the user ID from the 'id' property of req.user
-    // as indicated by the console log of req.user.
-    // Ensure UserPayload interface matches this structure.
-    const userId = req.user.id;
+    console.log('[SettlementsController] req.user (createSettlement):', JSON.stringify(req.user, null, 2)); // Correctly access the user ID from the 'id' property of req.user
+    const userId = req.user?.id || 'dev-user'; // DEV mode default
     console.log('[SettlementsController] Extracted userId:', userId);
     return this.settlementsService.createSettlement(userId, createSettlementDto);
   }
@@ -62,10 +56,8 @@ export class SettlementsController {
     @Req() req: AuthenticatedRequest,
     @Query() query: GetSettlementsQueryDto,
   ): Promise<PaginatedSettlementsResponseDto> {
-    // Correctly access the user ID from the 'id' property of req.user
-    // as indicated by the console log of req.user.
-    // Ensure UserPayload interface matches this structure.
-    const userId = req.user.id;
+    // Correctly access the user ID from the 'id' property of req.user as indicated by the console log of req.user.
+    const userId = req.user?.id || 'dev-user'; // DEV mode default
     return this.settlementsService.getSettlements(userId, query);
   }
 }

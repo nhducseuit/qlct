@@ -1,160 +1,129 @@
+// d:\sources\qlct\qltc-app\src\stores\authStore.ts
 import { defineStore } from 'pinia';
-import { ref } from 'vue';
-import { useRouter } from 'vue-router';
+import { ref, computed } from 'vue';
+import { registerAPI, loginAPI } from 'src/services/authApiService';
+import type { LoginDto, RegisterDto, AuthResponseDto, UserPayload } from 'src/models/auth';
 import { useQuasar } from 'quasar';
-
-// Define a simple User type for now
-interface User {
-  id: string;
-  email: string;
-  // Add other user-specific fields as needed
-}
-
-const devUserDetails: User = { id: 'dev-user', email: 'dev@example.com' };
-const devUserToken = 'dev-token-dev-user'; // Matches backend expectation for dev user
-
-// Log environment variables as soon as the module is parsed
-console.log('[AuthStore Module Top] import.meta.env.DEV:', import.meta.env.DEV);
-console.log('[AuthStore Module Top] import.meta.env.VITE_FORCE_DEV_USER:', import.meta.env.VITE_FORCE_DEV_USER);
+import { useRouter } from 'vue-router';
+import { LocalStorage } from 'quasar';
+import apiClient from 'src/services/api'; // Corrected to default import
+import { AxiosError } from 'axios';
 
 export const useAuthStore = defineStore('auth', () => {
+  const token = ref<string | null>(LocalStorage.getItem('token') || null); // Removed redundant assertion
+
+  // Initialize user from localStorage, handling potential parsing/type issues
+  let initialUser: UserPayload | null = null;
+  try {
+    // LocalStorage.getItem already parses the JSON if it was stored as an object by Quasar.
+    // So, storedUserItem will be the object or null, not a string.
+    const storedUserItem = LocalStorage.getItem('user');
+    if (storedUserItem) {
+      initialUser = storedUserItem as UserPayload; // Assert type as it's already parsed
+    }
+  } catch (e: unknown) {
+    console.error('Error retrieving user data from localStorage:', e);
+    // If there's any unexpected error during retrieval, clear corrupted data
+    LocalStorage.remove('user');
+    LocalStorage.remove('token');
+    token.value = null; // Clear token in store as well
+  }
+  const user = ref<UserPayload | null>(initialUser); // Initialize ref with the determined value
+  const isAuthenticated = computed(() => !!token.value);
+  const isLoading = ref(false);
+  const error = ref<string | null>(null); // Keep error state
+
   const $q = useQuasar();
-  // IMPORTANT: useRouter() can only be reliably used *after* the Pinia store is fully initialized
-  // and connected to the Vue app. Access it lazily or pass it in if needed during setup.
-  // For now, we'll access it lazily within methods like login/logout.
-  let routerInstance: ReturnType<typeof useRouter> | null = null;
+  const router = useRouter();
 
-  const getRouter = () => {
-    if (!routerInstance) {
-      routerInstance = useRouter();
-    }
-    return routerInstance;
+  // Helper function to set token and user in both store and localStorage
+  const setAuthData = (authResponse: AuthResponseDto) => {
+    token.value = authResponse.accessToken;
+    user.value = authResponse.user;
+    LocalStorage.set('token', authResponse.accessToken); // Quasar LocalStorage stringifies objects automatically
+    LocalStorage.set('user', authResponse.user);
+    // Update Axios Authorization header
+    apiClient.defaults.headers.common['Authorization'] = `Bearer ${authResponse.accessToken}`;
   };
 
-
-  // Check for Vite's DEV mode (true for `quasar dev`)
-  const isViteDevMode = import.meta.env.DEV;
-  // Check for our custom environment variable (set during Docker build)
-  const forceDevUserMode = import.meta.env.VITE_FORCE_DEV_USER === 'true';
-  console.log('[AuthStore defineStore] isViteDevMode:', isViteDevMode, 'forceDevUserMode:', forceDevUserMode);
-
-  const isAuthenticated = ref(false);
-  const user = ref<User | null>(null);
-  const token = ref<string | null>(null); // Initialize as null, then check localStorage
-
-  const setDevUser = () => {
-    isAuthenticated.value = true;
-    user.value = { ...devUserDetails };
-    token.value = devUserToken;
-    localStorage.setItem('user-token', devUserToken);
-    localStorage.setItem('user-details', JSON.stringify(devUserDetails));
-    console.log('[AuthStore] Dev user set up:', user.value, token.value);
-  };
-
-  const clearUser = () => {
-    isAuthenticated.value = false;
-    user.value = null;
+  const clearAuthData = () => {
     token.value = null;
-    localStorage.removeItem('user-token');
-    localStorage.removeItem('user-details');
+    user.value = null;
+    LocalStorage.remove('token');
+    LocalStorage.remove('user');
+    delete apiClient.defaults.headers.common['Authorization'];
   };
 
-  const initializeAuth = () => {
-    const storedToken = localStorage.getItem('user-token');
-    token.value = storedToken; // Set token ref from localStorage
+  const register = async (registerData: RegisterDto) => {
+    isLoading.value = true;
+    error.value = null;
+    try {
+      await registerAPI(registerData); // Removed unused response variable
+      // Directly log in the user after successful registration (optional)
+      // setAuthData(response);
+      // $q.notify({ type: 'positive', message: 'Đăng ký thành công!' });
+      // await router.push({ name: 'home' });
 
-    console.log('[AuthStore initializeAuth] Start. isViteDevMode:', isViteDevMode, 'forceDevUserMode:', forceDevUserMode, 'storedToken:', storedToken);
-
-    if ((isViteDevMode || forceDevUserMode) && !storedToken) {
-      // If in Vite dev mode OR forceDevUserMode is true, AND no real token exists in localStorage, set up dev user.
-      console.log('[AuthStore initializeAuth] Condition for dev user met. Calling setDevUser().');
-      setDevUser();
-    } else if (storedToken) {
-      // If a token exists (from localStorage), try to parse user details
-      console.log('[AuthStore initializeAuth] Token found in localStorage. Attempting to restore user.');
-      const storedUser = localStorage.getItem('user-details');
-      if (storedUser) {
-        try {
-          user.value = JSON.parse(storedUser);
-          isAuthenticated.value = true;
-          console.log('[AuthStore initializeAuth] User restored from localStorage.');
-        } catch (e) {
-          console.error('[AuthStore] Failed to parse user from localStorage, clearing auth state.', e);
-          clearUser(); // Clear invalid state
-        }
-      } else {
-        // Token exists but no user details, likely an invalid state from previous manual sets or errors
-        console.warn('[AuthStore initializeAuth] Token found but no user details in localStorage, clearing auth state.');
-        clearUser(); // Clear invalid state
+      // Or, just notify and redirect to login (as in your RegisterPage.vue)
+      $q.notify({ type: 'positive', message: 'Đăng ký thành công! Vui lòng đăng nhập.' });
+      // Use router.replace to prevent going back to register page
+      await router.replace({ name: 'login' });
+    } catch (err: unknown) { // Typed error as unknown
+      let message = 'Đăng ký không thành công.';
+      if (err instanceof AxiosError && err.response?.data?.message) {
+        message = Array.isArray(err.response.data.message)
+          ? err.response.data.message.join(', ')
+          : String(err.response.data.message);
+      } else if (err instanceof Error) {
+        message = err.message;
       }
-    } else {
-      // No token, not dev mode, not forced dev user mode - ensure clean state
-      console.log('[AuthStore initializeAuth] No token, not dev/forced mode. Clearing user.');
-      clearUser();
+      error.value = message;
+      $q.notify({ type: 'negative', message: String(message) });
+    } finally {
+      isLoading.value = false;
     }
-    console.log('[AuthStore initializeAuth] End. isAuthenticated.value:', isAuthenticated.value);
   };
 
-  initializeAuth(); // Call initialization logic when the store is defined
-
-
-  const login = async (/* credentials: any */) => {
-    // Placeholder for actual API call
-    isAuthenticated.value = true;
-    const loggedInUser: User = { id: 'test-user', email: 'user@example.com' }; // Mock user
-    const loggedInToken = 'mock-jwt-token-for-test-user'; // Mock token
-
-    user.value = loggedInUser;
-    token.value = loggedInToken;
-    localStorage.setItem('user-token', loggedInToken);
-    localStorage.setItem('user-details', JSON.stringify(loggedInUser));
-
-    $q.notify({ type: 'positive', message: 'Đăng nhập thành công!' });
-    const router = getRouter();
-    if (router) {
-        await router.push({ name: 'home' });
+  const login = async (loginData: LoginDto) => {
+    isLoading.value = true;
+    error.value = null;
+    try {
+      const response = await loginAPI(loginData);
+      setAuthData(response);
+      $q.notify({ type: 'positive', message: 'Đăng nhập thành công!' });
+      // Use router.replace to prevent going back to login page
+      await router.replace({ name: 'home' }); // Or your default authenticated route
+    } catch (err: unknown) { // Typed error as unknown
+      let message = 'Đăng nhập không thành công.';
+      if (err instanceof AxiosError && err.response?.data?.message) {
+        message = Array.isArray(err.response.data.message)
+          ? err.response.data.message.join(', ')
+          : String(err.response.data.message);
+      } else if (err instanceof Error) {
+        message = err.message;
+      }
+      error.value = message;
+      $q.notify({ type: 'negative', message: String(message) });
+    } finally {
+      isLoading.value = false;
     }
   };
 
   const logout = async () => {
-    const router = getRouter();
+    clearAuthData();
     $q.notify({ type: 'info', message: 'Đã đăng xuất.' });
-
-    // After clearing user, if forceDevUserMode is true, re-initialize to set dev user again.
-    // IMPORTANT: In forceDevUserMode, we should NOT call clearUser() first,
-    // as this causes isAuthenticated to briefly become false, triggering $subscribe.
-    // This makes "logout" in forced dev mode effectively a "reset to dev user".
-    // If you want logout to truly clear even in forced mode, remove this re-initialization.
-    if (forceDevUserMode) {
-        console.log('[AuthStore] VITE_FORCE_DEV_USER is true, re-setting dev user after logout.');
-        setDevUser();
-        if (router && router.currentRoute.value.name !== 'home') { // Redirect to home after re-setting dev user
-            try {
-                await router.push({ name: 'home' });
-            } catch (e) {
-                console.error("Router push to home failed after re-setting dev user:", e);
-            }
-        }
-        return; // Prevent redirect to login
-    }
-
-    if (router && router.currentRoute.value.name !== 'login') {
-        try {
-            await router.push({ name: 'login' });
-        } catch (e) {
-            console.error("Router push to login failed on logout:", e);
-        }
-    }
-    clearUser(); // Only clear user state if not in forceDevUserMode
+    await router.push({ name: 'login' }); // Or your default unauthenticated route
   };
 
   return {
-    isAuthenticated,
-    user,
     token,
+    user,
+    isAuthenticated,
+    isLoading,
+    error,
+    register,
     login,
     logout,
-    setDevUser, // Expose if needed externally
-    initializeAuth, // Expose for potential re-initialization if needed elsewhere
+    clearAuthData, // Expose clearAuthData
   };
 });

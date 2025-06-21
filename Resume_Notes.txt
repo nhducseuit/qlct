@@ -62,5 +62,21 @@ The project is now ready to move into Sprint 3. The immediate next focus will li
         *   Implemented `RecordSettlementDialog.vue` for users to log new settlements, integrated into `BalancesView.vue`.
         *   Created `SettlementHistory.vue` component structure for displaying past settlements (integration pending).
 **Next Sprints:**
+*   **Authentication (Started):** Began implementing real user authentication. Completed backend setup including AuthModule, AuthService, AuthController, JWT/Local strategies, guards, DTOs, and updating the seed script to create a test user. Protected core backend routes with JWT authentication. Frontend implementation (Login/Register pages, auth store logic) is the next focus.
+    *   **Frontend Implementation (Completed):**
+        *   Created `LoginPage.vue` component.
+        *   Updated `RegisterPage.vue` to use the backend `/auth/register` API.
+        *   Updated `authStore.ts` to handle real login/registration API calls, store JWT token in LocalStorage, manage user state (`isAuthenticated`, `user`), and implement logout logic.
+        *   Updated `api.ts` interceptor to attach the real JWT token to requests and handle 401 Unauthorized errors by clearing auth state and redirecting to login.
+        *   Updated router guards (`router/index.ts`) to use the real authentication state from `authStore` for route protection and redirect authenticated users from login/register pages.
+        *   Added a logout button to `MainLayout.vue`, visible when authenticated.
+        *   Resolved various TypeScript and ESLint errors across frontend stores and components related to authentication integration.
+        *   Removed frontend development user bypass logic.
+    *   **Status:** Frontend authentication flow (Login, Register, Logout, Route Protection, API Integration) is now largely complete and errors have been resolved.
+    *   **Current Development State (Authentication Gate, Global Data Access, Report Filtering):**
+        *   **Authentication:** The `JwtAuthGuard` is now active on all backend controllers. All API requests require a valid JWT token.
+        *   **Authorization:** Per request, authorization has been removed at the data level. Any authenticated user can view and interact with **all** data (transactions, categories, etc.) from **all other users**. The `userId` is still used to stamp newly created records but is ignored for fetching/filtering lists of data. This effectively makes the application single-tenant for all authenticated users.
+        *   **Report Filtering Consistency:** The transaction detail table on the Reports page now correctly applies the `isStrictMode`, `memberIds`, and `transactionType` filters, ensuring consistency with the charts above it. This involved updating the `/transactions` API and fixing a 400 Bad Request error by correcting array serialization in the frontend.
+
 *   Sprint 4: Shared Expense Balancing & Settlements
 *   Sprint 5: AI & remaining UI enhancements

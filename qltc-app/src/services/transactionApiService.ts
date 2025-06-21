@@ -4,6 +4,7 @@
  * This service makes HTTP requests to the NestJS backend for transaction-related operations.
  */
 import apiClient from './api'; // Import the new configured Axios instance
+import qs from 'qs'; // Import qs for query string serialization
 import type { Transaction, SplitRatioItem } from 'src/models';
 
 // The base URL for transactions will be something like '/transactions'
@@ -33,13 +34,21 @@ export interface GetTransactionsQueryPayload {
   startDate?: string; // ISO Date string
   endDate?: string;   // ISO Date string
   memberIds?: string[];
+  transactionType?: 'expense' | 'income' | 'all';
+  isStrictMode?: 'true' | 'false';
 }
 
 
 export const fetchTransactionsAPI = async (query?: GetTransactionsQueryPayload): Promise<Transaction[]> => {
   console.log('[TransactionApiService] fetchTransactionsAPI called with query:', query);
   try {
-    const response = await apiClient.get<Transaction[]>(API_URL, { params: query });
+    const response = await apiClient.get<Transaction[]>(API_URL, {
+      params: query,
+      paramsSerializer: params => {
+        // Use qs to serialize array parameters as "repeat" (e.g., memberIds=id1&memberIds=id2)
+        return qs.stringify(params, { arrayFormat: 'repeat' });
+      }
+    });
     return response.data;
   } catch (error) {
     console.error('Error fetching transactions:', error);

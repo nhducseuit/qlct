@@ -1,4 +1,4 @@
-import { defineRouter } from '#q-app/wrappers';
+import { route } from 'quasar/wrappers'; // Import RouteCallback for type assertion
 import {
   createMemoryHistory,
   createRouter,
@@ -7,6 +7,8 @@ import {
 } from 'vue-router';
 import routes from './routes';
 import { useAuthStore } from 'src/stores/authStore'; // Import auth store
+import type { Pinia } from 'pinia'; // Import Pinia type for explicit typing
+import type { RouteCallback } from '@quasar/app-vite'; // Correctly import RouteCallback for assertion
 
 /*
  * If not building with SSR mode, you can
@@ -16,8 +18,10 @@ import { useAuthStore } from 'src/stores/authStore'; // Import auth store
  * async/await or return a Promise which resolves
  * with the Router instance.
  */
+// Export the router instance directly for use in places like api.ts
+export let routerInstance: ReturnType<typeof createRouter>;
 
-export default defineRouter(function (/* { store, ssrContext } */) {
+export default route(function ({ store }: { store: Pinia } /*, ssrContext */) {
   const createHistory = process.env.SERVER
     ? createMemoryHistory
     : (process.env.VUE_ROUTER_MODE === 'history' ? createWebHistory : createWebHashHistory);
@@ -25,7 +29,6 @@ export default defineRouter(function (/* { store, ssrContext } */) {
   const Router = createRouter({
     scrollBehavior: () => ({ left: 0, top: 0 }),
     routes,
-
     // Leave this as is and make changes in quasar.conf.js instead!
     // quasar.conf.js -> build -> vueRouterMode
     // quasar.conf.js -> build -> publicPath
@@ -33,16 +36,8 @@ export default defineRouter(function (/* { store, ssrContext } */) {
   });
 
   Router.beforeEach((to, from, next) => {
-    const authStore = useAuthStore(); // Get store instance inside the guard
-    // Bypass authentication in DEV mode
-    // For Docker builds with forced dev user, authStore.isAuthenticated will be true.
-    if (import.meta.env.DEV && !authStore.isAuthenticated) {
-      // This specific check for import.meta.env.DEV is more for local `quasar dev`
-      // where VITE_FORCE_DEV_USER might not be set.
-      next();
-      return;
-    }
-
+    // Get the auth store instance, passing the Pinia store provided by the wrapper
+    const authStore = useAuthStore(store); // Pass the Pinia store instance if needed by useAuthStore
     const requiresAuth = to.matched.some(record => record.meta.requiresAuth);
     const requiresGuest = to.matched.some(record => record.meta.requiresGuest);
 
@@ -57,5 +52,8 @@ export default defineRouter(function (/* { store, ssrContext } */) {
       next();
     }
   });
+
+  routerInstance = Router; // Assign the instance for export
+
   return Router;
-});
+} as RouteCallback); // Add type assertion here

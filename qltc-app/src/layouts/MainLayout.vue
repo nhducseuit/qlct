@@ -15,8 +15,20 @@
           {{ currentRouteTitle }}
         </q-toolbar-title>
 
-        <div v-if="authStore.isAuthenticated && authStore.user" class="q-mr-md">
-          {{ isDevMode ? `DEV Mode: ${authStore.user.email}` : `Chào, ${authStore.user.email}` }}
+        <div v-if="authStore.isAuthenticated && authStore.user" class="row items-center">
+          <q-avatar icon="person" color="white" text-color="primary" size="sm" class="q-mr-sm gt-xs" />
+          <span class="q-mr-md gt-xs">
+            {{ isDevMode ? `DEV: ${authStore.user.email}` : `Chào, ${authStore.user.email}` }}
+          </span>
+          <q-btn
+            flat
+            dense
+            round
+            icon="logout"
+            aria-label="Đăng xuất"
+            @click="handleLogout"
+            title="Đăng xuất"
+          />
         </div>
       </q-toolbar>
     </q-header>
@@ -51,10 +63,12 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue';
+import { useQuasar } from 'quasar';
 import { useAuthStore } from 'src/stores/authStore';
 import { useRoute } from 'vue-router'; // Import useRoute
 import EssentialLink, { type EssentialLinkProps } from 'components/EssentialLink.vue';
 
+const $q = useQuasar();
 const route = useRoute(); // Get current route
 const authStore = useAuthStore();
 
@@ -112,6 +126,19 @@ const leftDrawerOpen = ref(false);
 function toggleLeftDrawer () {
   leftDrawerOpen.value = !leftDrawerOpen.value;
 }
+
+const handleLogout = () => {
+  $q.dialog({
+    title: 'Xác nhận Đăng xuất',
+    message: 'Bạn có chắc chắn muốn đăng xuất khỏi hệ thống?',
+    ok: { label: 'Đăng xuất', color: 'negative', flat: false },
+    cancel: { label: 'Hủy bỏ', color: 'primary', flat: true },
+    persistent: true,
+  }).onOk(() => {
+    void authStore.logout(); // Use void to explicitly ignore the promise
+    // Navigation to login page is handled by the authStore.logout action
+  });
+};
 
 // Update toolbar title based on current route meta
 const currentRouteTitle = computed(() => route.meta.title as string || 'QL Thu Chi - Nâng bước tài chính nhà ta ( ´ ω ` )');

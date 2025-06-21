@@ -159,7 +159,10 @@ export const useTransactionStore = defineStore('transactions', () => {
     year: number,
     month?: number, // 1-12
     quarter?: number, // 1-4
-    memberIds?: string[]
+    memberIds?: string[],
+    transactionType?: 'expense' | 'income' | 'all',
+    isStrictMode?: boolean,
+
   ) => {
     if (!authStore.isAuthenticated) {
       categoryPeriodTransactions.value = null;
@@ -177,6 +180,12 @@ export const useTransactionStore = defineStore('transactions', () => {
       }
       if (memberIds && memberIds.length > 0) {
         query.memberIds = memberIds;
+      }
+      if (transactionType) {
+        query.transactionType = transactionType;
+      }
+      if (isStrictMode !== undefined) {
+        query.isStrictMode = isStrictMode ? 'true' : 'false'; // Convert boolean to string for DTO
       }
       console.log('[TransactionStore] Loading transactions for category/period with query:', query);
       const fetched = await fetchTransactionsAPI(query); // Use the enhanced fetchTransactionsAPI
@@ -297,8 +306,8 @@ export const useTransactionStore = defineStore('transactions', () => {
     storeSocket = null; // Clear the store's local reference
   };
 
-  authStore.$subscribe((_mutation, state) => {
-    if (state.isAuthenticated) {
+  authStore.$subscribe(() => { // Removed unused _mutation and state params
+    if (authStore.isAuthenticated) { // Access isAuthenticated from the store instance
       void loadTransactions(); // void to call async function without awaiting here
       void setupSocketListeners();
     } else {

@@ -15,48 +15,13 @@ import { useAuthStore } from './authStore';
 import { connect } from 'src/services/socketService'; // Renamed connectSocket to connect
 import type { Socket } from 'socket.io-client';
 import { AxiosError } from 'axios';
-import { v4 as uuidv4 } from 'uuid'; // Keep for createInitialCategories if still used locally
+// import { v4 as uuidv4 } from 'uuid'; // Not used currently
 
 export const useCategoryStore = defineStore('categories', () => {
   const $q = useQuasar();
   const authStore = useAuthStore();
   const categories = ref<Category[]>([]);
   let storeSocket: Socket | null = null; // Renamed to avoid confusion
-
-  // This function needs significant rework if it's to be used with the real backend.
-  // It currently uses client-side UUID generation and a structure that doesn't align
-  // with the backend's `defaultSplitRatio` (expects SplitRatioItem[]).
-  // For now, it's best to manage initial categories via backend seeding or manual UI creation.
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const _createInitialCategories = () => { // Removed async as there's no await
-    console.warn('[CategoryStore] createInitialCategories is using mock data structure and client-side IDs. This needs rework for backend integration.');
-    const initialCategoriesData: CreateCategoryPayload[] = [
-      { name: 'Ăn uống', parentId: null, isPinned: true, order: 0, icon: 'IconToolsKitchen2', defaultSplitRatio: [{ memberId: uuidv4(), percentage: 50 }, { memberId: uuidv4(), percentage: 50 }], budgetLimit: 5000000, isHidden: false },
-      { name: 'Nhà ở', parentId: null, isPinned: true, order: 1, icon: 'IconHome', defaultSplitRatio: [{ memberId: uuidv4(), percentage: 60 }, { memberId: uuidv4(), percentage: 40 }], budgetLimit: 7000000, isHidden: false },
-      // ... (other mock categories)
-    ];
-
-    if (!authStore.isAuthenticated) {
-      console.error('Cannot create initial categories: User not authenticated.');
-      return;
-    }
-
-    try {
-      for (const catData of initialCategoriesData) {
-        // This is a placeholder and will likely fail or create incorrect data
-        // due to `defaultSplitRatio` format and client-side ID generation.
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars
-        const __payload: CreateCategoryPayload = { // Renamed to avoid conflict if _payload is used elsewhere, or ensure it's truly unused
-          ...catData,
-          // defaultSplitRatio: parseSplitRatioString(catData.defaultSplitRatio), // Needs a helper
-        };
-        // await addCategoryAPI(_payload); // This would be the call
-      }
-      $q.notify({ type: 'info', message: 'Attempted to create mock initial categories (needs rework).' });
-    } catch (error) {
-      console.error('Failed to create initial categories:', error);
-    }
-  };
 
 
   const loadCategories = async () => {
@@ -70,14 +35,6 @@ export const useCategoryStore = defineStore('categories', () => {
       console.log('[CategoryStore] Loading categories from API...');
       const fetchedCategories = await fetchCategoriesAPI();
       categories.value = fetchedCategories.sort((a, b) => a.order - b.order);
-      console.log('[CategoryStore] Categories loaded:', categories.value.length);
-
-      // Consider removing automatic initial category creation from frontend
-      // if (categories.value.length === 0 && import.meta.env.DEV) {
-      //   console.log('[CategoryStore] No categories found, attempting to create initial mock categories (DEV only).');
-      //   // await createInitialCategories(); // This function needs significant rework
-      //   // categories.value = (await fetchCategoriesAPI()).sort((a, b) => a.order - b.order);
-      // }
     } catch (error) {
       console.error('Failed to load categories:', error);
       $q.notify({
@@ -405,8 +362,8 @@ export const useCategoryStore = defineStore('categories', () => {
       void setupSocketListeners();
     }
     // Watch for authentication changes to setup/teardown listeners
-    authStore.$subscribe((mutation, state) => {
-      if (state.isAuthenticated) {
+    authStore.$subscribe(() => { // Removed unused mutation and state params
+      if (authStore.isAuthenticated) { // Access isAuthenticated from the store instance
         void loadCategories();
         void setupSocketListeners();
       } else {

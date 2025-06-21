@@ -1,5 +1,7 @@
 <template>
   <q-page class="flex flex-center bg-grey-2">
+    <q-inner-loading :showing="isLoading" label="Đang đăng nhập..." />
+
     <q-card class="q-pa-md shadow-2 my-card" bordered style="width: 400px;">
       <q-card-section class="text-center">
         <div class="text-grey-9 text-h5 text-weight-bold">Đăng Nhập</div>
@@ -23,7 +25,12 @@
             lazy-rules
             :rules="[val => !!val || 'Vui lòng nhập mật khẩu']"
           />
-          <q-btn label="Đăng nhập" color="primary" class="full-width" type="submit" />
+          <q-btn
+            label="Đăng nhập"
+            color="primary"
+            class="full-width"
+            type="submit"
+            :loading="isLoading" />
         </q-form>
       </q-card-section>
       <q-card-section class="text-center q-pt-none">
@@ -40,14 +47,20 @@
 
 <script setup lang="ts">
 import { ref } from 'vue';
-import { useAuthStore } from 'src/stores/authStore';
+import { useAuthStore } from 'src/stores/authStore'; // We'll update this store next
+import type { LoginDto } from 'src/models/auth';
 
 const authStore = useAuthStore();
-const email = ref('');
-const password = ref('');
+
+const email = ref('test@example.com'); // Pre-fill for easier testing with seed data
+const password = ref('testpassword'); // Pre-fill for easier testing
+const isLoading = ref(false);
 
 const handleLogin = async () => {
-  // In a real app, pass email.value and password.value
-  await authStore.login(/* { email: email.value, password: password.value } */);
+  isLoading.value = true;
+  const loginData: LoginDto = { email: email.value, password: password.value };
+  // The authStore.login action will handle API call, error, and navigation
+  await authStore.login(loginData);
+  isLoading.value = false; // authStore.login will handle loading state internally or we can manage it here
 };
 </script>

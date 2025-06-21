@@ -256,8 +256,8 @@ export const useHouseholdMemberStore = defineStore('householdMembers', () => {
       void loadMembers();
       void setupSocketListeners();
     }
-    authStore.$subscribe((_mutation, state) => {
-      if (state.isAuthenticated) {
+    authStore.$subscribe(() => { // Removed unused _mutation and state params
+      if (authStore.isAuthenticated) { // Access isAuthenticated from the store instance
         void loadMembers();
         void setupSocketListeners();
       } else {

@@ -1,5 +1,5 @@
 // src/transactions/dto/get-transactions-query.dto.ts
-import { IsEnum, IsInt, IsOptional, Max, Min, IsUUID, IsArray, IsDateString } from 'class-validator';
+import { IsEnum, IsInt, IsOptional, Max, Min, IsUUID, IsArray, IsDateString, IsBooleanString } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type, Transform } from 'class-transformer';
 import { PeriodType } from '../../summaries/dto/get-totals-summary.dto'; // Reusing PeriodType
@@ -82,4 +82,18 @@ export class GetTransactionsQueryDto {
   @IsArray()
   @IsUUID('all', { each: true, message: 'Each memberId must be a valid UUID.' })
   memberIds?: string[];
+
+  @ApiPropertyOptional({
+    enum: ['expense', 'income', 'all'],
+    description: 'Filter transactions by type (expense, income, all).',
+    example: 'expense',
+  })
+  @IsOptional()
+  @IsEnum(['expense', 'income', 'all'])
+  transactionType?: 'expense' | 'income' | 'all';
+
+  @ApiPropertyOptional({ description: 'Apply strict mode filtering for members (true/false string).', example: 'true' })
+  @IsOptional()
+  @IsBooleanString()
+  isStrictMode?: 'true' | 'false';
 }

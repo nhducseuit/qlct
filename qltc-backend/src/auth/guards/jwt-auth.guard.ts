@@ -1,33 +1,32 @@
 // src/auth/guards/jwt-auth.guard.ts
 import { ExecutionContext, Injectable, UnauthorizedException } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
-import { Observable } from 'rxjs';
+import { ConfigService } from '@nestjs/config'; // Import ConfigService
 
 @Injectable()
 export class JwtAuthGuard extends AuthGuard('jwt') {
-  canActivate(context: ExecutionContext): boolean | Promise<boolean> | Observable<boolean> {
+  constructor(private configService: ConfigService) { // Inject ConfigService
+    super();
+  }
+
+  canActivate(context: ExecutionContext) {
     const request = context.switchToHttp().getRequest();
-    const authHeader = request.headers.authorization;
+    const isForcedDevUser = this.configService.get<string>('FORCE_DEV_USER') === 'true';
 
-    const isDevEnvironment = process.env.NODE_ENV !== 'production';
-
-    if (isDevEnvironment && authHeader === 'Bearer dev-token-dev-user') {
-      console.log('[JwtAuthGuard] DEV mode: dev-token-dev-user detected. Bypassing JWT validation.');
+    // If FORCE_DEV_USER is true, bypass JWT validation and inject dev user
+    if (isForcedDevUser) {
+      console.log('[JwtAuthGuard] FORCE_DEV_USER is true. Bypassing JWT validation and injecting dev-user.');
       request.user = { id: 'dev-user', email: 'dev@example.com' }; // Mock user for dev
-      return true; // Bypass actual JWT validation for this specific token in dev
-    } else if (isDevEnvironment && !authHeader) {
-      // If no token is provided in a dev environment, default to dev-user
-      // This makes guarded HTTP routes behave like NotificationsGateway in dev
-      console.warn('[JwtAuthGuard] DEV mode: No token provided. Injecting dev-user.');
-      request.user = { id: 'dev-user', email: 'dev@example.com' };
       return true;
     }
+
     // Proceed with standard JWT validation
     return super.canActivate(context);
   }
 
   handleRequest(err: any, user: any, info: any) {
-    // You can throw an exception based on either err or info
+    // If FORCE_DEV_USER was true and handled in canActivate, user will be the dev user.
+    // Otherwise, this is the result of standard JWT validation.
     if (err || !user) {
       console.error('[JwtAuthGuard] Authentication error during handleRequest:', info?.message || err?.message);
       throw err || new UnauthorizedException(info?.message || 'User is not authenticated');

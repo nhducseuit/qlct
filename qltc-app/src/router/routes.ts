@@ -48,17 +48,25 @@ const routes: RouteRecordRaw[] = [
       },
     ],
   },
+
+  // Auth Layout for Login/Register
   {
-    path: '/login',
-    name: 'login',
-    component: () => import('pages/LoginPage.vue'),
-    meta: { requiresGuest: true }, // Redirect if already logged in
-  },
-  {
-    path: '/register',
-    name: 'register',
-    component: () => import('pages/RegisterPage.vue'),
-    meta: { requiresGuest: true }, // Redirect if already logged in
+    path: '/', // Use a common path prefix if desired, or keep them separate
+    component: () => import('layouts/AuthLayout.vue'), // Use the new AuthLayout
+    children: [
+      {
+        path: 'login',
+        name: 'login',
+        component: () => import('pages/LoginPage.vue'),
+        meta: { requiresGuest: true }, // Redirect if already logged in
+      },
+      {
+        path: 'register',
+        name: 'register',
+        component: () => import('pages/RegisterPage.vue'),
+        meta: { requiresGuest: true }, // Redirect if already logged in
+      },
+    ]
   },
 
   // Auth routes should be outside the MainLayout if they have a different layout
