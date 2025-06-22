@@ -34,6 +34,7 @@ services:
       FRONTEND_URL: http://192.168.1.165:8081 # Frontend will be on port 8081 via Docker
       NODE_ENV: development # Or production if you build for prod
       # Add any other backend environment variables here
+      JWT_SECRET: KKK
     depends_on:
       db:
         condition: service_healthy # Wait for DB to be ready

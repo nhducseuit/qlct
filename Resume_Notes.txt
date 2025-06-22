@@ -79,4 +79,4 @@ The project is now ready to move into Sprint 3. The immediate next focus will li
         *   **Report Filtering Consistency:** The transaction detail table on the Reports page now correctly applies the `isStrictMode`, `memberIds`, and `transactionType` filters, ensuring consistency with the charts above it. This involved updating the `/transactions` API and fixing a 400 Bad Request error by correcting array serialization in the frontend.
 
 *   Sprint 4: Shared Expense Balancing & Settlements
-*   Sprint 5: AI & remaining UI enhancements
+*   **Sprint 5: Foundational Data Model Refactor** - In Progress. Architecting a new "Big Family" / "Small Family" data model to support hierarchical financial management and granular data ownership, paving the way for advanced, per-family reporting features.
