@@ -3,6 +3,8 @@ import { defineStore } from 'pinia';
 import { ref } from 'vue';
 import { useQuasar } from 'quasar';
 import { useAuthStore } from './authStore';
+import { connect } from 'src/services/socketService';
+import type { Socket } from 'socket.io-client';
 import {
   fetchBalancesAPI,
   createSettlementAPI,
@@ -34,6 +36,7 @@ export const useSettlementStore = defineStore('settlements', () => {
   // State for creating a settlement
   const createSettlementLoading = ref(false);
   const createSettlementError = ref<string | null>(null);
+  let storeSocket: Socket | null = null;
 
   // Action to fetch balances
   const loadBalances = async () => {
@@ -143,6 +146,76 @@ export const useSettlementStore = defineStore('settlements', () => {
       settlementHistoryLoading.value = false;
     }
   };
+
+  // --- WebSocket Event Handling ---
+  const handleSettlementsUpdate = (data: { operation: string; item?: SettlementDto; itemId?: string }) => {
+    console.log('[SettlementStore] Received settlements_updated event:', data);
+    // A new settlement was created, the simplest way to ensure data consistency
+    // is to reload both balances and the settlement history.
+    if (data.operation === 'create' && data.item) {
+      $q.notify({
+        type: 'info',
+        message: `Một thanh toán mới đã được ghi nhận.`,
+        icon: 'sym_o_sync',
+        position: 'top-right',
+        timeout: 2500,
+      });
+      void loadBalances();
+      // Check if the new item would be on the currently viewed page of history
+      // For simplicity, just reload if on the first page.
+      if (settlementHistory.value?.meta.currentPage === 1) {
+        void loadSettlementHistory({ page: 1, limit: 10 });
+      }
+    }
+  };
+
+  const setupSocketListeners = async () => {
+    if (authStore.isAuthenticated) {
+      try {
+        const connectedSocketInstance = await connect();
+        if (connectedSocketInstance?.connected) {
+          storeSocket = connectedSocketInstance;
+          console.log(`[SettlementStore] Socket connected (${storeSocket.id}). Setting up listeners for settlements_updated.`);
+          storeSocket.off('settlements_updated', handleSettlementsUpdate); // Remove old listener first
+          storeSocket.on('settlements_updated', handleSettlementsUpdate);
+        } else {
+          console.warn('[SettlementStore] Failed to get a connected socket. Listeners not set up.');
+          if (storeSocket) {
+            storeSocket.off('settlements_updated', handleSettlementsUpdate);
+            storeSocket = null;
+          }
+        }
+      } catch (error) {
+        console.error('[SettlementStore] Error during socket connection or listener setup:', error);
+        if (storeSocket) {
+          storeSocket.off('settlements_updated', handleSettlementsUpdate);
+          storeSocket = null;
+        }
+      }
+    }
+  };
+
+  const clearSocketListeners = () => {
+    if (storeSocket) {
+      console.log(`[SettlementStore] Clearing WebSocket listeners for settlements_updated from socket ${storeSocket.id}`);
+      storeSocket.off('settlements_updated', handleSettlementsUpdate);
+    }
+    storeSocket = null;
+  };
+
+  const initializeStore = () => {
+    if (authStore.isAuthenticated) {
+      void setupSocketListeners();
+    } else {
+      clearSocketListeners();
+    }
+  };
+
+  authStore.$subscribe(() => {
+    initializeStore();
+  });
+
+    initializeStore();
 
   return {
     balances,

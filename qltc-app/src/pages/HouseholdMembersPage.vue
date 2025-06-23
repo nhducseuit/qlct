@@ -176,15 +176,12 @@ const moveMemberDown = async (id: string) => {
 };
 
 onMounted(() => {
-  if (householdMemberStore.members.length === 0) {
-    // If members aren't loaded, it's likely the store is in the process of loading them
-    // or will load them shortly due to authStore subscription.
-    // We can set a local loading flag, but it's better if this reflects the store's state.
-    // For now, we'll assume the store handles its own loading state and notifications.
-    // If a visual loading indicator is strictly needed here and isn't covered by a global one,
-    // you might need to expose a loading ref from the store.
-    // console.log('[HouseholdMembersPage] onMounted: members not loaded, store should handle it.');
+  // Ensure data is loaded when the component is mounted, especially for direct navigation.
+  if (members.value.length === 0) {
+    loading.value = true;
+    void householdMemberStore.loadMembers().finally(() => {
       loading.value = false;
+    });
   }
 });
 </script>

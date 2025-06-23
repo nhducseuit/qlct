@@ -18,7 +18,7 @@
         <div v-if="authStore.isAuthenticated && authStore.user" class="row items-center">
           <q-avatar icon="person" color="white" text-color="primary" size="sm" class="q-mr-sm gt-xs" />
           <span class="q-mr-md gt-xs">
-            {{ isDevMode ? `DEV: ${authStore.user.email}` : `Chào, ${authStore.user.email}` }}
+            Chào, {{ authStore.user.email }}
           </span>
           <q-btn
             flat
@@ -72,42 +72,40 @@ const $q = useQuasar();
 const route = useRoute(); // Get current route
 const authStore = useAuthStore();
 
-const isDevMode = computed(() => import.meta.env.DEV);
-
 const linksList: EssentialLinkProps[] = [
   {
-    title: 'Thêm chi tiêu / thu nhập',
-    caption: 'Thêm chi tiêu / thu nhập',
+    title: 'Thêm chi tiêu',
+    caption: 'Thêm chi tiêu',
     icon: 'sym_o_edit_square', // Hoặc 'edit_note'
     link: { name: 'QuickEntry' }
   },
   {
-    title: 'Danh sách ghi chú thu/chi',
-    caption: 'Danh sách ghi chú thu/chi',
+    title: 'Danh sách thu/chi',
+    caption: 'Danh sách thu/chi',
     icon: 'receipt_long', // Or 'list_alt', 'request_quote'
     link: { name: 'Transactions' }
   },
   {
-    title: 'Quản lý Danh mục thu/chi',
-    caption: 'Quản lý danh mục thu/chi',
+    title: 'Quản lý danh mục',
+    caption: 'Quản lý danh mục',
     icon: 'sym_o_category', // Hoặc 'category'
     link: { name: 'categoriesManagement' }
   },
   {
     title: 'Thành viên',
-    caption: 'Quản lý thành viên gia đình',
+    caption: 'Quản lý thành viên',
     icon: 'sym_o_groups', // Or 'people'
     link: { name: 'HouseholdMembers' }
   },
   {
-    title: 'Báo cáo & Thống kê',
-    caption: 'Xem các báo cáo tài chính',
+    title: 'Báo cáo',
+    caption: 'Xem báo cáo',
     icon: 'sym_o_monitoring', // Or 'bar_chart', 'analytics'
     link: { name: 'Reports' }
   },
   {
-    title: 'Cân đối & Quyết toán',
-    caption: 'Quản lý nợ và quyết toán',
+    title: 'Quyết toán',
+    caption: 'Quyết toán nợ',
     icon: 'sym_o_account_balance',
     link: { name: 'Settlements' },
   },

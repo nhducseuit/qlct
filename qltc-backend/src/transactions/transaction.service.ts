@@ -5,7 +5,7 @@ import { UpdateTransactionDto } from './dto/update-transaction.dto';
 import { CategoryService } from '../categories/category.service';
 import { HouseholdMemberService } from '../household-members/household-member.service';
 import { NotificationsGateway } from '../notifications/notifications.gateway';
-import { Transaction, Prisma } from '@generated/prisma';
+import { Transaction, Prisma } from '@prisma/client';
 import { GetTransactionsQueryDto } from './dto/get-transactions-query.dto';
 import dayjs from 'dayjs';
 
@@ -97,12 +97,20 @@ export class TransactionService {
   }
 
   async create(createTransactionDto: CreateTransactionDto, userId: string): Promise<Transaction> {
-    const category = await this.categoryService.findOne(createTransactionDto.categoryId, userId);
-    // category validation is implicitly handled by findOne throwing if not found/not user's
+    // Validate category existence (any category, not just user's own)
+    const category = await this.categoryService.findOne(createTransactionDto.categoryId);
+    // Ownership check removed as per global data access policy:
+    // if (category.userId !== userId) {
+    //   throw new ForbiddenException('You do not have permission to use this category.');
+    // }
 
     if (createTransactionDto.payer) {
-      await this.householdMemberService.findOne(createTransactionDto.payer, userId);
-      // payer validation is implicitly handled by findOne throwing if not found/not user's
+      // Validate payer existence (any household member, not just user's own)
+      const payerMember = await this.householdMemberService.findOne(createTransactionDto.payer);
+      // Ownership check removed as per global data access policy:
+      // if (payerMember.userId !== userId) {
+      //   throw new ForbiddenException('You do not have permission to use this household member as a payer.');
+      // }
     }
 
     let finalSplitRatio: Prisma.InputJsonValue | undefined =
@@ -206,20 +214,21 @@ export class TransactionService {
   }
 
   async findOne(id: string, userId: string): Promise<Transaction> {
-    const transaction = await this.prisma.transaction.findUnique({ where: { id } });
+    const transaction = await this.prisma.transaction.findUnique({
+      where: { id },
+    });
     if (!transaction) {
       throw new NotFoundException(`Transaction with ID "${id}" not found`);
     }
-    // Per user request, any authenticated user can access any transaction.
-    // The ownership check is removed.
-    // if (transaction.userId !== userId) {
-    //   throw new ForbiddenException('You do not have permission to access this transaction');
-    // }
     return transaction;
   }
 
   async update(id: string, updateTransactionDto: UpdateTransactionDto, userId: string): Promise<Transaction> {
-    const transaction = await this.findOne(id, userId);
+    const transaction = await this.prisma.transaction.findUnique({ where: { id } });
+    if (!transaction) throw new NotFoundException(`Transaction with ID "${id}" not found`);
+    if (transaction.userId !== userId) {
+      throw new ForbiddenException('You do not have permission to update this transaction.');
+    }
 
     const dataToUpdate: Prisma.TransactionUpdateInput = {};
 
@@ -231,21 +240,33 @@ export class TransactionService {
       if (updateTransactionDto.payer === null) {
         dataToUpdate.payer = null;
       } else {
-        await this.householdMemberService.findOne(updateTransactionDto.payer, userId);
+        const payerMember = await this.householdMemberService.findOne(updateTransactionDto.payer);
+        // Ownership check removed as per global data access policy:
+        // if (payerMember.userId !== userId) {
+        //   throw new ForbiddenException('You do not have permission to use this household member as a payer.');
+        // }
         dataToUpdate.payer = updateTransactionDto.payer;
       }
     }
     if (updateTransactionDto.isShared !== undefined) dataToUpdate.isShared = updateTransactionDto.isShared;
 
     if (updateTransactionDto.categoryId !== undefined) {
-      await this.categoryService.findOne(updateTransactionDto.categoryId, userId);
+      const category = await this.categoryService.findOne(updateTransactionDto.categoryId);
+      // Ownership check removed as per global data access policy:
+      // if (category.userId !== userId) {
+      //   throw new ForbiddenException('You do not have permission to use this category.');
+      // }
       dataToUpdate.category = { connect: { id: updateTransactionDto.categoryId } };
     }
     if (updateTransactionDto.splitRatio !== undefined) {
       dataToUpdate.splitRatio = updateTransactionDto.splitRatio as unknown as Prisma.InputJsonValue;
     } else if (updateTransactionDto.isShared === true && transaction.isShared === false) {
       const categoryIdToUse = updateTransactionDto.categoryId || transaction.categoryId;
-      const category = await this.categoryService.findOne(categoryIdToUse, userId);
+      const category = await this.categoryService.findOne(categoryIdToUse);
+      // Ownership check removed as per global data access policy:
+      // if (category.userId !== userId) {
+      //   throw new ForbiddenException('You do not have permission to use this category to get a default split ratio.');
+      // }
       if (category.defaultSplitRatio) {
         dataToUpdate.splitRatio = category.defaultSplitRatio;
       }
@@ -268,7 +289,11 @@ export class TransactionService {
   }
 
   async remove(id: string, userId: string): Promise<{ message: string }> {
-    const transaction = await this.findOne(id, userId);
+    const transaction = await this.prisma.transaction.findUnique({ where: { id } });
+    if (!transaction) throw new NotFoundException(`Transaction with ID "${id}" not found`);
+    if (transaction.userId !== userId) {
+      throw new ForbiddenException('You do not have permission to delete this transaction.');
+    }
     await this.prisma.transaction.delete({
       where: { id },
     });

@@ -191,10 +191,11 @@ onMounted(() => {
   // Stores should already be loading their data on app init or auth change.
   // We can add a loading flag if needed for initial display.
   if (transactionStore.transactions.length === 0) {
-    loading.value = true;
+    loading.value = true; // Set loading to true while data is being fetched
     // Use nextTick to ensure UI updates before potentially long-running async operations
     void nextTick(async () => {
       // Ensure dependent stores are also loaded if not already
+      await transactionStore.loadTransactions(); // Explicitly load transactions for this page
       if (categoryStore.categories.length === 0) await categoryStore.loadCategories();
       if (householdMemberStore.members.length === 0) await householdMemberStore.loadMembers();
       loading.value = false;

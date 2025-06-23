@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia';
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed } from 'vue';
 import {
   fetchCategoriesAPI,
   addCategoryAPI,
@@ -356,22 +356,24 @@ export const useCategoryStore = defineStore('categories', () => {
   };
 
   // Initial load and WebSocket setup
-  onMounted(() => {
+  const initializeStore = () => {
     if (authStore.isAuthenticated) {
       void loadCategories();
       void setupSocketListeners();
+    } else {
+      categories.value = [];
+      clearSocketListeners();
     }
-    // Watch for authentication changes to setup/teardown listeners
-    authStore.$subscribe(() => { // Removed unused mutation and state params
-      if (authStore.isAuthenticated) { // Access isAuthenticated from the store instance
-        void loadCategories();
-        void setupSocketListeners();
-      } else {
-        categories.value = []; // Clear data on logout
-        clearSocketListeners();
-      }
-    });
+  };
+
+  // Watch for authentication changes to re-initialize
+  authStore.$subscribe(() => {
+    initializeStore();
   });
+
+  // Initial call to set up state if already authenticated on app load
+  // This covers cases where authStore.isAuthenticated is true from localStorage on first run
+  initializeStore();
 
   return {
     categories,

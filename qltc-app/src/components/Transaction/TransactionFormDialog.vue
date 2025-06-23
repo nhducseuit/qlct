@@ -43,9 +43,9 @@
           <!-- Amount -->
           <q-input
             filled
-            v-model.number="form.amount"
+            v-model="formattedAmount"
             label="Số tiền *"
-            type="number"
+            type="text"
             step="1000"
             :rules="[val => val !== null && val > 0 || 'Số tiền phải lớn hơn 0']"
             input-class="text-right"
@@ -139,6 +139,7 @@ import { useCategoryStore } from 'src/stores/categoryStore';
 import { useHouseholdMemberStore } from 'src/stores/householdMemberStore';
 import { type Transaction, type SplitRatioItem } from 'src/models/index';
 import { dayjs } from 'src/boot/dayjs';
+import { formatNumberWithThousandsSeparator, parseNumberFromThousandsSeparator } from '../../utils/formatters';
 
 interface Props {
   editingTransaction?: Transaction | null;
@@ -169,10 +170,24 @@ const form = ref({
   type: 'expense' as 'income' | 'expense',
 });
 
+const formattedAmount = computed<string>({
+  get() {
+    return formatNumberWithThousandsSeparator(form.value.amount);
+  },
+  set(newValue: string) {
+    const parsed = parseNumberFromThousandsSeparator(newValue);
+    if (parsed !== null) {
+      form.value.amount = parsed;
+    } else if (newValue === '') {
+      form.value.amount = null;
+    }
+  }
+});
+
 const categoryOptions = computed(() =>
-  categoryStore.visibleCategories.map(cat => ({
+  categoryStore.flatSortedCategoriesForSelect.map(cat => ({
     id: cat.id,
-    name: `${cat.parentId ? '    ↳ ' : ''}${cat.name}`,
+    name: `${'\xA0\xA0\xA0\xA0'.repeat(cat.depth)}${cat.depth > 0 ? '↳ ' : ''}${cat.name}`, // Indent with non-breaking spaces
   }))
 );
 

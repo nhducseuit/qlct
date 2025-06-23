@@ -1,4 +1,4 @@
-import { PrismaClient } from '../generated/prisma'; // Adjusted to be relative to the compiled location in 'dist'
+import { PrismaClient } from '@prisma/client'; // Adjusted to be relative to the compiled location in 'dist'
 import * as bcrypt from 'bcryptjs';
 
 const prisma = new PrismaClient();

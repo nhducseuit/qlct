@@ -64,7 +64,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue';
-import { formatCurrency } from 'src/utils/formatters';
+import { formatCurrency, formatKiloCurrency } from 'src/utils/formatters';
 import type { MemberBreakdownItemDto } from 'src/models/summary';
 import type { QTableColumn } from 'quasar';
 
@@ -78,10 +78,10 @@ interface Props {
 const props = defineProps<Props>();
 
 const columns: QTableColumn[] = [
-  { name: 'memberName', required: true, label: 'Thành viên', align: 'left', field: 'memberName', sortable: true },
-  { name: 'totalIncome', label: 'Tổng Thu (phần được chia)', field: 'totalIncome', sortable: true, align: 'right', format: val => formatCurrency(val) },
-  { name: 'totalExpense', label: 'Tổng Chi (phần được chia)', field: 'totalExpense', sortable: true, align: 'right', format: val => formatCurrency(val) },
-  { name: 'netChange', label: 'Thay đổi ròng', field: 'netChange', sortable: true, align: 'right', format: val => formatCurrency(val) },
+  { name: 'memberName', required: true, label: 'Thành viên', align: 'left', field: 'memberName', sortable: true, style: 'width: 40%' },
+  { name: 'totalIncome', label: 'Tổng Thu (phần được chia)', field: 'totalIncome', sortable: true, align: 'right', format: val => formatKiloCurrency(val), style: 'width: 20%' },
+  { name: 'totalExpense', label: 'Tổng Chi (phần được chia)', field: 'totalExpense', sortable: true, align: 'right', format: val => formatKiloCurrency(val), style: 'width: 20%' },
+  { name: 'netChange', label: 'Thay đổi ròng', field: 'netChange', sortable: true, align: 'right', format: val => formatKiloCurrency(val), style: 'width: 20%' },
 ];
 
 const tableRows = computed(() => {
@@ -123,13 +123,13 @@ const memberBarChartOptions = computed((): Highcharts.Options => {
       labels: {
         overflow: 'justify',
         formatter: function (this: Highcharts.AxisLabelsFormatterContextObject) {
-            return formatCurrency(this.value as number);
+            return formatKiloCurrency(this.value as number);
         }
       },
     },
     tooltip: {
       valueSuffix: ' VND',
-      formatter: function (this: Highcharts.Point) { // Use Highcharts.Point for 'this' context
+      formatter: function (this: Highcharts.Point) {
         return `<b>${this.x}</b><br/>${this.series.name}: ${formatCurrency(this.y as number)}`;
       }
     },
@@ -138,7 +138,7 @@ const memberBarChartOptions = computed((): Highcharts.Options => {
         dataLabels: {
           enabled: true,
           formatter: function (this: Highcharts.Point) { // Use Highcharts.Point for 'this' context
-            return formatCurrency(this.y as number);
+            return formatKiloCurrency(this.y as number);
           }
         },
       },

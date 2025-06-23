@@ -1,12 +1,12 @@
 import { Module } from '@nestjs/common';
 import { PredefinedSplitRatioService } from './predefined-split-ratio.service';
 import { PredefinedSplitRatioController } from './predefined-split-ratio.controller';
-import { PrismaService } from '../prisma/prisma.service'; // Import PrismaService
-import { NotificationsGateway } from '../notifications/notifications.gateway'; // Import NotificationsGateway
+import { NotificationsModule } from '../notifications/notifications.module';
 
 @Module({
+  imports: [NotificationsModule], // Import NotificationsModule to make NotificationsGateway available
   controllers: [PredefinedSplitRatioController],
-  providers: [PredefinedSplitRatioService, PrismaService, NotificationsGateway], // Provide PrismaService and NotificationsGateway
+  providers: [PredefinedSplitRatioService], // PrismaService is available globally
   exports: [PredefinedSplitRatioService], // Export the service if needed elsewhere
 })
 export class PredefinedSplitRatioModule {}

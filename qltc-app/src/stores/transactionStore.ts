@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia';
-import { ref, onMounted } from 'vue';
+import { ref } from 'vue';
 import {
   fetchTransactionsAPI,
   addTransactionAPI,
@@ -306,24 +306,22 @@ export const useTransactionStore = defineStore('transactions', () => {
     storeSocket = null; // Clear the store's local reference
   };
 
-  authStore.$subscribe(() => { // Removed unused _mutation and state params
-    if (authStore.isAuthenticated) { // Access isAuthenticated from the store instance
-      void loadTransactions(); // void to call async function without awaiting here
+  const initializeStore = () => {
+    if (authStore.isAuthenticated) {
+      void loadTransactions();
       void setupSocketListeners();
     } else {
       transactions.value = [];
+      categoryPeriodTransactions.value = null;
       clearSocketListeners();
-      // Consider disconnecting socket if no other store is using it.
-      // disconnectSocket(); // Managed by socketService or globally
     }
+  };
+
+  authStore.$subscribe(() => {
+    initializeStore();
   });
 
-  onMounted(() => {
-    if (authStore.isAuthenticated) {
-      void loadTransactions(); // void to call async function without awaiting here
-      void setupSocketListeners();
-    }
-  });
+    initializeStore();
 
   return {
     transactions,

@@ -12,8 +12,8 @@ import { GetBudgetComparisonQueryDto } from './dto/get-budget-comparison.dto';
 import { BudgetComparisonItemDto, BudgetComparisonResponseDto, BudgetStatus } from './dto/budget-comparison-response.dto';
 import { GetBudgetTrendQueryDto } from './dto/get-budget-trend.dto';
 import { BudgetTrendItemDto, BudgetTrendResponseDto } from './dto/budget-trend-response.dto';
-import { Prisma } from '@generated/prisma'; // Import Prisma
-import type { Transaction } from '@generated/prisma';
+import { Prisma } from '@prisma/client'; // Import Prisma
+import type { Transaction } from '@prisma/client';
 import dayjs from '../utils/dayjs'; // Import the configured dayjs instance
 
 @Injectable()

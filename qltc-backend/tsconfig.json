@@ -21,7 +21,6 @@
       "@routes/*": ["src/routes/*"],
       "@services/*": ["src/services/*"],
       "@middleware/*": ["src/middleware/*"],
-      "@generated/prisma": ["src/generated/prisma"]
     }
   },
   "include": ["src/**/*"],

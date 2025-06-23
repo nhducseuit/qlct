@@ -2,7 +2,7 @@ import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/commo
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateCategoryDto } from './dto/create-category.dto';
 import { UpdateCategoryDto } from './dto/update-category.dto';
-import { Category, Prisma } from '@generated/prisma';
+import { Category, Prisma } from '@prisma/client';
 import { NotificationsGateway } from '../notifications/notifications.gateway';
 
 @Injectable()
@@ -13,21 +13,23 @@ export class CategoryService {
   ) {}
 
   async create(createCategoryDto: CreateCategoryDto, userId: string): Promise<Category> {
-    // The DTO validation (including IsSplitRatioSum100Constraint) happens in the controller layer
-    // or via global pipes. Prisma expects the defaultSplitRatio to be a valid JSON structure
-    // if provided, or null/undefined.
-
-    // Optional: Check if parentId exists and belongs to the user if provided
+    // For creation, userId is still used to stamp ownership.
+    // ParentId validation: Ensure parent exists, but not necessarily owned by the current user
+    // (as categories are now global for read, but creation is still tied to the user's context).
+    // This will be refined with the multi-family model.
+    // For now, if a parentId is provided, just check if it exists.
     if (createCategoryDto.parentId) {
       const parentCategory = await this.prisma.category.findUnique({
         where: { id: createCategoryDto.parentId },
       });
-      if (!parentCategory || parentCategory.userId !== userId) {
-        throw new NotFoundException(
-          `Parent category with ID "${createCategoryDto.parentId}" not found or does not belong to the user.`,
-        );
+      if (!parentCategory) { // Keep this check to ensure parent exists
+        throw new NotFoundException(`Parent category with ID "${createCategoryDto.parentId}" not found.`);
       }
     }
+
+    // The DTO validation (including IsSplitRatioSum100Constraint) happens in the controller layer
+    // or via global pipes. Prisma expects the defaultSplitRatio to be a valid JSON structure
+    // if provided, or null/undefined.
 
     const newCategory = await this.prisma.category.create({
       data: {
@@ -55,12 +57,12 @@ export class CategoryService {
 
   async findAll(userId: string): Promise<Category[]> {
     return this.prisma.category.findMany({
-      where: { userId },
+      where: { }, // Per user request, data is not siloed by user for read operations
       orderBy: { order: 'asc' }, // Optional: default ordering
     });
   }
 
-  async findOne(id: string, userId: string): Promise<Category> {
+  async findOne(id: string): Promise<Category> { // userId removed from signature
     const category = await this.prisma.category.findUnique({
       where: { id },
     });
@@ -68,15 +70,24 @@ export class CategoryService {
     if (!category) {
       throw new NotFoundException(`Category with ID "${id}" not found.`);
     }
-    if (category.userId !== userId) {
-      throw new ForbiddenException('You do not have permission to access this category.');
-    }
+    // Per user request, any authenticated user can access any category.
+    // The ownership check is removed for read operations.
     return category;
   }
 
   async update(id: string, updateCategoryDto: UpdateCategoryDto, userId: string): Promise<Category> {
     // First, ensure the category exists and belongs to the user
-    const existingCategory = await this.findOne(id, userId); // Keep existingCategory for potential use in message
+    // For update/delete, we still need to check ownership.
+    // This will be refined with the multi-family model. For now, keep userId check.
+    const existingCategory = await this.prisma.category.findUnique({
+      where: { id },
+    });
+    if (!existingCategory) {
+      throw new NotFoundException(`Category with ID "${id}" not found.`);
+    }
+    if (existingCategory.userId !== userId) {
+      throw new ForbiddenException('You do not have permission to update this category.');
+    }
 
     const dataToUpdate: Prisma.CategoryUpdateInput = {};
 
@@ -105,7 +116,7 @@ export class CategoryService {
         const parentCategory = await this.prisma.category.findUnique({
           where: { id: updateCategoryDto.parentId },
         });
-        if (!parentCategory || parentCategory.userId !== userId) {
+        if (!parentCategory) { // Keep this check to ensure parent exists
           throw new NotFoundException(
             `New parent category with ID "${updateCategoryDto.parentId}" not found or does not belong to the user.`,
           );
@@ -130,8 +141,17 @@ export class CategoryService {
   }
 
   async remove(id: string, userId: string): Promise<Category> {
-    // First, ensure the category exists and belongs to the user
-    const deletedCategoryOriginal = await this.findOne(id, userId); // Get details before deleting for the message
+    // First, ensure the category exists and belongs to the user for deletion.
+    // This will be refined with the multi-family model. For now, keep userId check.
+    const categoryToDelete = await this.prisma.category.findUnique({
+      where: { id },
+    });
+    if (!categoryToDelete) {
+      throw new NotFoundException(`Category with ID "${id}" not found.`);
+    }
+    if (categoryToDelete.userId !== userId) {
+      throw new ForbiddenException('You do not have permission to delete this category.');
+    }
 
     // Check for subcategories - Prisma's onDelete: NoAction for parentId relation
     // means we need to handle this manually or change the schema.
@@ -145,12 +165,12 @@ export class CategoryService {
       throw new ForbiddenException('Cannot delete category with associated transactions. Please reassign or delete transactions first.');
     }
 
-    const deletedCategory = await this.prisma.category.delete({ // This will be the same as deletedCategoryOriginal if successful
+    const deletedCategory = await this.prisma.category.delete({
       where: { id },
     });
 
     this.notificationsGateway.sendToUser(userId, 'categories_updated', {
-      message: `Category "${deletedCategoryOriginal.name}" has been deleted.`, // Use original name for message
+      message: `Category "${deletedCategory.name}" has been deleted.`, // Use original name for message
       operation: 'delete',
       itemId: id, // Send ID of the deleted item
     });
