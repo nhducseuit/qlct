@@ -36,7 +36,7 @@
 
 <script setup lang="ts">
 import { computed, ref } from 'vue';
-import { formatCurrency } from 'src/utils/formatters';
+import { formatKiloCurrency } from 'src/utils/formatters'; // Use formatKiloCurrency
 import type { BudgetTrendItemDto } from 'src/models/summary';
 import type { Highcharts } from 'src/boot/highcharts'; // Import Highcharts type if needed
 
@@ -81,16 +81,16 @@ const chartOptions = computed((): Highcharts.Options => {
       title: { text: 'Số tiền (VND)' },
       labels: {
         formatter: function (this: Highcharts.AxisLabelsFormatterContextObject) {
-          return formatCurrency(this.value as number);
+          return formatKiloCurrency(this.value as number);
         }
       }
     },
     tooltip: {
       shared: true,
-      crosshairs: true, // Highcharts handles boolean fine, cast the whole object if TS complains
+      crosshairs: true,
       pointFormatter: function (this: Highcharts.Point) {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        return `<span style="color:${(this as any).color}">●</span> ${(this as any).series.name}: <b>${formatCurrency(this.y as number)}</b><br/>`;
+        return `<span style="color:${(this as any).color}">●</span> ${(this as any).series.name}: <b>${formatKiloCurrency(this.y as number)}</b><br/>`;
       }
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } as any, // Cast entire tooltip object to any to allow 'crosshairs'

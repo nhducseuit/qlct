@@ -2,14 +2,15 @@ import { Injectable, NotImplementedException, BadRequestException } from '@nestj
 import { PrismaService } from '../prisma/prisma.service';
 import { GetBalancesQueryDto } from './dto/get-balances-query.dto';
 import { BalancesResponseDto } from './dto/balances-response.dto';
-import { Prisma } from '@generated/prisma'; // Import Prisma
+import { Prisma } from '@prisma/client'; // Import Prisma
 import { DetailedMemberBalanceDto } from './dto/member-balance.dto'; // Import directly
 import { CreateSettlementDto } from './dto/create-settlement.dto';
 import { SettlementDto, SettlementMemberDto } from './dto/settlement.dto'; // Import SettlementDto
 import { GetSettlementsQueryDto } from './dto/get-settlements-query.dto';
 import { PaginatedSettlementsResponseDto, PaginationMetaDto } from './dto/paginated-settlements-response.dto';
+import { NotificationsGateway } from '../notifications/notifications.gateway';
 // Remove unused Prisma types if not directly used as function param/return types
-// import { Transaction, HouseholdMember } from '@generated/prisma';
+// import { Transaction, HouseholdMember } from '@prisma/client';
 
 interface SplitRatioItem {
   memberId: string;
@@ -18,7 +19,10 @@ interface SplitRatioItem {
 
 @Injectable() // Added missing @Injectable() decorator
 export class SettlementsService {
-    constructor(private readonly prisma: PrismaService) {}
+    constructor(
+      private readonly prisma: PrismaService,
+      private readonly notificationsGateway: NotificationsGateway,
+    ) {}
 
   async calculateBalances(
     userId: string,
@@ -145,7 +149,7 @@ export class SettlementsService {
     // Optional: Validate if payerId and payeeId belong to the user's active household members
     const members = await this.prisma.householdMember.findMany({
         where: {
-            userId,
+            // userId, // Removed: Payer/Payee validation should be against all active members, not just user's own.
             id: { in: [createSettlementDto.payerId, createSettlementDto.payeeId] },
             isActive: true, // Ensure they are active members
         },
@@ -208,6 +212,13 @@ export class SettlementsService {
       console.error('Failed to fetch payer/payee details after settlement creation:', fetchError);
       // Keep placeholder names if fetching details fails.
     }
+
+    this.notificationsGateway.sendToUser(userId, 'settlements_updated', {
+      message: `Thanh toán từ ${mappedSettlement.payer.name} đến ${mappedSettlement.payee.name} đã được ghi nhận.`,
+      operation: 'create',
+      item: mappedSettlement,
+    });
+
     return mappedSettlement;
   }
 

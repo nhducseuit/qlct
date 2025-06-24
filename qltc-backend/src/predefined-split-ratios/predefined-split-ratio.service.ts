@@ -2,7 +2,7 @@ import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/commo
 import { PrismaService } from '../prisma/prisma.service';
 import { CreatePredefinedSplitRatioDto } from './dto/create-predefined-split-ratio.dto';
 import { UpdatePredefinedSplitRatioDto } from './dto/update-predefined-split-ratio.dto'; // Corrected import path
-import { PredefinedSplitRatio, Prisma } from '@generated/prisma';
+import { PredefinedSplitRatio, Prisma } from '@prisma/client';
 import { NotificationsGateway } from '../notifications/notifications.gateway';
 
 @Injectable()
@@ -42,12 +42,12 @@ export class PredefinedSplitRatioService {
 
   async findAll(userId: string): Promise<PredefinedSplitRatio[]> {
     return this.prisma.predefinedSplitRatio.findMany({
-      where: { userId },
+      where: { }, // Per user request, data is not siloed by user for read operations
       orderBy: { name: 'asc' }, // Order alphabetically by name
     });
   }
 
-  async findOne(id: string, userId: string): Promise<PredefinedSplitRatio> {
+  async findOne(id: string): Promise<PredefinedSplitRatio> { // userId removed from signature
     const predefinedRatio = await this.prisma.predefinedSplitRatio.findUnique({
       where: { id },
     });
@@ -55,9 +55,8 @@ export class PredefinedSplitRatioService {
     if (!predefinedRatio) {
       throw new NotFoundException(`Predefined split ratio with ID "${id}" not found.`);
     }
-    if (predefinedRatio.userId !== userId) {
-      throw new ForbiddenException('You do not have permission to access this predefined split ratio.');
-    }
+    // Per user request, any authenticated user can access any predefined split ratio.
+    // The ownership check is removed for read operations.
     return predefinedRatio;
   }
 
@@ -66,8 +65,11 @@ export class PredefinedSplitRatioService {
     updatePredefinedSplitRatioDto: UpdatePredefinedSplitRatioDto,
     userId: string,
   ): Promise<PredefinedSplitRatio> {
-    // First, ensure the ratio exists and belongs to the user
-    const existingRatio = await this.findOne(id, userId); // Keep for potential use in message
+    // For update/delete, we still need to check ownership.
+    // This will be refined with the multi-family model. For now, keep userId check.
+    const existingRatio = await this.prisma.predefinedSplitRatio.findUnique({ where: { id } });
+    if (!existingRatio) throw new NotFoundException(`Predefined split ratio with ID "${id}" not found.`);
+    if (existingRatio.userId !== userId) throw new ForbiddenException('You do not have permission to update this predefined split ratio');
 
     const dataToUpdate: Prisma.PredefinedSplitRatioUpdateInput = {};
 
@@ -90,8 +92,16 @@ export class PredefinedSplitRatioService {
   }
 
   async remove(id: string, userId: string): Promise<PredefinedSplitRatio> {
-    // First, ensure the ratio exists and belongs to the user
-    const ratioToDelete = await this.findOne(id, userId); // Get details before deleting for the message
+    // For write operations, we must check for ownership directly.
+    const ratioToDelete = await this.prisma.predefinedSplitRatio.findUnique({
+      where: { id },
+    });
+    if (!ratioToDelete) {
+      throw new NotFoundException(`Predefined split ratio with ID "${id}" not found.`);
+    }
+    if (ratioToDelete.userId !== userId) {
+      throw new ForbiddenException('You do not have permission to delete this predefined split ratio.');
+    }
 
     // TODO: Add check if this predefined ratio is currently linked to any categories or transactions
     // (if you implement that linking later). For now, direct delete.

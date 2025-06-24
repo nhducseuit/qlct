@@ -15,16 +15,13 @@ import { CategoryService } from './category.service';
 import { CreateCategoryDto } from './dto/create-category.dto';
 import { UpdateCategoryDto } from './dto/update-category.dto';
 import { Category as CategoryModel } from '../generated/prisma/client'; // Import Prisma model for response types
-// import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard'; // Temporarily disabled for DEV
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { AuthenticatedRequest } from '../auth/interfaces/authenticated-request.interface';
 
-interface AuthenticatedRequest extends Request {
-  user?: { userId: string; email: string }; // Make user optional for DEV mode
-}
-
-// @UseGuards(JwtAuthGuard) // Protect all routes in this controller
 @ApiBearerAuth() // Indicates that JWT authentication is expected for Swagger
 @ApiTags('categories') // Groups category endpoints in Swagger UI
 @Controller('categories')
+@UseGuards(JwtAuthGuard) // Protect all routes in this controller
 export class CategoryController {
   constructor(private readonly categoryService: CategoryService) {}
 
@@ -34,7 +31,7 @@ export class CategoryController {
   @ApiResponse({ status: 400, description: 'Bad Request.' })
   @ApiResponse({ status: 401, description: 'Unauthorized.' })
   create(@Body() createCategoryDto: CreateCategoryDto, @Req() req: AuthenticatedRequest) {
-    const userId = req.user?.userId || 'dev-user'; // DEV mode default
+    const userId = req.user.id;
     return this.categoryService.create(createCategoryDto, userId);
   }
 
@@ -43,7 +40,7 @@ export class CategoryController {
   @ApiResponse({ status: 200, description: 'List of categories for the user.', type: [CreateCategoryDto] }) // Using DTO for example
   @ApiResponse({ status: 401, description: 'Unauthorized.' })
   findAll(@Req() req: AuthenticatedRequest) {
-    const userId = req.user?.userId || 'dev-user'; // DEV mode default
+    const userId = req.user.id;
     return this.categoryService.findAll(userId);
   }
 
@@ -55,8 +52,7 @@ export class CategoryController {
   @ApiResponse({ status: 403, description: 'Forbidden.' })
   @ApiResponse({ status: 404, description: 'Category not found.' })
   findOne(@Param('id', ParseUUIDPipe) id: string, @Req() req: AuthenticatedRequest) {
-    const userId = req.user?.userId || 'dev-user'; // DEV mode default
-    return this.categoryService.findOne(id, userId);
+    return this.categoryService.findOne(id);
   }
 
   @Patch(':id')
@@ -68,7 +64,7 @@ export class CategoryController {
   @ApiResponse({ status: 403, description: 'Forbidden.' })
   @ApiResponse({ status: 404, description: 'Category not found.' })
   update(@Param('id', ParseUUIDPipe) id: string, @Body() updateCategoryDto: UpdateCategoryDto, @Req() req: AuthenticatedRequest) {
-    const userId = req.user?.userId || 'dev-user'; // DEV mode default
+    const userId = req.user.id;
     return this.categoryService.update(id, updateCategoryDto, userId);
   }
 
@@ -80,7 +76,7 @@ export class CategoryController {
   @ApiResponse({ status: 403, description: 'Forbidden.' })
   @ApiResponse({ status: 404, description: 'Category not found.' })
   remove(@Param('id', ParseUUIDPipe) id: string, @Req() req: AuthenticatedRequest) {
-    const userId = req.user?.userId || 'dev-user'; // DEV mode default
+    const userId = req.user.id;
     return this.categoryService.remove(id, userId);
   }
 }

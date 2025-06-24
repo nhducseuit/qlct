@@ -4,6 +4,8 @@ FROM node:18-alpine AS builder
 WORKDIR /usr/src/app
 COPY package*.json ./
 RUN npm install
+# Install ts-node and tsconfig-paths in dev mode
+RUN npm install -D ts-node tsconfig-paths
 COPY . .
 
 # Add this before your Prisma-related commands or application setup
@@ -11,7 +13,8 @@ RUN apk add --no-cache openssl-dev
 
 # Generate Prisma client to src/generated/prisma first, so tsc can use it
 RUN npx prisma generate 
-RUN npm run build # This compiles src/* (including src/generated/prisma) to dist/*
+ # This compiles src/* (including src/generated/prisma) to dist/*
+RUN npm run build
 # Compile the seed script separately
 RUN npx tsc prisma/seed.ts --outDir dist/seed --esModuleInterop --resolveJsonModule --module commonjs --target es2020
 
@@ -19,18 +22,24 @@ RUN npx tsc prisma/seed.ts --outDir dist/seed --esModuleInterop --resolveJsonMod
 FROM node:18-alpine
 WORKDIR /usr/src/app
 
-# Explicitly install openssl and openssl-dev in the final stage for diagnostics
-# and to ensure all necessary libraries are available for Prisma's engine.
 RUN apk add --no-cache openssl openssl-dev
-COPY --from=builder /usr/src/app/dist ./dist
-# We will reinstall production dependencies to ensure a clean state
+
+# Copy app source
 COPY --from=builder /usr/src/app/package*.json ./
-# Copy the prisma schema before installing production dependencies
-# so that `prisma generate` (run by @prisma/client postinstall) uses the correct binaryTargets
 COPY --from=builder /usr/src/app/prisma ./prisma
-RUN npm install --only=production
-# Copy the compiled seed script from the builder stage
+
+# Install all deps (so @prisma/client can be generated properly)
+RUN npm install
+
+# Generate prisma client in final container
+RUN npx prisma generate
+
+# Copy built files
+COPY --from=builder /usr/src/app/dist ./dist
 COPY --from=builder /usr/src/app/dist/seed ./dist/seed
+COPY --from=builder /usr/src/app/src ./src
+COPY --from=builder /usr/src/app/tsconfig.json ./tsconfig.json
+COPY tsconfig.prod.json ./tsconfig.prod.json
 
 # Copy the production-specific tsconfig for runtime path resolution
 COPY tsconfig.prod.json ./tsconfig.prod.json
@@ -42,6 +51,8 @@ RUN echo "--- Contents of /usr/src/app/dist (Build Check - $(date)) ---" && \
     echo "--- Checking for tsconfig.prod.json (in final image) ---" && \
     ls -l tsconfig.prod.json && \
     echo "--- End of tsconfig.prod.json check ---"
+RUN echo "--- Contents of /usr/src/app/src/generated/prisma ---" && \
+    ls -R /usr/src/app/src/generated/prisma || echo "❌ MISSING"
 
 # Tell tsconfig-paths to use the production-specific tsconfig file
 ENV TS_NODE_PROJECT="tsconfig.prod.json"
@@ -54,4 +65,4 @@ EXPOSE 3000
 # If the app still fails to start, uncomment the next line and comment out the one after
 # to keep the container running for inspection:
 # CMD ["sh", "-c", "echo 'Container is running with tail, inspect with docker exec.' && tail -f /dev/null"]
-CMD ["node", "-r", "tsconfig-paths/register", "dist/main.js"]
+CMD ["sh", "-c", "npx prisma migrate deploy && npx prisma db seed && npx ts-node -r tsconfig-paths/register src/main.ts"]

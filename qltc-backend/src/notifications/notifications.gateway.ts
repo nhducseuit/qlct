@@ -9,11 +9,13 @@ import {
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
 import { Logger, UnauthorizedException } from '@nestjs/common';
+import { JwtService } from '@nestjs/jwt';
+import { UserPayload } from '../auth/interfaces/user-payload.interface';
 // Giả sử bạn có một AuthService để xác thực token
 // import { AuthService } from '../auth/auth.service'; // Điều chỉnh đường dẫn nếu cần
 
 interface AuthenticatedSocket extends Socket {
-  user?: { id: string; /* các thông tin user khác */ }; // Định nghĩa user sau khi xác thực
+  user?: UserPayload;
 }
 
 @WebSocketGateway({
@@ -30,55 +32,41 @@ export class NotificationsGateway
   @WebSocketServer()
   server!: Server;
 
-  private logger: Logger = new Logger('NotificationsGateway');
+  private readonly logger: Logger = new Logger('NotificationsGateway');
 
-  // Inject AuthService nếu bạn có
-  // constructor(private readonly authService: AuthService) {}
+  constructor(private readonly jwtService: JwtService) {}
 
   async handleConnection(client: AuthenticatedSocket, ...args: any[]) {
     this.logger.log(`Client attempting to connect: ${client.id}`);
     try {
-    let userIdForRoom = 'unknown_user';
-    const token = client.handshake.auth?.token; // Token might not be sent from frontend now
+      const token = client.handshake.auth?.token;
 
-    // Check if running in a development-like environment
-    // NODE_ENV is typically 'development' for `npm run start:dev`
-    const isDevEnvironment = process.env.NODE_ENV !== 'production';
-
-    if (token) {
-      // If token is provided (e.g., frontend still sends the mock dev-token)
-      // TODO: Proper token validation for production
-      if (token.startsWith('dev-token-')) {
-        userIdForRoom = token.substring('dev-token-'.length); // Extracts everything after 'dev-token-'
-      } else {
-        userIdForRoom = 'user-from-token'; // Placeholder for actual token parsing
+      if (!token) {
+        throw new UnauthorizedException('No token provided for WebSocket connection.');
       }
-    } else if (isDevEnvironment) {
-      // If no token and in DEV, assign a default dev user
-      this.logger.warn(`No token provided by client ${client.id}. Assigning default dev-user in DEV mode.`);
-      userIdForRoom = 'dev-user';
-    } else {
-      // No token and not in DEV (or stricter DEV setup)
-      throw new UnauthorizedException('No token provided for WebSocket connection.');
-    }
 
-    client.user = { id: userIdForRoom };
+      // Verify the token and extract the payload
+      const payload: UserPayload = await this.jwtService.verifyAsync(token, {
+        secret: process.env.JWT_SECRET, // Ensure this matches your auth module's secret
+      });
 
-      if (client.user && client.user.id) {
-        client.join(client.user.id); // Cho client join vào room theo userId
-        this.logger.log(
-          `Client ${client.id} (User: ${client.user.id}) connected and joined room ${client.user.id}`,
-        );
-      } else {
-        throw new UnauthorizedException('User could not be identified from token');
+      if (!payload || !payload.id || !payload.email) { // Ensure all required UserPayload fields are present
+        throw new UnauthorizedException('Invalid token payload or missing user ID/email.');
       }
+
+      // Attach user payload to the socket instance for later use
+      client.user = payload;
+
+      // Join the user-specific room using the actual user ID from the token
+      client.join(payload.id);
+      this.logger.log(`Client ${client.id} (User: ${payload.id}) connected and joined room ${payload.id}`);
     } catch (error) {
       let errorMessage = 'An unknown error occurred during WebSocket connection';
       if (error instanceof Error) {
         errorMessage = error.message;
       }
       this.logger.error(`Connection failed for client ${client.id}: ${errorMessage}`);
-      client.disconnect(true); // Ngắt kết nối nếu xác thực thất bại
+      client.disconnect(true); // Disconnect on failure
     }
   }
 

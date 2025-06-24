@@ -15,7 +15,7 @@ import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiParam } from '@ne
 import { TransactionService } from './transaction.service';
 import { CreateTransactionDto } from './dto/create-transaction.dto';
 import { UpdateTransactionDto } from './dto/update-transaction.dto';
-import { Transaction as TransactionModel } from '@generated/prisma'; // Use Prisma's generated type
+import { Transaction as TransactionModel } from '@prisma/client'; // Use Prisma's generated type
 import { TransactionResponseDto } from './dto/transaction-response.dto'; // Import the new DTO
 import { GetTransactionsQueryDto } from './dto/get-transactions-query.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';

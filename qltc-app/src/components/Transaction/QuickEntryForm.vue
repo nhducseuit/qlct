@@ -1,7 +1,7 @@
 <template>
   <q-page padding class="q-pa-md" style="padding-bottom: 80px;"> <!-- Increased bottom padding -->
     <q-form @submit.prevent="onSubmit" ref="entryForm" class="q-gutter-md">
-      <div class="text-h6 q-mb-md">Thêm khoản chi tiêu / thu nhập mới</div>
+      <div class="text-h6 q-mb-md">Thêm khoản chi</div>
 
       <!-- Task 3.4: Chọn ngày -->
       <q-input
@@ -20,22 +20,7 @@
         </template>
       </q-input>
 
-      <!-- Task 3.5: Nhập số tiền -->
-      <q-input
-        filled
-        v-model.number="form.amount"
-        label="Số tiền"
-        type="number"
-        step="1000"
-        :rules="[val => val !== null && val > 0 || 'Số tiền phải lớn hơn 0']"
-        input-class="text-right"
-      >
-        <template v-slot:append>
-          <span class="text-caption">VND</span>
-        </template>
-      </q-input>
-
-      <!-- Task 3.6: Input ghi chú -->
+      <!-- Task 3.6: Input ghi chú (Moved Up) -->
       <q-input
         filled
         v-model="form.note"
@@ -44,11 +29,32 @@
         autogrow
       />
 
+      <!-- Task 3.5: Nhập số tiền -->
+      <q-input
+        filled
+        v-model="formattedAmount"
+        label="Số tiền"
+        type="text"
+        step="1000"
+        :rules="[
+          val => {
+            const parsedVal = parseNumberFromThousandsSeparator(val);
+            return (parsedVal !== null && parsedVal > 0) || 'Số tiền phải lớn hơn 0';
+          }
+        ]"
+        input-class="text-right"
+      >
+        <template v-slot:append>
+          <span class="text-caption">VND</span>
+        </template>
+      </q-input>
+
       <!-- Task 3.2: Danh mục "Chọn nhanh" -->
-      <div class="q-mb-md">
+      <!-- Removed q-mb-md to reduce gap -->
+      <div>
         <div class="text-subtitle1">Chọn nhanh danh mục:</div>
-        <q-scroll-area horizontal style="height: 100px; max-width: 100%;">
-          <div class="row no-wrap q-gutter-sm q-pa-xs">
+        <q-scroll-area horizontal style="height: 60px; max-width: 100%;">
+          <div class="row no-wrap q-gutter-x-sm q-pa-xs">
             <q-btn
               v-for="cat in pinnedCategories"
               :key="cat.id"
@@ -67,21 +73,6 @@
             </div>
           </div>
         </q-scroll-area>
-      </div>
-
-      <!-- Task 3.3: Chọn danh mục đầy đủ -->
-      <!-- Task 3.12: Chọn loại giao dịch (Thu/Chi) -->
-      <div class="q-mt-md">
-        <div class="text-subtitle2 q-mb-xs">Loại giao dịch:</div>
-        <q-option-group
-          v-model="form.type"
-          :options="[
-            { label: 'Chi tiêu', value: 'expense' },
-            { label: 'Thu nhập', value: 'income' }
-          ]"
-          color="primary"
-          inline
-        />
       </div>
 
       <q-select
@@ -172,7 +163,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, nextTick } from 'vue';
+import { ref, computed, watch, nextTick, onMounted } from 'vue';
 import { useQuasar, QForm } from 'quasar';
 import { useCategoryStore } from 'src/stores/categoryStore';
 import { useTransactionStore } from 'src/stores/transactionStore';
@@ -181,6 +172,7 @@ import { usePredefinedSplitRatioStore } from 'src/stores/predefinedSplitRatioSto
 import { type NewTransactionData, type SplitRatioItem } from 'src/models/index';
 import { dayjs } from 'src/boot/dayjs';
 import TablerIcon from 'src/components/Common/TablerIcon.vue'; // Import component icon
+import { formatNumberWithThousandsSeparator, parseNumberFromThousandsSeparator } from '../../utils/formatters';
 
 const $q = useQuasar();
 const categoryStore = useCategoryStore();
@@ -200,6 +192,20 @@ const form = ref({
   splitRatio: null as SplitRatioItem[] | null, // Default or from category
   selectedPredefinedRatioId: null,
   type: 'expense' as 'income' | 'expense', // Default to expense
+});
+
+const formattedAmount = computed<string>({
+  get() {
+    return formatNumberWithThousandsSeparator(form.value.amount);
+  },
+  set(newValue: string) {
+    const parsed = parseNumberFromThousandsSeparator(newValue);
+    if (parsed !== null) {
+      form.value.amount = parsed;
+    } else if (newValue === '') {
+      form.value.amount = null;
+    }
+  }
 });
 
 const activeMembers = computed(() =>
@@ -274,18 +280,24 @@ const onPayerChange = (payerId: string | null) => {
 
 const onSharedChange = (isShared: boolean) => {
   if (isShared) {
-    selectedPredefinedRatioId.value = null; // Clear any predefined ratio when "Chi chung" is ticked
-    // Khi tick "Chi chung", lấy tỷ lệ từ danh mục nếu có, hoặc set mặc định
-    const category = form.value.categoryId ? categoryStore.getCategoryById(form.value.categoryId) : null;
-    if (category?.defaultSplitRatio) {
-      form.value.splitRatio = JSON.parse(JSON.stringify(category.defaultSplitRatio));
-    } else if (activeMembers.value.length > 0) {
-      form.value.splitRatio = activeMembers.value.map(m => ({ memberId: m.id, percentage: 0 }));
-    } else {
-      form.value.splitRatio = [];
+    // This handler is for when the user MANUALLY ticks the checkbox.
+    // If a predefined ratio is already selected, this handler should not override it.
+    // The check for `selectedPredefinedRatioId` handles the case where `isShared` is
+    // set programmatically by the predefined ratio watcher.
+    if (!selectedPredefinedRatioId.value) {
+      // When manually ticking "Chi chung", apply category default or reset.
+      const category = form.value.categoryId ? categoryStore.getCategoryById(form.value.categoryId) : null;
+      if (category?.defaultSplitRatio) {
+        form.value.splitRatio = JSON.parse(JSON.stringify(category.defaultSplitRatio));
+      } else if (activeMembers.value.length > 0) {
+        form.value.splitRatio = activeMembers.value.map(m => ({ memberId: m.id, percentage: 0 }));
+      } else {
+        form.value.splitRatio = [];
+      }
     }
   } else {
-    // Khi bỏ tick "Chi chung", cập nhật lại tỷ lệ dựa trên người chi (nếu có)
+    // When un-ticking, always clear the predefined selection and revert to single-payer.
+    selectedPredefinedRatioId.value = null;
     onPayerChange(form.value.payer);
   }
   updateMemberSplitPercentagesFromForm();
@@ -443,6 +455,30 @@ watch(() => form.value.isShared, (newIsShared) => {
 // Watcher cho payer để cập nhật splitRatio khi không phải chi chung
 watch(() => form.value.payer, (newPayer) => {
   onPayerChange(newPayer);
+});
+
+onMounted(async () => {
+  const initialLoadPromises = [];
+
+  // Load categories if not already loaded
+  if (categoryStore.categories.length === 0) {
+    initialLoadPromises.push(categoryStore.loadCategories());
+  }
+  // Load household members if not already loaded
+  if (householdMemberStore.members.length === 0) {
+    initialLoadPromises.push(householdMemberStore.loadMembers());
+  }
+  // Load predefined split ratios if not already loaded
+  if (predefinedSplitRatioStore.predefinedRatios.length === 0) {
+    initialLoadPromises.push(predefinedSplitRatioStore.loadPredefinedRatios());
+  }
+
+  try {
+    await Promise.all(initialLoadPromises);
+  } catch (error) {
+    console.error('Error during initial data loading for QuickEntryForm:', error);
+    // Notifications are typically handled by individual store actions
+  }
 });
 
 </script>

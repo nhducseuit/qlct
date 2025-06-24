@@ -12,7 +12,7 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard'; // Assuming you'll
 
 @ApiTags('Settlements')
 @ApiBearerAuth()
-// @UseGuards(JwtAuthGuard) // Temporarily removed for development: "no authorization yet"
+@UseGuards(JwtAuthGuard)
 @Controller('settlements')
 export class SettlementsController {
     constructor(private readonly settlementsService: SettlementsService) {}
@@ -28,7 +28,7 @@ export class SettlementsController {
     @Req() req: AuthenticatedRequest,
     @Query() query: GetBalancesQueryDto,
   ): Promise<BalancesResponseDto> { // Correctly access the user ID from the 'id' property of req.user
-    const userId = req.user?.id || 'dev-user'; // DEV mode default
+    const userId = req.user.id;
     return this.settlementsService.calculateBalances(userId, query);
   }
 
@@ -39,9 +39,8 @@ export class SettlementsController {
     type: SettlementDto,
   })
   async createSettlement(@Req() req: AuthenticatedRequest, @Body() createSettlementDto: CreateSettlementDto): Promise<SettlementDto> {
-    console.log('[SettlementsController] req.user (createSettlement):', JSON.stringify(req.user, null, 2)); // Correctly access the user ID from the 'id' property of req.user
-    const userId = req.user?.id || 'dev-user'; // DEV mode default
-    console.log('[SettlementsController] Extracted userId:', userId);
+    const userId = req.user.id;
+    console.log('[SettlementsController] Creating settlement for userId:', userId);
     return this.settlementsService.createSettlement(userId, createSettlementDto);
   }
 
@@ -57,7 +56,7 @@ export class SettlementsController {
     @Query() query: GetSettlementsQueryDto,
   ): Promise<PaginatedSettlementsResponseDto> {
     // Correctly access the user ID from the 'id' property of req.user as indicated by the console log of req.user.
-    const userId = req.user?.id || 'dev-user'; // DEV mode default
+    const userId = req.user.id;
     return this.settlementsService.getSettlements(userId, query);
   }
 }

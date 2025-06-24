@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia';
-import { ref, onMounted } from 'vue';
+import { ref } from 'vue';
 import {
   fetchHouseholdMembersAPI,
   addHouseholdMemberAPI,
@@ -251,21 +251,21 @@ export const useHouseholdMemberStore = defineStore('householdMembers', () => {
     storeSocket = null; // Reset socket reference for this store
   };
 
-  onMounted(() => {
+  const initializeStore = () => {
     if (authStore.isAuthenticated) {
       void loadMembers();
       void setupSocketListeners();
+    } else {
+      members.value = [];
+      clearSocketListeners();
     }
-    authStore.$subscribe(() => { // Removed unused _mutation and state params
-      if (authStore.isAuthenticated) { // Access isAuthenticated from the store instance
-        void loadMembers();
-        void setupSocketListeners();
-      } else {
-        members.value = [];
-        clearSocketListeners();
-      }
-    });
+  };
+
+  authStore.$subscribe(() => {
+    initializeStore();
   });
+
+  initializeStore();
 
   return {
     members,

@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia';
-import { ref, onMounted } from 'vue';
+import { ref } from 'vue';
 import { useQuasar } from 'quasar';
 import { useAuthStore } from './authStore';
 import { connect } from 'src/services/socketService';
@@ -188,21 +188,21 @@ export const usePredefinedSplitRatioStore = defineStore('predefinedSplitRatios',
     storeSocket = null;
   };
 
-  onMounted(() => {
+  const initializeStore = () => {
     if (authStore.isAuthenticated) {
       void loadPredefinedRatios();
       void setupSocketListeners();
+    } else {
+      predefinedRatios.value = [];
+      clearSocketListeners();
     }
-    authStore.$subscribe(() => { // Removed unused _mutation and state params
-      if (authStore.isAuthenticated) { // Access isAuthenticated from the store instance
-        void loadPredefinedRatios();
-        void setupSocketListeners();
-      } else {
-        predefinedRatios.value = [];
-        clearSocketListeners();
-      }
-    });
+  };
+
+  authStore.$subscribe(() => {
+    initializeStore();
   });
+
+    initializeStore();
 
   return {
     predefinedRatios,

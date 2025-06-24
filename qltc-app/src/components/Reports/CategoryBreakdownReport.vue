@@ -144,7 +144,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
 import { useRouter } from 'vue-router';
-import { formatCurrency } from 'src/utils/formatters';
+import { formatCurrency, formatKiloCurrency } from 'src/utils/formatters';
 import { type CategoryBreakdownItemDto, PeriodType } from 'src/models/summary';
 import type { QTableColumn } from 'quasar';
 import { useTransactionStore } from 'src/stores/transactionStore';
@@ -170,9 +170,9 @@ const householdMemberStore = useHouseholdMemberStore();
 const selectedCategoryDetails = ref<CategoryBreakdownItemDto | null>(null);
 const categorySummaryColumns: QTableColumn[] = [
   { name: 'categoryName', required: true, label: 'Danh mục', align: 'left', field: 'categoryName', sortable: true, style: 'width: 40%' },
-  { name: 'totalIncome', label: 'Tổng thu', field: 'totalIncome', sortable: true, align: 'right', format: val => formatCurrency(val), style: 'width: 20%' },
-  { name: 'totalExpense', label: 'Tổng chi', field: 'totalExpense', sortable: true, align: 'right', format: val => formatCurrency(val), style: 'width: 20%' },
-  { name: 'netChange', label: 'Thay đổi ròng', field: 'netChange', sortable: true, align: 'right', format: val => formatCurrency(val), style: 'width: 20%' },
+  { name: 'totalIncome', label: 'Tổng thu', field: 'totalIncome', sortable: true, align: 'right', format: val => formatKiloCurrency(val), style: 'width: 20%' },
+  { name: 'totalExpense', label: 'Tổng chi', field: 'totalExpense', sortable: true, align: 'right', format: val => formatKiloCurrency(val), style: 'width: 20%' },
+  { name: 'netChange', label: 'Thay đổi ròng', field: 'netChange', sortable: true, align: 'right', format: val => formatKiloCurrency(val), style: 'width: 20%' },
 ];
 
 const tableRows = computed(() => {
@@ -255,7 +255,7 @@ const expensePieChartOptions = computed(() => {
         // Highcharts types might need specific setup for this.
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         return `${(this as any).series.name}: <b>${formatCurrency(this.y as number)}</b> (${(this.percentage as number).toFixed(1)}%)`;
-      }
+      } // Retain formatCurrency for detailed transaction amounts
     },
     plotOptions: {
       pie: {
@@ -330,13 +330,13 @@ const expenseBudgetBarChartOptions = computed(() => { // Renamed
       labels: {
         overflow: 'justify',
         formatter: function (this: Highcharts.AxisLabelsFormatterContextObject) {
-            return formatCurrency(this.value as number);
+            return formatKiloCurrency(this.value as number);
         }
       },
     },
     tooltip: {
       valueSuffix: ' VND',
-      formatter: function (this: any) { // eslint-disable-line @typescript-eslint/no-explicit-any
+      formatter: function (this: Highcharts.Point) {
         return `<b>${this.x}</b><br/>${this.series.name}: ${formatCurrency(this.y as number)}`;
       }
     },
@@ -345,7 +345,7 @@ const expenseBudgetBarChartOptions = computed(() => { // Renamed
         dataLabels: {
           enabled: true,
           formatter: function (this: any) { // eslint-disable-line @typescript-eslint/no-explicit-any
-            return formatCurrency(this.y as number);
+            return formatKiloCurrency(this.y as number);
           }
         }
       },

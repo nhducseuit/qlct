@@ -1,12 +1,10 @@
 {
-  "compilerOptions": {
-    "baseUrl": "./dist",
-    "paths": {
-      "@models/*": ["models/*"],
-      "@routes/*": ["routes/*"],
-      "@services/*": ["services/*"],
-      "@middleware/*": ["middleware/*"],
-      "@generated/prisma": ["generated/prisma"]
-    }
+  "extends": "./tsconfig.json",
+  "paths": {
+    "@models/*": ["dist/models/*"],
+    "@routes/*": ["dist/routes/*"],
+    "@services/*": ["dist/services/*"],
+    "@middleware/*": ["dist/middleware/*"],
+    "@generated/prisma": ["dist/generated/prisma"]
   }
 }

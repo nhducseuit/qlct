@@ -1,0 +1,35 @@
+# Stage 1: Build
+FROM node:18-alpine AS builder
+WORKDIR /usr/src/app
+
+COPY package*.json ./
+RUN npm ci
+
+COPY . .
+
+RUN apk add --no-cache openssl
+RUN npx prisma generate
+RUN npm run build
+RUN npx tsc prisma/seed.ts --outDir dist/seed --esModuleInterop --resolveJsonModule --module commonjs --target es2020
+
+# Stage 2: Production runtime
+FROM node:18-alpine AS runner
+WORKDIR /usr/src/app
+
+RUN apk add --no-cache openssl
+
+COPY --from=builder /usr/src/app/package*.json ./
+RUN npm install --only=production
+COPY --from=builder /usr/src/app/prisma ./prisma
+COPY --from=builder /usr/src/app/dist ./dist
+COPY --from=builder /usr/src/app/tsconfig*.json ./
+
+ENV NODE_ENV=production
+ENV TS_CONFIG_PATHS_TS_CONFIG=tsconfig.prod.json
+ENV DEBUG=tsconfig-paths
+
+RUN npx prisma generate
+
+EXPOSE 3000
+RUN echo "🔍 tsconfig.prod.json used at runtime:" && cat tsconfig.prod.json
+CMD ["node", "dist/main.js"]

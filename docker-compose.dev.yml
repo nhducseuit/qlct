@@ -1,0 +1,54 @@
+# docker-compose.dev.yml
+services:
+  db:
+    image: postgres:15 # Or your preferred version
+    container_name: qltc_db_dev
+    restart: "no" # Don't restart automatically in dev
+    environment:
+      POSTGRES_USER: ${DB_USER:-youruser}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-yourpassword}
+      POSTGRES_DB: ${DB_NAME:-qltc_db}
+    ports:
+      - "5432:5432" # Standard PostgreSQL port for development
+    volumes:
+      - qltc_dev_db_data:/var/lib/postgresql/data # Persist development database data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-youruser} -d ${DB_NAME:-qltc_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ./qltc-backend
+      dockerfile: Dockerfile # Use development Dockerfile
+    container_name: qltc_backend_dev
+    restart: "no" # Don't restart automatically in dev
+    ports:
+      - "3000:3000" # Standard backend port for development
+    environment:
+      DATABASE_URL: postgresql://${DB_USER:-youruser}:${DB_PASSWORD:-yourpassword}@db:5432/${DB_NAME:-qltc_db}?schema=public
+      FRONTEND_URL: http://localhost:8080 # Points to the host-exposed frontend URL
+      NODE_ENV: development
+      JWT_SECRET: KKK # Keep for dev consistency
+      TS_CONFIG_PATHS_TS_CONFIG: tsconfig.json
+    depends_on:
+      db:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: ./qltc-app
+      dockerfile: Dockerfile # Use development Dockerfile
+      args:
+        VITE_API_BASE_URL: http://localhost:3000 # Points to the host-exposed backend URL
+        VITE_FORCE_DEV_USER: "true" # Ensures dev user mode for Docker builds
+    container_name: qltc_frontend_dev
+    restart: "no" # Don't restart automatically in dev
+    ports:
+      - "8080:8080" # Standard Quasar dev server port
+    depends_on:
+      - backend
+
+volumes:
+  qltc_dev_db_data: # Define the new development volume
