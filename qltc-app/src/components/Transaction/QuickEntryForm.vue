@@ -20,6 +20,21 @@
         </template>
       </q-input>
 
+      <!-- Task 3.7: Lựa chọn "Ai chi" (Moved Up) -->
+      <div class="q-mt-md">
+        <!-- <div class="text-subtitle2 q-mb-xs">Ai chi:</div> -->
+        <q-select
+          filled
+          v-model="form.payer"
+          :options="payerOptions"
+          label="Ai chi/nhận:"
+          emit-value
+          map-options
+          @update:model-value="onPayerChange"
+          clearable
+        />
+      </div>
+
       <!-- Task 3.6: Input ghi chú (Moved Up) -->
       <q-input
         filled
@@ -88,21 +103,6 @@
         clearable
         @update:model-value="onCategorySelected"
       />
-
-      <!-- Task 3.7: Lựa chọn "Ai chi" -->
-      <div class="q-mt-md">
-        <!-- <div class="text-subtitle2 q-mb-xs">Ai chi:</div> -->
-        <q-select
-          filled
-          v-model="form.payer"
-          :options="payerOptions"
-          label="Ai chi/nhận:"
-          emit-value
-          map-options
-          @update:model-value="onPayerChange"
-          clearable
-        />
-      </div>
 
       <!-- Task 3.8: Checkbox "Chi chung" và tỷ lệ chia -->
       <q-checkbox
