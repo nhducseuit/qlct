@@ -38,6 +38,9 @@ The project is now ready to move into Sprint 3. The immediate next focus will li
         *   Resolved various TypeScript, ESLint, and API integration issues for robust report generation.
 
     *   **UAT Feedback & Enhancements (Sprint 3):**
+        *   **Transaction Forms (QuickEntry & Dialog):**
+            *   Reordered the "Payer" field in both forms to appear directly below the date for a more intuitive data entry flow.
+            *   Fixed amount validation in `TransactionFormDialog` to correctly handle formatted numbers, ensuring consistent behavior across forms.
         *   **QuickEntryForm:**
             *   Fixed issue preventing falsy validation errors after successful transaction addition by using `nextTick`.
             *   Ensured the "Payer" field retains its value after a successful transaction addition.

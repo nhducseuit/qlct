@@ -40,6 +40,19 @@
             </template>
           </q-input>
 
+      <!-- Payer -->
+      <q-select
+        filled
+        v-model="form.payer"
+        :options="payerOptions"
+        label="Ai chi/nhận:"
+        emit-value
+        map-options
+        clearable
+        class="q-mt-md"
+        @update:model-value="onPayerChange"
+      />
+
           <!-- Amount -->
           <q-input
             filled
@@ -47,7 +60,12 @@
             label="Số tiền *"
             type="text"
             step="1000"
-            :rules="[val => val !== null && val > 0 || 'Số tiền phải lớn hơn 0']"
+        :rules="[
+          val => {
+            const parsedVal = parseNumberFromThousandsSeparator(val);
+            return (parsedVal !== null && parsedVal > 0) || 'Số tiền phải lớn hơn 0';
+          }
+        ]"
             input-class="text-right"
             class="q-mt-md"
           >
@@ -64,19 +82,6 @@
             type="textarea"
             autogrow
             class="q-mt-md"
-          />
-
-          <!-- Payer -->
-          <q-select
-            filled
-            v-model="form.payer"
-            :options="payerOptions"
-            label="Ai chi/nhận:"
-            emit-value
-            map-options
-            clearable
-            class="q-mt-md"
-            @update:model-value="onPayerChange"
           />
 
           <!-- Shared Expense -->
