@@ -12,15 +12,15 @@ import {
 } from '@nestjs/common';
 import { PredefinedSplitRatioService } from './predefined-split-ratio.service';
 import { CreatePredefinedSplitRatioDto } from './dto/create-predefined-split-ratio.dto';
-import { UpdatePredefinedSplitRatioDto } from './dto/update-predefined-split-ratio.dto'; // Corrected import path
+import { UpdatePredefinedSplitRatioDto } from './dto/update-predefined-split-ratio.dto';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { AuthenticatedRequest } from '../auth/interfaces/authenticated-request.interface';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 
 @ApiTags('predefined-split-ratios')
-@ApiBearerAuth() // Indicate that JWT authentication is expected for Swagger
+@ApiBearerAuth()
 @Controller('predefined-split-ratios')
-@UseGuards(JwtAuthGuard) // Re-enable JwtAuthGuard
+@UseGuards(JwtAuthGuard)
 export class PredefinedSplitRatioController {
   constructor(
     private readonly predefinedSplitRatioService: PredefinedSplitRatioService,
@@ -31,41 +31,44 @@ export class PredefinedSplitRatioController {
     @Body() createPredefinedSplitRatioDto: CreatePredefinedSplitRatioDto,
     @Req() req: AuthenticatedRequest,
   ) {
-    // The user object is attached to the request by the AuthGuard
-    const userId = req.user.id;
+    const { familyId, id: userId } = req.user;
     return this.predefinedSplitRatioService.create(
       createPredefinedSplitRatioDto,
+      familyId,
       userId,
     );
   }
 
   @Get()
   findAll(@Req() req: AuthenticatedRequest) {
-    const userId = req.user.id;
-    return this.predefinedSplitRatioService.findAll(userId);
+    const { familyId } = req.user;
+    return this.predefinedSplitRatioService.findAll(familyId);
   }
 
   @Get(':id')
   findOne(@Param('id', ParseUUIDPipe) id: string, @Req() req: AuthenticatedRequest) {
-    return this.predefinedSplitRatioService.findOne(id);
+    const { familyId } = req.user;
+    return this.predefinedSplitRatioService.findOne(id, familyId);
   }
 
   @Patch(':id')
-  update(@Param('id', ParseUUIDPipe) id: string,
+  update(
+    @Param('id', ParseUUIDPipe) id: string,
     @Body() updatePredefinedSplitRatioDto: UpdatePredefinedSplitRatioDto,
     @Req() req: AuthenticatedRequest,
   ) {
-    const userId = req.user.id;
+    const { familyId, id: userId } = req.user;
     return this.predefinedSplitRatioService.update(
       id,
       updatePredefinedSplitRatioDto,
+      familyId,
       userId,
     );
   }
 
   @Delete(':id')
   remove(@Param('id', ParseUUIDPipe) id: string, @Req() req: AuthenticatedRequest) {
-    const userId = req.user.id;
-    return this.predefinedSplitRatioService.remove(id, userId);
+    const { familyId, id: userId } = req.user;
+    return this.predefinedSplitRatioService.remove(id, familyId, userId);
   }
 }

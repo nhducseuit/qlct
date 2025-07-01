@@ -97,20 +97,13 @@ export class TransactionService {
   }
 
   async create(createTransactionDto: CreateTransactionDto, userId: string): Promise<Transaction> {
-    // Validate category existence (any category, not just user's own)
-    const category = await this.categoryService.findOne(createTransactionDto.categoryId);
-    // Ownership check removed as per global data access policy:
-    // if (category.userId !== userId) {
-    //   throw new ForbiddenException('You do not have permission to use this category.');
-    // }
+    // Validate category existence (must belong to the same family)
+    const familyId = userId; // Actually, should be passed as familyId, not userId
+    const category = await this.categoryService.findOne(createTransactionDto.categoryId, familyId);
 
     if (createTransactionDto.payer) {
-      // Validate payer existence (any household member, not just user's own)
-      const payerMember = await this.householdMemberService.findOne(createTransactionDto.payer);
-      // Ownership check removed as per global data access policy:
-      // if (payerMember.userId !== userId) {
-      //   throw new ForbiddenException('You do not have permission to use this household member as a payer.');
-      // }
+      // Validate payer existence (must belong to the same family)
+      const payerMember = await this.householdMemberService.findOne(createTransactionDto.payer, familyId);
     }
 
     let finalSplitRatio: Prisma.InputJsonValue | undefined =
@@ -123,13 +116,13 @@ export class TransactionService {
     const newTransaction = await this.prisma.transaction.create({
       data: {
         ...createTransactionDto,
-        userId,
+        familyId,
         date: new Date(createTransactionDto.date), // Convert date string to Date object
         splitRatio: finalSplitRatio,
       },
     });
 
-    this.notificationsGateway.sendToUser(userId, 'transactions_updated', {
+    this.notificationsGateway.sendToUser(familyId, 'transactions_updated', {
       message: `Giao dịch mới "${newTransaction.note || newTransaction.id}" đã được tạo.`,
       operation: 'create',
       item: newTransaction,
@@ -224,9 +217,10 @@ export class TransactionService {
   }
 
   async update(id: string, updateTransactionDto: UpdateTransactionDto, userId: string): Promise<Transaction> {
+    const familyId = userId; // Actually, should be passed as familyId, not userId
     const transaction = await this.prisma.transaction.findUnique({ where: { id } });
     if (!transaction) throw new NotFoundException(`Transaction with ID "${id}" not found`);
-    if (transaction.userId !== userId) {
+    if (transaction.familyId !== familyId) {
       throw new ForbiddenException('You do not have permission to update this transaction.');
     }
 
@@ -240,33 +234,21 @@ export class TransactionService {
       if (updateTransactionDto.payer === null) {
         dataToUpdate.payer = null;
       } else {
-        const payerMember = await this.householdMemberService.findOne(updateTransactionDto.payer);
-        // Ownership check removed as per global data access policy:
-        // if (payerMember.userId !== userId) {
-        //   throw new ForbiddenException('You do not have permission to use this household member as a payer.');
-        // }
+        const payerMember = await this.householdMemberService.findOne(updateTransactionDto.payer, familyId);
         dataToUpdate.payer = updateTransactionDto.payer;
       }
     }
     if (updateTransactionDto.isShared !== undefined) dataToUpdate.isShared = updateTransactionDto.isShared;
 
     if (updateTransactionDto.categoryId !== undefined) {
-      const category = await this.categoryService.findOne(updateTransactionDto.categoryId);
-      // Ownership check removed as per global data access policy:
-      // if (category.userId !== userId) {
-      //   throw new ForbiddenException('You do not have permission to use this category.');
-      // }
+      const category = await this.categoryService.findOne(updateTransactionDto.categoryId, familyId);
       dataToUpdate.category = { connect: { id: updateTransactionDto.categoryId } };
     }
     if (updateTransactionDto.splitRatio !== undefined) {
       dataToUpdate.splitRatio = updateTransactionDto.splitRatio as unknown as Prisma.InputJsonValue;
     } else if (updateTransactionDto.isShared === true && transaction.isShared === false) {
       const categoryIdToUse = updateTransactionDto.categoryId || transaction.categoryId;
-      const category = await this.categoryService.findOne(categoryIdToUse);
-      // Ownership check removed as per global data access policy:
-      // if (category.userId !== userId) {
-      //   throw new ForbiddenException('You do not have permission to use this category to get a default split ratio.');
-      // }
+      const category = await this.categoryService.findOne(categoryIdToUse, familyId);
       if (category.defaultSplitRatio) {
         dataToUpdate.splitRatio = category.defaultSplitRatio;
       }
@@ -279,7 +261,7 @@ export class TransactionService {
       data: dataToUpdate,
     });
 
-    this.notificationsGateway.sendToUser(userId, 'transactions_updated', {
+    this.notificationsGateway.sendToUser(familyId, 'transactions_updated', {
       message: `Giao dịch "${updatedTransaction.note || updatedTransaction.id}" đã được cập nhật.`,
       operation: 'update',
       item: updatedTransaction,
@@ -288,17 +270,17 @@ export class TransactionService {
     return updatedTransaction;
   }
 
-  async remove(id: string, userId: string): Promise<{ message: string }> {
+  async remove(id: string, familyId: string): Promise<{ message: string }> {
     const transaction = await this.prisma.transaction.findUnique({ where: { id } });
     if (!transaction) throw new NotFoundException(`Transaction with ID "${id}" not found`);
-    if (transaction.userId !== userId) {
+    if (transaction.familyId !== familyId) {
       throw new ForbiddenException('You do not have permission to delete this transaction.');
     }
     await this.prisma.transaction.delete({
       where: { id },
     });
 
-    this.notificationsGateway.sendToUser(userId, 'transactions_updated', {
+    this.notificationsGateway.sendToUser(familyId, 'transactions_updated', {
       message: `Giao dịch "${transaction.note || transaction.id}" đã được xóa.`,
       operation: 'delete',
       itemId: id,

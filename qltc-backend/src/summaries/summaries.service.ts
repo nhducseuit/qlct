@@ -285,7 +285,7 @@ export class SummariesService {
         createdAt: true,
         updatedAt: true,
         splitRatio: true,
-        userId: true,
+        familyId: true,
         categoryId: true,
       },
     });
@@ -465,7 +465,7 @@ export class SummariesService {
         createdAt: true,
         updatedAt: true,
         splitRatio: true,
-        userId: true,
+        familyId: true,
         categoryId: true,
       },
     });
@@ -812,7 +812,7 @@ export class SummariesService {
         createdAt: true,
         updatedAt: true,
         splitRatio: true,
-        userId: true,
+        familyId: true,
         categoryId: true },
     }) : [];
 

@@ -2,11 +2,12 @@
 export interface UserPayload {
   id: string;
   email: string;
-  // any other fields you put in the JWT payload
+  familyId: string;
 }
 
 // Optional: Create a class for Swagger documentation if UserPayload is an interface
 export class UserPayloadEntity implements UserPayload {
   id!: string;
   email!: string;
+  familyId!: string;
 }

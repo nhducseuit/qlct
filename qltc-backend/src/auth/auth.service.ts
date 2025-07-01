@@ -6,64 +6,99 @@ import { LoginDto } from './dto/login.dto'; // Changed from LoginUserDto
 import { RegisterDto } from './dto/register.dto'; // Changed from CreateUserDto
 import { UserPayload } from './interfaces/user-payload.interface';
 import { AuthResponseDto } from './dto/auth-response.dto';
+import { User } from '@prisma/client';
 
 @Injectable()
 export class AuthService {
   constructor(
-    private prisma: PrismaService, // Use PrismaService directly
+    private prisma: PrismaService,
     private jwtService: JwtService,
   ) {}
 
-  async validateUser(email: string, pass: string): Promise<UserPayload | null> {
+  async validateUser(email: string, pass: string): Promise<Omit<User, 'password'> | null> {
     const user = await this.prisma.user.findUnique({ where: { email } });
     if (user && (await bcrypt.compare(pass, user.password))) {
-      // Return a subset of user data to be included in the JWT payload
-      const { password, ...result } = user; // Destructure to exclude password hash
-      return { id: result.id, email: result.email }; // UserPayload structure
+      const { password, ...result } = user;
+      return result;
     }
     return null;
   }
 
-  async login(loginDto: LoginDto): Promise<AuthResponseDto> { // Changed DTO and return type
+  async login(loginDto: LoginDto): Promise<AuthResponseDto> {
     const user = await this.validateUser(loginDto.email, loginDto.password);
     if (!user) {
       throw new UnauthorizedException('Invalid credentials');
     }
-    // Generate JWT token
-    const payload: UserPayload = { id: user.id, email: user.email };
+    
+    const payload: UserPayload = {
+      id: user.id,
+      email: user.email,
+      familyId: user.familyId,
+    };
     return {
       accessToken: this.jwtService.sign(payload),
-      user: { id: user.id, email: user.email }, // Return user details along with token
+      user: {
+        id: user.id,
+        email: user.email,
+        familyId: user.familyId,
+      },
     };
   }
 
-  async register(registerDto: RegisterDto): Promise<AuthResponseDto> { // Changed DTO and return type
-    // Check if user already exists
-    const existingUser = await this.prisma.user.findUnique({ where: { email: registerDto.email } });
+  async register(registerDto: RegisterDto): Promise<AuthResponseDto> {
+    const existingUser = await this.prisma.user.findUnique({
+      where: { email: registerDto.email },
+    });
     if (existingUser) {
       throw new BadRequestException('Email already in use');
     }
 
     const hashedPassword = await bcrypt.hash(registerDto.password, 10);
 
-    const newUser = await this.prisma.user.create({
-      data: {
-        email: registerDto.email,
-        password: hashedPassword,
-      },
-      select: { id: true, email: true }, // Select only necessary fields for the payload
+    // Use a transaction to create a family and a user together
+    const newUser = await this.prisma.$transaction(async (tx) => {
+      // 1. Create a new Family for the user
+      const newFamily = await tx.family.create({
+        data: {
+          name: `${registerDto.email}'s Family`,
+        },
+      });
+
+      // 2. Create the new user and link them to the new family
+      const user = await tx.user.create({
+        data: {
+          email: registerDto.email,
+          password: hashedPassword,
+          familyId: newFamily.id,
+        },
+      });
+      return user;
     });
 
-    // Generate JWT token for the new user
-    const payload: UserPayload = { id: newUser.id, email: newUser.email };
+    const payload: UserPayload = {
+      id: newUser.id,
+      email: newUser.email,
+      familyId: newUser.familyId,
+    };
+
     return {
       accessToken: this.jwtService.sign(payload),
-      user: { id: newUser.id, email: newUser.email }, // Return user details
+      user: {
+        id: newUser.id,
+        email: newUser.email,
+        familyId: newUser.familyId,
+      },
     };
   }
 
-  // Method to get user details by ID, used by JwtStrategy
   async findUserById(id: string): Promise<UserPayload | null> {
-      return this.prisma.user.findUnique({ where: { id }, select: { id: true, email: true } });
+    const user = await this.prisma.user.findUnique({
+      where: { id },
+      select: { id: true, email: true, familyId: true },
+    });
+    if (user) {
+      return user;
+    }
+    return null;
   }
 }

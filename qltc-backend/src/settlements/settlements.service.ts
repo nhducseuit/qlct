@@ -1,102 +1,85 @@
-import { Injectable, NotImplementedException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotImplementedException, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { GetBalancesQueryDto } from './dto/get-balances-query.dto';
 import { BalancesResponseDto } from './dto/balances-response.dto';
-import { Prisma } from '@prisma/client'; // Import Prisma
-import { DetailedMemberBalanceDto } from './dto/member-balance.dto'; // Import directly
+import { Prisma } from '@prisma/client';
+import { DetailedMemberBalanceDto } from './dto/member-balance.dto';
 import { CreateSettlementDto } from './dto/create-settlement.dto';
-import { SettlementDto, SettlementMemberDto } from './dto/settlement.dto'; // Import SettlementDto
+import { SettlementDto, SettlementMemberDto } from './dto/settlement.dto';
 import { GetSettlementsQueryDto } from './dto/get-settlements-query.dto';
 import { PaginatedSettlementsResponseDto, PaginationMetaDto } from './dto/paginated-settlements-response.dto';
 import { NotificationsGateway } from '../notifications/notifications.gateway';
-// Remove unused Prisma types if not directly used as function param/return types
-// import { Transaction, HouseholdMember } from '@prisma/client';
 
 interface SplitRatioItem {
   memberId: string;
   percentage: number;
 }
 
-@Injectable() // Added missing @Injectable() decorator
+@Injectable()
 export class SettlementsService {
-    constructor(
-      private readonly prisma: PrismaService,
-      private readonly notificationsGateway: NotificationsGateway,
-    ) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly notificationsGateway: NotificationsGateway,
+  ) {}
 
-  async calculateBalances(
-    userId: string,
-    query: GetBalancesQueryDto,
-  ): Promise<BalancesResponseDto> {
-    console.log('Calculating balances for user:', userId, 'with query:', query);
+  async calculateBalances(familyId: string, query: GetBalancesQueryDto): Promise<BalancesResponseDto> {
+    console.log('Calculating balances for family:', familyId, 'with query:', query);
 
-    // 1. Fetch all active household members for the user.
     const activeMembers = await this.prisma.householdMember.findMany({
-      where: { isActive: true }, // Per user request, data is not siloed by user
+      where: { familyId, isActive: true },
       select: { id: true, name: true },
     });
 
     if (activeMembers.length < 2) {
-      return { balances: [] }; // Not enough members to have balances
+      return { balances: [] };
     }
 
-    // 2. Fetch all shared transactions for the user.
-    // For now, we consider all shared transactions. Date filtering can be added later.
     const sharedTransactions = await this.prisma.transaction.findMany({
       where: {
-        // userId, // Per user request, data is not siloed by user
+        familyId,
         isShared: true,
-        splitRatio: { not: Prisma.DbNull }, // Ensure splitRatio exists (is not SQL NULL)
-        // type: 'expense', // Typically, only shared expenses create debts. Shared income might be distributed differently.
-                           // For now, let's assume shared transactions imply expenses that create debts.
-                           // If shared income needs to be handled, the logic below will need adjustment.
+        splitRatio: { not: Prisma.DbNull },
       },
       select: {
         amount: true,
-        payer: true, // Payer's HouseholdMember ID
-        splitRatio: true, // JSON field
+        payer: true,
+        splitRatio: true,
       },
     });
 
-    // 3. Initialize a data structure to hold raw owed amounts.
-    // `rawOwedAmounts[debtorId][creditorId] = totalAmountDebtorOwesCreditor`
     const rawOwedAmounts: Record<string, Record<string, number>> = {};
-    activeMembers.forEach(m1 => {
+    activeMembers.forEach((m1) => {
       rawOwedAmounts[m1.id] = {};
-      activeMembers.forEach(m2 => {
+      activeMembers.forEach((m2) => {
         if (m1.id !== m2.id) {
           rawOwedAmounts[m1.id][m2.id] = 0;
         }
       });
     });
 
-    // 4. Process each shared transaction to populate rawOwedAmounts.
     for (const tx of sharedTransactions) {
-      if (!tx.payer || !tx.splitRatio) continue; // Skip if payer or splitRatio is missing
+      if (!tx.payer || !tx.splitRatio) continue;
 
       const payerId = tx.payer;
       const totalAmount = tx.amount;
       const splitRatioItems = tx.splitRatio as unknown as SplitRatioItem[];
 
-      if (!Array.isArray(splitRatioItems)) continue; // Invalid splitRatio format
+      if (!Array.isArray(splitRatioItems)) continue;
 
       for (const item of splitRatioItems) {
-        if (item.memberId === payerId) continue; // Payer doesn't owe themselves for their own share.
+        if (item.memberId === payerId) continue;
 
-        // Ensure both memberId and payerId are active members
-        if (!activeMembers.find(m => m.id === item.memberId) || !activeMembers.find(m => m.id === payerId)) {
-            continue; // Skip if either member involved in this split part is not active
+        if (!activeMembers.find((m) => m.id === item.memberId) || !activeMembers.find((m) => m.id === payerId)) {
+          continue;
         }
 
         const amountOwedByThisMember = totalAmount * (item.percentage / 100);
-        // `item.memberId` (debtor) owes `payerId` (creditor) this amount.
         rawOwedAmounts[item.memberId][payerId] = (rawOwedAmounts[item.memberId][payerId] || 0) + amountOwedByThisMember;
       }
     }
 
-    // 4.5. Fetch all settlements for the user to adjust raw owed amounts.
     const settlements = await this.prisma.settlement.findMany({
-      where: { }, // Per user request, data is not siloed by user
+      where: { familyId },
       select: {
         payerId: true,
         payeeId: true,
@@ -105,13 +88,12 @@ export class SettlementsService {
     });
 
     for (const settlement of settlements) {
-      // If settlement.payerId paid settlement.payeeId an amount, this reduces settlement.payerId's debt to settlement.payeeId.
-      rawOwedAmounts[settlement.payerId][settlement.payeeId] = (rawOwedAmounts[settlement.payerId][settlement.payeeId] || 0) - settlement.amount;
+      rawOwedAmounts[settlement.payerId][settlement.payeeId] =
+        (rawOwedAmounts[settlement.payerId][settlement.payeeId] || 0) - settlement.amount;
     }
 
-    // 5. Calculate net balances and format the response.
     const finalBalances: DetailedMemberBalanceDto[] = [];
-    const memberMap = new Map(activeMembers.map(m => [m.id, m.name]));
+    const memberMap = new Map(activeMembers.map((m) => [m.id, m.name]));
 
     for (let i = 0; i < activeMembers.length; i++) {
       for (let j = i + 1; j < activeMembers.length; j++) {
@@ -123,13 +105,13 @@ export class SettlementsService {
 
         const netAmountM1OwesM2 = amountM1OwesM2 - amountM2OwesM1;
 
-        if (netAmountM1OwesM2 !== 0) { // Only include if there's a non-zero balance
+        if (netAmountM1OwesM2 !== 0) {
           finalBalances.push({
             memberOneId: memberOne.id,
             memberOneName: memberMap.get(memberOne.id)!,
             memberTwoId: memberTwo.id,
             memberTwoName: memberMap.get(memberTwo.id)!,
-            netAmountMemberOneOwesMemberTwo: parseFloat(netAmountM1OwesM2.toFixed(2)), // Round to 2 decimal places
+            netAmountMemberOneOwesMemberTwo: parseFloat(netAmountM1OwesM2.toFixed(2)),
           });
         }
       }
@@ -138,80 +120,52 @@ export class SettlementsService {
     return { balances: finalBalances };
   }
 
-  async createSettlement(userId: string, createSettlementDto: CreateSettlementDto): Promise<SettlementDto> {
-    console.log('Recording settlement for user:', userId, 'with data:', createSettlementDto);
-
-    // Basic validation: Payer and Payee must be different
+  async createSettlement(
+    familyId: string,
+    userId: string,
+    createSettlementDto: CreateSettlementDto,
+  ): Promise<SettlementDto> {
     if (createSettlementDto.payerId === createSettlementDto.payeeId) {
-        throw new BadRequestException('Payer and Payee cannot be the same member.');
+      throw new BadRequestException('Payer and Payee cannot be the same member.');
     }
 
-    // Optional: Validate if payerId and payeeId belong to the user's active household members
     const members = await this.prisma.householdMember.findMany({
-        where: {
-            // userId, // Removed: Payer/Payee validation should be against all active members, not just user's own.
-            id: { in: [createSettlementDto.payerId, createSettlementDto.payeeId] },
-            isActive: true, // Ensure they are active members
-        },
-        select: { id: true },
+      where: {
+        familyId,
+        id: { in: [createSettlementDto.payerId, createSettlementDto.payeeId] },
+        isActive: true,
+      },
     });
 
     if (members.length !== 2) {
-        throw new BadRequestException('Invalid Payer or Payee member ID(s) or members are not active.');
+      throw new BadRequestException('Invalid Payer or Payee member ID(s), they are not active, or they do not belong to your family.');
     }
 
-    console.log('DTO received:', JSON.stringify(createSettlementDto, null, 2));
-    // Explicitly construct the data object for Prisma
-    const dataForPrisma = {
-      payerId: createSettlementDto.payerId,
-      payeeId: createSettlementDto.payeeId,
-      amount: createSettlementDto.amount,
-      date: new Date(createSettlementDto.date),
-      note: createSettlementDto.note === undefined ? null : createSettlementDto.note,
-      userId,
-    };
-
-    console.log('Data for Prisma create:', JSON.stringify(dataForPrisma, null, 2));
     const settlement = await this.prisma.settlement.create({
-      data: dataForPrisma
-      // Temporarily remove include to isolate the issue.
-      // If this works, we'll need to fetch payer/payee details separately for the response.
+      data: {
+        ...createSettlementDto,
+        date: new Date(createSettlementDto.date),
+        familyId: familyId,
+      },
+      include: {
+        payer: { select: { id: true, name: true } },
+        payee: { select: { id: true, name: true } },
+      },
     });
-    // Map Prisma Settlement object to SettlementDto
+
     const mappedSettlement: SettlementDto = {
       id: settlement.id,
       amount: settlement.amount,
       date: settlement.date.toISOString(),
       note: settlement.note,
       payerId: settlement.payerId,
-      // Payer and Payee details will be missing if include is removed.
-      // We'd need to fetch them separately if this temporary fix works.
-      payer: { id: settlement.payerId, name: 'N/A' }, // Placeholder
+      payer: settlement.payer as SettlementMemberDto,
       payeeId: settlement.payeeId,
-      payee: { id: settlement.payeeId, name: 'N/A' }, // Placeholder
-      userId: settlement.userId,
+      payee: settlement.payee as SettlementMemberDto,
+      familyId: settlement.familyId,
       createdAt: settlement.createdAt.toISOString(),
       updatedAt: settlement.updatedAt.toISOString(),
     };
-
-    // If the create operation succeeds without `include`,
-    // fetch payer and payee details separately to populate the DTO fully.
-    // This part is conditional on the above `create` call succeeding.
-    try {
-      const payerDetails = await this.prisma.householdMember.findUnique({
-        where: { id: settlement.payerId },
-        select: { name: true },
-      });
-      const payeeDetails = await this.prisma.householdMember.findUnique({
-        where: { id: settlement.payeeId },
-        select: { name: true },
-      });
-      mappedSettlement.payer.name = payerDetails?.name || 'Không rõ';
-      mappedSettlement.payee.name = payeeDetails?.name || 'Không rõ';
-    } catch (fetchError) {
-      console.error('Failed to fetch payer/payee details after settlement creation:', fetchError);
-      // Keep placeholder names if fetching details fails.
-    }
 
     this.notificationsGateway.sendToUser(userId, 'settlements_updated', {
       message: `Thanh toán từ ${mappedSettlement.payer.name} đến ${mappedSettlement.payee.name} đã được ghi nhận.`,
@@ -223,32 +177,22 @@ export class SettlementsService {
   }
 
   async getSettlements(
-    userId: string,
+    familyId: string,
     query: GetSettlementsQueryDto,
   ): Promise<PaginatedSettlementsResponseDto> {
-    console.log('Fetching settlements for user:', userId, 'with query:', query);
-
     const { page = 1, limit = 10, payerId, payeeId, startDate, endDate } = query;
     const skip = (page - 1) * limit;
 
-    const whereClause: Prisma.SettlementWhereInput = {}; // Per user request, data is not siloed by user
+    const whereClause: Prisma.SettlementWhereInput = { familyId };
 
-    if (payerId) {
-      whereClause.payerId = payerId;
-    }
-    if (payeeId) {
-      whereClause.payeeId = payeeId;
-    }
+    if (payerId) whereClause.payerId = payerId;
+    if (payeeId) whereClause.payeeId = payeeId;
     if (startDate) {
-      if (typeof whereClause.date !== 'object' || whereClause.date === null) {
-        whereClause.date = {};
-      }
+      if (typeof whereClause.date !== 'object' || whereClause.date === null) whereClause.date = {};
       (whereClause.date as Prisma.DateTimeFilter).gte = new Date(startDate);
     }
     if (endDate) {
-      if (typeof whereClause.date !== 'object' || whereClause.date === null) {
-        whereClause.date = {};
-      }
+      if (typeof whereClause.date !== 'object' || whereClause.date === null) whereClause.date = {};
       (whereClause.date as Prisma.DateTimeFilter).lte = new Date(endDate);
     }
 
@@ -259,16 +203,14 @@ export class SettlementsService {
           payer: { select: { id: true, name: true } },
           payee: { select: { id: true, name: true } },
         },
-        orderBy: {
-          date: 'desc', // Default sort by date descending
-        },
+        orderBy: { date: 'desc' },
         skip,
         take: limit,
       }),
       this.prisma.settlement.count({ where: whereClause }),
     ]);
 
-    const items: SettlementDto[] = settlements.map(s => ({
+    const items: SettlementDto[] = settlements.map((s) => ({
       id: s.id,
       amount: s.amount,
       date: s.date.toISOString(),
@@ -277,7 +219,7 @@ export class SettlementsService {
       payer: s.payer as SettlementMemberDto,
       payeeId: s.payeeId,
       payee: s.payee as SettlementMemberDto,
-      userId: s.userId,
+      familyId: s.familyId,
       createdAt: s.createdAt.toISOString(),
       updatedAt: s.updatedAt.toISOString(),
     }));
@@ -286,7 +228,7 @@ export class SettlementsService {
       totalItems,
       itemCount: items.length,
       itemsPerPage: limit,
-      totalPages: Math.ceil(totalItems / query.limit!),
+      totalPages: Math.ceil(totalItems / limit),
       currentPage: page,
     };
 

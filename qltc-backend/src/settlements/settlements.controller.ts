@@ -7,15 +7,16 @@ import { SettlementDto } from './dto/settlement.dto';
 import { GetBalancesQueryDto } from './dto/get-balances-query.dto';
 import { GetSettlementsQueryDto } from './dto/get-settlements-query.dto';
 import { PaginatedSettlementsResponseDto } from './dto/paginated-settlements-response.dto';
-import { AuthenticatedRequest } from '../auth/interfaces/authenticated-request.interface'; // Assuming you'll re-enable this
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard'; // Assuming you'll re-enable this
+import { AuthenticatedRequest } from '../auth/interfaces/authenticated-request.interface';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { FamilyGuard } from '../auth/guards/family.guard';
 
 @ApiTags('Settlements')
 @ApiBearerAuth()
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, FamilyGuard)
 @Controller('settlements')
 export class SettlementsController {
-    constructor(private readonly settlementsService: SettlementsService) {}
+  constructor(private readonly settlementsService: SettlementsService) {}
 
   @Get('balances')
   @ApiOperation({ summary: 'Calculate and retrieve member balances' })
@@ -27,9 +28,9 @@ export class SettlementsController {
   async getBalances(
     @Req() req: AuthenticatedRequest,
     @Query() query: GetBalancesQueryDto,
-  ): Promise<BalancesResponseDto> { // Correctly access the user ID from the 'id' property of req.user
-    const userId = req.user.id;
-    return this.settlementsService.calculateBalances(userId, query);
+  ): Promise<BalancesResponseDto> {
+    const { familyId } = req.user;
+    return this.settlementsService.calculateBalances(familyId, query);
   }
 
   @Post()
@@ -38,10 +39,12 @@ export class SettlementsController {
     description: 'The settlement has been successfully recorded.',
     type: SettlementDto,
   })
-  async createSettlement(@Req() req: AuthenticatedRequest, @Body() createSettlementDto: CreateSettlementDto): Promise<SettlementDto> {
-    const userId = req.user.id;
-    console.log('[SettlementsController] Creating settlement for userId:', userId);
-    return this.settlementsService.createSettlement(userId, createSettlementDto);
+  async createSettlement(
+    @Req() req: AuthenticatedRequest,
+    @Body() createSettlementDto: CreateSettlementDto,
+  ): Promise<SettlementDto> {
+    const { familyId, id: userId } = req.user;
+    return this.settlementsService.createSettlement(familyId, userId, createSettlementDto);
   }
 
   @Get()
@@ -55,8 +58,7 @@ export class SettlementsController {
     @Req() req: AuthenticatedRequest,
     @Query() query: GetSettlementsQueryDto,
   ): Promise<PaginatedSettlementsResponseDto> {
-    // Correctly access the user ID from the 'id' property of req.user as indicated by the console log of req.user.
-    const userId = req.user.id;
-    return this.settlementsService.getSettlements(userId, query);
+    const { familyId } = req.user;
+    return this.settlementsService.getSettlements(familyId, query);
   }
 }

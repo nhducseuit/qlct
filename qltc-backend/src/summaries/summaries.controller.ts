@@ -12,7 +12,7 @@ import { AverageExpensesResponseDto } from './dto/average-expenses-response.dto'
 import { GetBudgetComparisonQueryDto } from './dto/get-budget-comparison.dto';
 import { BudgetComparisonItemDto, BudgetComparisonResponseDto } from './dto/budget-comparison-response.dto';
 import { GetBudgetTrendQueryDto } from './dto/get-budget-trend.dto';
-import { BudgetTrendItemDto, BudgetTrendResponseDto } from './dto/budget-trend-response.dto'; // Import AuthenticatedRequest
+import { BudgetTrendItemDto, BudgetTrendResponseDto } from './dto/budget-trend-response.dto';
 import { PeriodSummaryDto, TotalsSummaryResponseDto } from './dto/totals-summary-response.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 
@@ -28,7 +28,7 @@ export class SummariesController {
   @ApiResponse({
     status: 200,
     description: 'Successfully retrieved totals summaries.',
-    type: [PeriodSummaryDto], // Swagger type for array of PeriodSummaryDto
+    type: [PeriodSummaryDto],
   })
   @ApiResponse({ status: 400, description: 'Bad Request. Invalid query parameters.' })
   @ApiResponse({ status: 401, description: 'Unauthorized.' })
@@ -36,8 +36,8 @@ export class SummariesController {
     @Req() req: AuthenticatedRequest,
     @Query() query: GetTotalsSummaryQueryDto,
   ): Promise<TotalsSummaryResponseDto> {
-    const userId = req.user.id;
-    return this.summariesService.getTotalsSummary(userId, query);
+    const { familyId } = req.user;
+    return this.summariesService.getTotalsSummary(familyId, query);
   }
 
   @Get('category-breakdown')
@@ -45,7 +45,7 @@ export class SummariesController {
   @ApiResponse({
     status: 200,
     description: 'Successfully retrieved category breakdown.',
-    type: [CategoryBreakdownItemDto], // Swagger type for array of CategoryBreakdownItemDto
+    type: [CategoryBreakdownItemDto],
   })
   @ApiResponse({ status: 400, description: 'Bad Request. Invalid query parameters.' })
   @ApiResponse({ status: 401, description: 'Unauthorized.' })
@@ -53,8 +53,8 @@ export class SummariesController {
     @Req() req: AuthenticatedRequest,
     @Query() query: GetCategoryBreakdownQueryDto,
   ): Promise<CategoryBreakdownResponseDto> {
-    const userId = req.user.id;
-    return this.summariesService.getCategoryBreakdown(userId, query);
+    const { familyId } = req.user;
+    return this.summariesService.getCategoryBreakdown(familyId, query);
   }
 
   @Get('member-breakdown')
@@ -70,8 +70,8 @@ export class SummariesController {
     @Req() req: AuthenticatedRequest,
     @Query() query: GetMemberBreakdownQueryDto,
   ): Promise<MemberBreakdownResponseDto> {
-    const userId = req.user.id;
-    return this.summariesService.getMemberBreakdown(userId, query);
+    const { familyId } = req.user;
+    return this.summariesService.getMemberBreakdown(familyId, query);
   }
 
   @Get('average-expenses')
@@ -87,8 +87,8 @@ export class SummariesController {
     @Req() req: AuthenticatedRequest,
     @Query() query: GetAverageExpensesQueryDto,
   ): Promise<AverageExpensesResponseDto> {
-    const userId = req.user.id;
-    return this.summariesService.getAverageExpenses(userId, query);
+    const { familyId } = req.user;
+    return this.summariesService.getAverageExpenses(familyId, query);
   }
 
   @Get('budget-comparison')
@@ -96,7 +96,7 @@ export class SummariesController {
   @ApiResponse({
     status: 200,
     description: 'Successfully retrieved budget comparison.',
-    type: [BudgetComparisonItemDto], // Swagger type for array of BudgetComparisonItemDto
+    type: [BudgetComparisonItemDto],
   })
   @ApiResponse({ status: 400, description: 'Bad Request. Invalid query parameters.' })
   @ApiResponse({ status: 401, description: 'Unauthorized.' })
@@ -104,8 +104,8 @@ export class SummariesController {
     @Req() req: AuthenticatedRequest,
     @Query() query: GetBudgetComparisonQueryDto,
   ): Promise<BudgetComparisonResponseDto> {
-    const userId = req.user.id;
-    return this.summariesService.getBudgetComparison(userId, query);
+    const { familyId } = req.user;
+    return this.summariesService.getBudgetComparison(familyId, query);
   }
 
   @Get('budget-trend')
@@ -121,7 +121,7 @@ export class SummariesController {
     @Req() req: AuthenticatedRequest,
     @Query() query: GetBudgetTrendQueryDto,
   ): Promise<BudgetTrendResponseDto> {
-    const userId = req.user.id;
-    return this.summariesService.getBudgetTrend(userId, query);
+    const { familyId } = req.user;
+    return this.summariesService.getBudgetTrend(familyId, query);
   }
 }

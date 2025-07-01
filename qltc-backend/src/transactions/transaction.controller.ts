@@ -20,11 +20,12 @@ import { TransactionResponseDto } from './dto/transaction-response.dto'; // Impo
 import { GetTransactionsQueryDto } from './dto/get-transactions-query.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { AuthenticatedRequest } from '../auth/interfaces/authenticated-request.interface';
+import { FamilyGuard } from '../auth/guards/family.guard';
 
 @ApiBearerAuth()
 @ApiTags('transactions')
 @Controller('transactions')
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, FamilyGuard)
 export class TransactionController {
   constructor(private readonly transactionService: TransactionService) {}
 
@@ -34,8 +35,8 @@ export class TransactionController {
   @ApiResponse({ status: 400, description: 'Bad Request.' })
   @ApiResponse({ status: 401, description: 'Unauthorized.' })
   create(@Body() createTransactionDto: CreateTransactionDto, @Req() req: AuthenticatedRequest): Promise<TransactionModel> {
-    const userId = req.user.id;
-    return this.transactionService.create(createTransactionDto, userId);
+    const familyId = req.user.familyId;
+    return this.transactionService.create(createTransactionDto, familyId);
   }
 
   @Get()
@@ -46,8 +47,8 @@ export class TransactionController {
     @Req() req: AuthenticatedRequest,
     @Query() queryDto: GetTransactionsQueryDto
   ): Promise<TransactionModel[]> {
-    const userId = req.user.id;
-    return this.transactionService.findFiltered(userId, queryDto);
+    const familyId = req.user.familyId;
+    return this.transactionService.findFiltered(familyId, queryDto);
   }
 
   @Get(':id')
@@ -58,8 +59,8 @@ export class TransactionController {
   @ApiResponse({ status: 403, description: 'Forbidden.' })
   @ApiResponse({ status: 404, description: 'Transaction not found.' })
   findOne(@Param('id', ParseUUIDPipe) id: string, @Req() req: AuthenticatedRequest): Promise<TransactionModel> {
-    const userId = req.user.id;
-    return this.transactionService.findOne(id, userId);
+    const familyId = req.user.familyId;
+    return this.transactionService.findOne(id, familyId);
   }
 
   @Patch(':id')
@@ -75,8 +76,8 @@ export class TransactionController {
     @Body() updateTransactionDto: UpdateTransactionDto,
     @Req() req: AuthenticatedRequest
   ): Promise<TransactionModel> {
-    const userId = req.user.id;
-    return this.transactionService.update(id, updateTransactionDto, userId);
+    const familyId = req.user.familyId;
+    return this.transactionService.update(id, updateTransactionDto, familyId);
   }
 
   @Delete(':id')
@@ -87,7 +88,7 @@ export class TransactionController {
   @ApiResponse({ status: 403, description: 'Forbidden.' })
   @ApiResponse({ status: 404, description: 'Transaction not found.' })
   remove(@Param('id', ParseUUIDPipe) id: string, @Req() req: AuthenticatedRequest): Promise<{ message: string }> {
-    const userId = req.user.id;
-    return this.transactionService.remove(id, userId);
+    const familyId = req.user.familyId;
+    return this.transactionService.remove(id, familyId);
   }
 }

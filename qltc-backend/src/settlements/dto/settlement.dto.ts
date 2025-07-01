@@ -33,8 +33,9 @@ export class SettlementDto {
   @ApiProperty({ type: SettlementMemberDto, description: 'Details of the payee' })
   payee!: SettlementMemberDto;
 
+  // userId removed: not present in new schema
   @ApiProperty()
-  userId!: string;
+  familyId!: string;
 
   @ApiProperty()
   createdAt!: string; // ISO Date string

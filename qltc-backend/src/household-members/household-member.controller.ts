@@ -14,51 +14,52 @@ import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiParam } from '@ne
 import { HouseholdMemberService } from './household-member.service';
 import { CreateHouseholdMemberDto } from './dto/create-household-member.dto';
 import { UpdateHouseholdMemberDto } from './dto/update-household-member.dto';
-import { HouseholdMember as HouseholdMemberModel } from '@prisma/client';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { AuthenticatedRequest } from '../auth/interfaces/authenticated-request.interface';
+import { FamilyGuard } from '../auth/guards/family.guard';
 
 @ApiBearerAuth()
 @ApiTags('household-members')
 @Controller('household-members')
-@UseGuards(JwtAuthGuard) // Protect all routes in this controller
+@UseGuards(JwtAuthGuard, FamilyGuard)
 export class HouseholdMemberController {
   constructor(private readonly householdMemberService: HouseholdMemberService) {}
 
   @Post()
   @ApiOperation({ summary: 'Create a new household member' })
-  @ApiResponse({ status: 201, description: 'The household member has been successfully created.', type: CreateHouseholdMemberDto }) // Ideally HouseholdMemberModel
+  @ApiResponse({ status: 201, description: 'The household member has been successfully created.', type: CreateHouseholdMemberDto })
   @ApiResponse({ status: 400, description: 'Bad Request.' })
   @ApiResponse({ status: 401, description: 'Unauthorized.' })
   create(@Body() createHouseholdMemberDto: CreateHouseholdMemberDto, @Req() req: AuthenticatedRequest) {
-    const userId = req.user.id;
-    return this.householdMemberService.create(createHouseholdMemberDto, userId);
+    const { familyId, id: userId } = req.user;
+    return this.householdMemberService.create(createHouseholdMemberDto, familyId, userId);
   }
 
   @Get()
-  @ApiOperation({ summary: 'Get all household members for the user' })
-  @ApiResponse({ status: 200, description: 'List of household members.', type: [CreateHouseholdMemberDto] }) // Ideally HouseholdMemberModel[]
+  @ApiOperation({ summary: 'Get all household members for the family' })
+  @ApiResponse({ status: 200, description: 'List of household members.', type: [CreateHouseholdMemberDto] })
   @ApiResponse({ status: 401, description: 'Unauthorized.' })
   findAll(@Req() req: AuthenticatedRequest) {
-    const userId = req.user.id;
-    return this.householdMemberService.findAll(userId);
+    const { familyId } = req.user;
+    return this.householdMemberService.findAll(familyId);
   }
 
   @Get(':id')
   @ApiOperation({ summary: 'Get a household member by ID' })
   @ApiParam({ name: 'id', description: 'Household Member ID (UUID)', type: String })
-  @ApiResponse({ status: 200, description: 'The found household member.', type: CreateHouseholdMemberDto }) // Ideally HouseholdMemberModel
+  @ApiResponse({ status: 200, description: 'The found household member.', type: CreateHouseholdMemberDto })
   @ApiResponse({ status: 401, description: 'Unauthorized.' })
   @ApiResponse({ status: 403, description: 'Forbidden.' })
   @ApiResponse({ status: 404, description: 'Household member not found.' })
   findOne(@Param('id', ParseUUIDPipe) id: string, @Req() req: AuthenticatedRequest) {
-    return this.householdMemberService.findOne(id);
+    const { familyId } = req.user; // Extract familyId from the request
+    return this.householdMemberService.findOne(id, familyId); // Pass familyId to the service
   }
 
   @Patch(':id')
   @ApiOperation({ summary: 'Update a household member by ID' })
   @ApiParam({ name: 'id', description: 'Household Member ID (UUID)', type: String })
-  @ApiResponse({ status: 200, description: 'The household member has been successfully updated.', type: CreateHouseholdMemberDto }) // Ideally HouseholdMemberModel
+  @ApiResponse({ status: 200, description: 'The household member has been successfully updated.', type: CreateHouseholdMemberDto })
   @ApiResponse({ status: 400, description: 'Bad Request.' })
   @ApiResponse({ status: 401, description: 'Unauthorized.' })
   @ApiResponse({ status: 403, description: 'Forbidden.' })
@@ -68,19 +69,19 @@ export class HouseholdMemberController {
     @Body() updateHouseholdMemberDto: UpdateHouseholdMemberDto,
     @Req() req: AuthenticatedRequest,
   ) {
-    const userId = req.user.id;
-    return this.householdMemberService.update(id, updateHouseholdMemberDto, userId);
+    const { familyId, id: userId } = req.user;
+    return this.householdMemberService.update(id, updateHouseholdMemberDto, familyId, userId);
   }
 
   @Delete(':id')
   @ApiOperation({ summary: 'Delete a household member by ID' })
   @ApiParam({ name: 'id', description: 'Household Member ID (UUID)', type: String })
-  @ApiResponse({ status: 200, description: 'The household member has been successfully deleted.' }) // Or 204 No Content
+  @ApiResponse({ status: 200, description: 'The household member has been successfully deleted.' })
   @ApiResponse({ status: 401, description: 'Unauthorized.' })
   @ApiResponse({ status: 403, description: 'Forbidden.' })
   @ApiResponse({ status: 404, description: 'Household member not found.' })
   remove(@Param('id', ParseUUIDPipe) id: string, @Req() req: AuthenticatedRequest) {
-    const userId = req.user.id;
-    return this.householdMemberService.remove(id, userId);
+    const { familyId, id: userId } = req.user;
+    return this.householdMemberService.remove(id, familyId, userId);
   }
 }

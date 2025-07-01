@@ -59,12 +59,14 @@ The project is now ready to move into Sprint 3. The immediate next focus will li
         *   Defined `Settlement` data model in Prisma schema, including relationships with `User` and `HouseholdMember`.
         *   Implemented API endpoint (`GET /settlements/balances`) and service logic to calculate net balances between household members. The calculation considers shared transactions, their split ratios, and adjusts for any previously recorded settlements.
         *   Implemented API endpoint (`POST /settlements`) and service logic to record new settlements between members, including validation for payer/payee and active status.
+        *   Implemented API endpoint (`GET /settlements`) to retrieve a paginated history of past settlements.
         *   Created necessary DTOs (`MemberBalanceDto`, `DetailedMemberBalanceDto`, `BalancesResponseDto`, `CreateSettlementDto`, `SettlementDto`) for these operations.
     *   **Frontend (Settlements Feature):**
         *   Created `settlementStore.ts` (Pinia) to manage state and API interactions for balances, settlement recording, and history.
         *   Developed `BalancesView.vue` to display member balances with clear, user-friendly language.
         *   Implemented `RecordSettlementDialog.vue` for users to log new settlements, integrated into `BalancesView.vue`.
-        *   Created `SettlementHistory.vue` component structure for displaying past settlements (integration pending).
+        *   Created `SettlementHistory.vue` component to display a paginated list of past settlements.
+        *   Created `SettlementsPage.vue` to integrate and display both the balances view and settlement history, completing the feature.
 **Next Sprints:**
 *   **Authentication (Started):** Began implementing real user authentication. Completed backend setup including AuthModule, AuthService, AuthController, JWT/Local strategies, guards, DTOs, and updating the seed script to create a test user. Protected core backend routes with JWT authentication. Frontend implementation (Login/Register pages, auth store logic) is the next focus.
     *   **Frontend Implementation (Completed):**
@@ -83,4 +85,30 @@ The project is now ready to move into Sprint 3. The immediate next focus will li
         *   **Report Filtering Consistency:** The transaction detail table on the Reports page now correctly applies the `isStrictMode`, `memberIds`, and `transactionType` filters, ensuring consistency with the charts above it. This involved updating the `/transactions` API and fixing a 400 Bad Request error by correcting array serialization in the frontend.
 
 *   Sprint 4: Shared Expense Balancing & Settlements
-*   **Sprint 5: Foundational Data Model Refactor** - In Progress. Architecting a new "Big Family" / "Small Family" data model to support hierarchical financial management and granular data ownership, paving the way for advanced, per-family reporting features.
+*   **Sprint 5: Foundational Data Model Refactor** - In Progress. Architecting a new "Big Family" / "Small Family" data model to support hierarchical financial management and granular data ownership, paving the way for advanced, per-family reporting features. See `sprint-5.md`.
+    *   **Backend Data Model (Completed):**
+        *   Defined a hierarchical `Family` model in `schema.prisma`.
+        *   Refactored all data models (`User`, `Category`, `Transaction`, etc.) to belong to a `Family` instead of a `User`, establishing a new data ownership structure.
+        *   Executed a production-safe, two-phase migration to transition existing data without loss. This involved an initial additive migration, a backfill script to populate the new `familyId` based on existing `userId` data, and a final migration to enforce the new schema and remove obsolete `userId` columns.
+        *   Updated the `seed.ts` script to align with the new `Family`-centric data structure.
+
+---
+
+**Sprint 5 Progress (Foundational Data Model Refactor, July 2025):**
+
+- Completed: 
+  - Normalized schema with `Family`, `Person`, and `HouseholdMembership` models.
+  - Automated migration and SQL backfill for legacy data.
+  - Refactored all seeds and baseline data for consistency.
+  - Dev and production seed scripts now fully aligned with migration baseline and production safety requirements.
+  - Documented all migration, seed, and reset flows in `sprint-5.md`.
+- In Progress / Next Up:
+  - Implement and test API endpoints for creating/updating persons and memberships (production will not seed these, but rely on app logic).
+  - Add logic to prevent duplicate persons (by email/phone) in backend.
+  - Complete frontend UI for person/membership management and family switching.
+  - Continue integration and migration test coverage for new flows.
+  - Monitor and document any issues from real-world usage or further CI/CD automation.
+
+See `backlog/sprint-5.md` for full details and best practices.
+
+---

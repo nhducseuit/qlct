@@ -28,8 +28,8 @@
 - [x] **UI Component:** Develop `BalancesView.vue` to display the calculated balances.
 - [x] **UI Component:** Implement `RecordSettlementDialog.vue` to capture and submit new settlements.
 - [x] **UI Component:** Create `SettlementHistory.vue` to display a paginated list of past settlements.
-- [ ] **Integration:** Fully integrate `SettlementHistory.vue` into the `SettlementsPage.vue`.
-- [ ] **UX/UI:** Refine the settlement flow, including user feedback and edge case handling.
+- [x] **Integration:** Fully integrate `SettlementHistory.vue` into the `SettlementsPage.vue`.
+- [x] **UX/UI:** Refine the settlement flow, including user feedback and edge case handling.
 
 ### Other Tasks Completed During Sprint
 

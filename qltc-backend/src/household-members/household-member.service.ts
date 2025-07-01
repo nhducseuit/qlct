@@ -14,12 +14,13 @@ export class HouseholdMemberService {
 
   async create(
     createHouseholdMemberDto: CreateHouseholdMemberDto,
-    userId: string,
+    familyId: string,
+    userId: string, // For notifications
   ): Promise<HouseholdMember> {
     const newMember = await this.prisma.householdMember.create({
       data: {
         ...createHouseholdMemberDto,
-        userId,
+        familyId,
       },
     });
 
@@ -31,14 +32,14 @@ export class HouseholdMemberService {
     return newMember;
   }
 
-  async findAll(userId: string): Promise<HouseholdMember[]> {
+  async findAll(familyId: string): Promise<HouseholdMember[]> {
     return this.prisma.householdMember.findMany({
-      where: { }, // Per user request, data is not siloed by user for read operations
+      where: { familyId },
       orderBy: { order: 'asc' }, // Optional: default ordering by 'order' then 'name'
     });
   }
 
-  async findOne(id: string): Promise<HouseholdMember> {
+  async findOne(id: string, familyId: string): Promise<HouseholdMember> {
     const member = await this.prisma.householdMember.findUnique({
       where: { id },
     });
@@ -46,15 +47,18 @@ export class HouseholdMemberService {
     if (!member) {
       throw new NotFoundException(`Household member with ID "${id}" not found.`);
     }
-    // Per user request, any authenticated user can access any household member.
-    // The ownership check is removed for read operations.
+    if (member.familyId !== familyId) {
+      throw new ForbiddenException('You do not have permission to view this household member.');
+    }
+
     return member;
   }
 
   async update(
     id: string,
     updateHouseholdMemberDto: UpdateHouseholdMemberDto,
-    userId: string,
+    familyId: string,
+    userId: string, // For notifications
   ): Promise<HouseholdMember> {
     // For write operations, we must check for ownership directly.
     const memberToUpdate = await this.prisma.householdMember.findUnique({
@@ -63,7 +67,7 @@ export class HouseholdMemberService {
     if (!memberToUpdate) {
       throw new NotFoundException(`Household member with ID "${id}" not found.`);
     }
-    if (memberToUpdate.userId !== userId) {
+    if (memberToUpdate.familyId !== familyId) {
       throw new ForbiddenException('You do not have permission to update this household member.');
     }
 
@@ -85,7 +89,7 @@ export class HouseholdMemberService {
     return updatedMember;
   }
 
-  async remove(id: string, userId: string): Promise<HouseholdMember> {
+  async remove(id: string, familyId: string, userId: string): Promise<HouseholdMember> {
     // For write operations, we must check for ownership directly.
     const memberToDelete = await this.prisma.householdMember.findUnique({
       where: { id },
@@ -93,7 +97,7 @@ export class HouseholdMemberService {
     if (!memberToDelete) {
       throw new NotFoundException(`Household member with ID "${id}" not found.`);
     }
-    if (memberToDelete.userId !== userId) {
+    if (memberToDelete.familyId !== familyId) {
       throw new ForbiddenException('You do not have permission to delete this household member.');
     }
 

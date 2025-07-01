@@ -2,14 +2,32 @@
 // learn more about it in the docs: https://pris.ly/d/prisma-schema
 
 generator client {
-  provider = "prisma-client-js"
-  // output   = "../src/generated/prisma" // Adjusted output path
+  provider      = "prisma-client-js"
   binaryTargets = ["native", "linux-musl-openssl-3.0.x"]
 }
 
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
+}
+
+model Family {
+  id        String   @id @default(uuid())
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Self-relation for Big Family / Small Family structure
+  parentId  String?
+  parent    Family?  @relation("SubFamilies", fields: [parentId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  children  Family[] @relation("SubFamilies")
+
+  users                 User[]
+  categories            Category[]
+  transactions          Transaction[]
+  memberships           HouseholdMembership[]
+  predefinedSplitRatios PredefinedSplitRatio[]
+  settlements           Settlement[]
 }
 
 model User {
@@ -19,32 +37,26 @@ model User {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  categories       Category[]
-  transactions     Transaction[]
-  householdMembers HouseholdMember[]
-  predefinedSplitRatios PredefinedSplitRatio[] // Added inverse relation
-  settlements      Settlement[] // Opposite relation for Settlement.user
+  familyId String
+  family   Family @relation(fields: [familyId], references: [id], onDelete: Cascade)
 }
 
 model Category {
-  id          String  @id @default(uuid())
-  name        String
-  parentId    String?
-  icon        String?
-  color       String?
-  isPinned    Boolean @default(false)
-  order       Int?
-  isHidden    Boolean @default(false)
-  budgetLimit Float?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  // Structured default split ratio
-  // Stores an array like: [{ memberId: "uuid", percentage: 60 }, { memberId: "uuid2", percentage: 40 }]
+  id                String   @id @default(uuid())
+  name              String
+  parentId          String?
+  icon              String?
+  color             String?
+  isPinned          Boolean  @default(false)
+  order             Int?
+  isHidden          Boolean  @default(false)
+  budgetLimit       Float?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
   defaultSplitRatio Json?
 
-  userId String
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  familyId String
+  family   Family @relation(fields: [familyId], references: [id], onDelete: Cascade)
 
   parent        Category?  @relation("SubCategories", fields: [parentId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   subCategories Category[] @relation("SubCategories")
@@ -54,71 +66,84 @@ model Category {
 model Transaction {
   id         String   @id @default(uuid())
   amount     Float
-  date       DateTime // Store as DateTime for easier querying, format on client
+  date       DateTime
   note       String?
-  type       String   // 'income' | 'expense' - Consider an Enum if your DB supports it or use a string with validation
-  payer      String?  // Will store HouseholdMember ID
+  type       String
+  payer      String?
   isShared   Boolean  @default(false)
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
-
-  // Structured split ratio for this specific transaction (snapshot or custom)
   splitRatio Json?
 
-  userId     String
-  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  familyId   String
+  family     Family   @relation(fields: [familyId], references: [id], onDelete: Cascade)
+
   categoryId String
-  category   Category @relation(fields: [categoryId], references: [id], onDelete: Restrict) // Prevent deleting category if transactions exist
+  category   Category @relation(fields: [categoryId], references: [id], onDelete: Restrict)
 }
 
-model HouseholdMember {
+
+model Person {
   id        String   @id @default(uuid())
   name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  memberships HouseholdMembership[]
+}
+
+model HouseholdMembership {
+  id        String   @id @default(uuid())
+  personId  String
+  familyId  String
   isActive  Boolean  @default(true)
   order     Int?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  userId String
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  person   Person @relation(fields: [personId], references: [id], onDelete: Cascade)
+  family   Family @relation(fields: [familyId], references: [id], onDelete: Cascade)
 
-  paidSettlements     Settlement[] @relation("PaidSettlements") // Opposite relation for Settlement.payer
-  receivedSettlements Settlement[] @relation("ReceivedSettlements") // Opposite relation for Settlement.payee
+  paidSettlements     Settlement[] @relation("PaidSettlements")
+  receivedSettlements Settlement[] @relation("ReceivedSettlements")
+
+  @@unique([personId, familyId])
+  @@index([familyId])
+  @@index([personId])
 }
 
 model PredefinedSplitRatio {
-  id         String   @id @default(uuid())
+  id         String @id @default(uuid())
   name       String
-  splitRatio Json // Stores SplitRatioItem[]: [{ memberId: "uuid", percentage: number }]
-  userId     String
-  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  splitRatio Json
+  familyId   String
+  family     Family   @relation(fields: [familyId], references: [id], onDelete: Cascade)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  @@unique([userId, name]) // Ensure unique name per user
-  @@index([userId])
+  @@unique([familyId, name])
+  @@index([familyId])
 }
 
 model Settlement {
   id        String   @id @default(uuid())
   amount    Float
-  date      DateTime @db.Timestamptz(3) // Use Timestamptz for consistency with Transaction dates
+  date      DateTime @db.Timestamptz(3)
   note      String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  // Relationships
-  payerId String // The member who paid in this settlement
-  payer   HouseholdMember @relation("PaidSettlements", fields: [payerId], references: [id])
+  payerMembershipId String
+  payer   HouseholdMembership @relation("PaidSettlements", fields: [payerMembershipId], references: [id])
 
-  payeeId String // The member who received the payment in this settlement
-  payee   HouseholdMember @relation("ReceivedSettlements", fields: [payeeId], references: [id])
+  payeeMembershipId String
+  payee   HouseholdMembership @relation("ReceivedSettlements", fields: [payeeMembershipId], references: [id])
 
-  userId String // Link settlement to a specific user/household
-  user   User   @relation(fields: [userId], references: [id])
+  familyId String
+  family   Family @relation(fields: [familyId], references: [id], onDelete: Cascade)
 
-  @@index([userId])
-  @@index([payerId])
-  @@index([payeeId])
+  @@index([payerMembershipId])
+  @@index([payeeMembershipId])
+  @@index([familyId])
 }
