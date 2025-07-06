@@ -12,6 +12,8 @@ import { PredefinedSplitRatioModule } from './predefined-split-ratios/predefined
 import { SummariesModule } from './summaries/summaries.module';
 import { SettlementsModule } from './settlements/settlements.module';
 import { ConfigModule } from '@nestjs/config'; // Import ConfigModule
+import { PersonModule } from './person/person.module';
+import { FamilyModule } from './families/family.module';
 
 @Module({
   imports: [
@@ -24,7 +26,10 @@ import { ConfigModule } from '@nestjs/config'; // Import ConfigModule
     ,PrismaModule
     ,HouseholdMemberModule
     ,PredefinedSplitRatioModule
-    ,SummariesModule, SettlementsModule],
+    ,SummariesModule
+    ,SettlementsModule
+    ,PersonModule
+    ,FamilyModule],
   controllers: [AppController],
   providers: [AppService],
 })

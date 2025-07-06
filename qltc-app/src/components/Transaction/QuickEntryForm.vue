@@ -20,9 +20,21 @@
         </template>
       </q-input>
 
+      <!-- Family Selection -->
+      <q-select
+        filled
+        v-model="form.familyId"
+        :options="familyOptions"
+        label="Chọn gia đình"
+        emit-value
+        map-options
+        option-value="value"
+        option-label="label"
+        :rules="[val => !!val || 'Vui lòng chọn gia đình']"
+      />
+
       <!-- Task 3.7: Lựa chọn "Ai chi" (Moved Up) -->
       <div class="q-mt-md">
-        <!-- <div class="text-subtitle2 q-mb-xs">Ai chi:</div> -->
         <q-select
           filled
           v-model="form.payer"
@@ -32,6 +44,7 @@
           map-options
           @update:model-value="onPayerChange"
           clearable
+          :disable="!form.familyId"
         />
       </div>
 
@@ -65,7 +78,6 @@
       </q-input>
 
       <!-- Task 3.2: Danh mục "Chọn nhanh" -->
-      <!-- Removed q-mb-md to reduce gap -->
       <div>
         <div class="text-subtitle1">Chọn nhanh danh mục:</div>
         <q-scroll-area horizontal style="height: 60px; max-width: 100%;">
@@ -102,6 +114,7 @@
         :rules="[val => !!val || 'Vui lòng chọn danh mục']"
         clearable
         @update:model-value="onCategorySelected"
+        :disable="!form.familyId"
       />
 
       <!-- Task 3.8: Checkbox "Chi chung" và tỷ lệ chia -->
@@ -124,14 +137,15 @@
           map-options
           clearable
           class="q-mb-md"
+          :disable="!form.familyId"
         />
 
         <div class="text-subtitle2 q-mb-sm">Phân chia chi phí (tổng phải là 100%):</div>
         <div v-if="activeMembers.length === 0" class="text-caption text-negative">
-          Không có thành viên nào đang hoạt động để phân chia.
+          Vui lòng chọn một gia đình có thành viên đang hoạt động để chia sẻ chi phí.
         </div>
         <div v-for="member in activeMembers" :key="member.id" class="row items-center q-mb-xs">
-          <div class="col-5 ellipsis">{{ member.name }}</div>
+          <div class="col-5 ellipsis">{{ member.person?.name }}</div>
           <div class="col-5">
             <q-input
               dense
@@ -163,244 +177,197 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, nextTick, onMounted } from 'vue';
 import { useQuasar, QForm } from 'quasar';
-import { useCategoryStore } from 'src/stores/categoryStore';
+import { computed, ref, watch, onMounted, nextTick } from 'vue';
 import { useTransactionStore } from 'src/stores/transactionStore';
-import { useHouseholdMemberStore } from 'src/stores/householdMemberStore'; // Import householdMemberStore
-import { usePredefinedSplitRatioStore } from 'src/stores/predefinedSplitRatioStore'; // Import predefinedSplitRatioStore
-import { type NewTransactionData, type SplitRatioItem } from 'src/models/index';
-import { dayjs } from 'src/boot/dayjs';
-import TablerIcon from 'src/components/Common/TablerIcon.vue'; // Import component icon
-import { formatNumberWithThousandsSeparator, parseNumberFromThousandsSeparator } from '../../utils/formatters';
+import { useCategoryStore } from 'src/stores/categoryStore';
+import { useHouseholdMemberStore } from 'src/stores/householdMemberStore';
+import { usePredefinedSplitRatioStore } from 'src/stores/predefinedSplitRatioStore';
+import {
+  formatNumberWithThousandsSeparator,
+  parseNumberFromThousandsSeparator,
+} from 'src/utils/formatters';
+import dayjs from 'dayjs';
+import { useFamilyStore } from 'src/stores/familyStore';
+import { useAuthStore } from 'src/stores/authStore';
+import type { SplitRatioItem, NewTransactionData } from 'src/models';
+import TablerIcon from 'src/components/Common/TablerIcon.vue';
 
-const $q = useQuasar();
-const categoryStore = useCategoryStore();
 const transactionStore = useTransactionStore();
-const householdMemberStore = useHouseholdMemberStore();
-const predefinedSplitRatioStore = usePredefinedSplitRatioStore(); // Use the new store
+const memberStore = useHouseholdMemberStore();
+const categoryStore = useCategoryStore();
+const familyStore = useFamilyStore();
+const authStore = useAuthStore();
+const predefinedSplitRatioStore = usePredefinedSplitRatioStore();
+const $q = useQuasar();
 
 const entryForm = ref<QForm | null>(null);
-const form = ref({
-  categoryId: null as string | null,
-  date: dayjs().format('YYYY/MM/DD'), // Quasar default date format
-  amount: null as number | null,
+
+const form = ref<NewTransactionData>({
+  date: dayjs().format('YYYY/MM/DD'),
+  familyId: familyStore.selectedFamilyId ?? '',
+  payer: authStore.user?.id ?? null,
   note: '',
-  // Set default payer after members are loaded
-  payer: null as string | null,
-  isShared: false,
-  splitRatio: null as SplitRatioItem[] | null, // Default or from category
-  selectedPredefinedRatioId: null,
-  type: 'expense' as 'income' | 'expense', // Default to expense
+  amount: null as number | null,
+  categoryId: null as string | null,
+  isShared: true,
+  splitRatio: [],
+  type: 'expense' as 'expense' | 'income',
 });
 
-const formattedAmount = computed<string>({
-  get() {
-    return formatNumberWithThousandsSeparator(form.value.amount);
-  },
-  set(newValue: string) {
-    const parsed = parseNumberFromThousandsSeparator(newValue);
-    if (parsed !== null) {
-      form.value.amount = parsed;
-    } else if (newValue === '') {
-      form.value.amount = null;
-    }
-  }
-});
-
-const activeMembers = computed(() =>
-  householdMemberStore.members.filter(member => member.isActive)
-);
 const memberSplitPercentages = ref<Record<string, number | null>>({});
-
-const pinnedCategories = computed(() => categoryStore.pinnedCategories);
-const payerOptions = computed(() =>
-  householdMemberStore.members.filter(member => member.isActive).map(member => ({
-    label: member.name,
-    value: member.id,
-  }))
-);
-// Options for predefined split ratios
-const predefinedSplitRatioOptions = computed(() =>
-  predefinedSplitRatioStore.predefinedRatios.map(ratio => ({
-    label: ratio.name,
-    value: ratio.id,
-  }))
-);
-
-
-// Task 3.3: Chuẩn bị options cho q-select (sẽ cải thiện với danh mục cha-con sau)
-const categoryOptions = computed(() =>
-  categoryStore.flatSortedCategoriesForSelect.map(cat => ({
-    id: cat.id,
-    name: `${'\xA0\xA0\xA0\xA0'.repeat(cat.depth)}${cat.depth > 0 ? '↳ ' : ''}${cat.name}`, // Indent with non-breaking spaces
-  })),
-);
-
-// Task 3.13: Select predefined split ratio
 const selectedPredefinedRatioId = ref<string | null>(null);
 
-watch(selectedPredefinedRatioId, (newRatioId) => {
-  if (newRatioId) {
-    const predefinedRatio = predefinedSplitRatioStore.getPredefinedRatioById(newRatioId);
-    if (predefinedRatio) {
-      form.value.isShared = true; // Automatically tick "Chi chung"
-      form.value.splitRatio = JSON.parse(JSON.stringify(predefinedRatio.splitRatio)); // Apply the ratio
-      updateMemberSplitPercentagesFromForm(); // Update UI inputs
-    }
+const familyOptions = computed(() =>
+  familyStore.families.map(f => ({ label: f.name, value: f.id }))
+);
+
+const pinnedCategories = computed(() => categoryStore.pinnedCategories);
+
+const activeMembers = computed(() => {
+  if (!form.value.familyId) return [];
+  return memberStore.allMembersWithFamily.filter(
+    (member) => member.isActive && member.familyId === form.value.familyId
+  );
+});
+
+const payerOptions = computed(() => {
+  return activeMembers.value.map((member) => ({
+    label: member.person.name,
+    value: member.id,
+  }));
+});
+
+const categoryOptions = computed(() => {
+  return categoryStore.flatSortedCategoriesForSelect.map(cat => ({
+    id: cat.id,
+    name: cat.name,
+    // ... any other properties needed for the select component
+  }));
+});
+
+const predefinedSplitRatioOptions = computed(() => {
+  return predefinedSplitRatioStore.predefinedRatios.map((ratio) => ({
+    label: ratio.name,
+    value: ratio.id,
+  }));
+});
+
+onMounted(() => {
+  const initialFamilyId = familyStore.selectedFamilyId || authStore.user?.familyId;
+  if (initialFamilyId) {
+    form.value.familyId = initialFamilyId;
+    familyStore.selectedFamilyId = initialFamilyId;
+    // Data loading is now handled by watchers in the respective stores
+  } else {
+    // Handle case where no family is selected and user has no default
+    console.warn('No family selected and no default family for user.');
+  }
+
+  if (activeMembers.value.some(m => m.id === authStore.user?.id)) {
+    form.value.payer = authStore.user?.id ?? null;
   }
 });
 
+const formattedAmount = computed({
+  get: () => formatNumberWithThousandsSeparator(form.value.amount),
+  set: (newValue) => {
+    const parsed = parseNumberFromThousandsSeparator(newValue);
+    form.value.amount = parsed;
+  },
+});
 
-const onCategorySelected = (categoryId: string | null) => {
-  if (form.value.isShared) { // Only attempt to apply default split if shared
-    if (categoryId) {
-      const category = categoryStore.getCategoryById(categoryId);
-      if (category?.defaultSplitRatio) {
-        form.value.splitRatio = JSON.parse(JSON.stringify(category.defaultSplitRatio)); // Deep copy
-      } else {
-        // If category has no default, initialize for manual input or clear
-        form.value.splitRatio = activeMembers.value.length > 0 ? activeMembers.value.map(m => ({ memberId: m.id, percentage: 0 })) : [];
-      }
-    }
-    updateMemberSplitPercentagesFromForm(); // Always update UI based on new form.value.splitRatio
-  }
-};
-
-const onPayerChange = (payerId: string | null) => {
-  if (payerId && !form.value.isShared) {
-    // Nếu không phải chi chung, và đã chọn người chi, thì tỷ lệ là 100% cho người đó
-    // Nếu không phải chi chung, và đã chọn người chi, thì tỷ lệ là 100% cho người đó
-    form.value.splitRatio = [{ memberId: payerId, percentage: 100 }];
-  } else if (!payerId && !form.value.isShared) {
-    // Nếu bỏ chọn người chi và không phải chi chung (trường hợp này ít xảy ra với radio)
-    form.value.splitRatio = null;
-  }
-};
-
-const onSharedChange = (isShared: boolean) => {
-  if (isShared) {
-    // This handler is for when the user MANUALLY ticks the checkbox.
-    // If a predefined ratio is already selected, this handler should not override it.
-    // The check for `selectedPredefinedRatioId` handles the case where `isShared` is
-    // set programmatically by the predefined ratio watcher.
-    if (!selectedPredefinedRatioId.value) {
-      // When manually ticking "Chi chung", apply category default or reset.
-      const category = form.value.categoryId ? categoryStore.getCategoryById(form.value.categoryId) : null;
-      if (category?.defaultSplitRatio) {
-        form.value.splitRatio = JSON.parse(JSON.stringify(category.defaultSplitRatio));
-      } else if (activeMembers.value.length > 0) {
-        form.value.splitRatio = activeMembers.value.map(m => ({ memberId: m.id, percentage: 0 }));
-      } else {
-        form.value.splitRatio = [];
-      }
-    }
-  } else {
-    // When un-ticking, always clear the predefined selection and revert to single-payer.
-    selectedPredefinedRatioId.value = null;
-    onPayerChange(form.value.payer);
-  }
-  updateMemberSplitPercentagesFromForm();
-};
-
-// Set default payer once household members are loaded
-watch(() => householdMemberStore.members, (newMembers) => {
-  if (!form.value.payer && newMembers.length > 0) {
-    form.value.payer = newMembers.find(m => m.isActive)?.id || (newMembers[0] ? newMembers[0].id : null);
-    onPayerChange(form.value.payer); // Initialize splitRatio if not shared
-  }
-}, { immediate: true });
+const totalPercentage = computed(() => {
+  return Object.values(memberSplitPercentages.value).reduce(
+    (sum: number, val) => sum + (Number(val) || 0),
+    0
+  );
+});
 
 const selectCategory = (categoryId: string) => {
   form.value.categoryId = categoryId;
-  onCategorySelected(categoryId);
 };
 
-// Function to update form.value.splitRatio based on memberSplitPercentages
-// This is needed when user manually edits percentages
-const updateSplitRatioFromPercentages = () => {
-  form.value.splitRatio = activeMembers.value
-    .map(member => ({
-      memberId: member.id,
-      percentage: memberSplitPercentages.value[member.id] ?? 0, // Use 0 if null/undefined
-    }))
-    .filter(sr => sr.percentage > 0); // Only include members with > 0%
+const onCategorySelected = (value: string | null) => {
+  form.value.categoryId = value;
 };
 
-const updateMemberSplitPercentagesFromForm = () => {
-  const newPercentages: Record<string, number | null> = {};
-  activeMembers.value.forEach(member => {
-    const existingSplit = form.value.splitRatio?.find(sr => sr.memberId === member.id);
-    newPercentages[member.id] = existingSplit ? existingSplit.percentage : null;
-  });
-  memberSplitPercentages.value = newPercentages;
+const onPayerChange = (value: string | null) => {
+    if (!form.value.isShared) {
+        if (value) {
+            form.value.splitRatio = [{ memberId: value, percentage: 100 }];
+        } else {
+            form.value.splitRatio = [];
+        }
+    }
 };
 
-const updateSplitRatio = (memberId: string, percentage: number | string | null) => {
-  const numPercentage = typeof percentage === 'string' ? parseFloat(percentage) : percentage;
-  if (form.value.splitRatio === null) form.value.splitRatio = [];
-  selectedPredefinedRatioId.value = null; // Clear predefined selection if manual edit occurs
-
-  const index = form.value.splitRatio.findIndex(sr => sr.memberId === memberId);
-  if (numPercentage !== null && !isNaN(numPercentage) && numPercentage >= 0) {
-    if (index > -1) {
-      form.value.splitRatio[index]!.percentage = numPercentage;
+const onSharedChange = (value: boolean) => {
+    if (value) {
+        // When switching to shared, distribute equally
+        distributeEqually();
     } else {
-      form.value.splitRatio.push({ memberId, percentage: numPercentage });
+        // When switching to not-shared, set split to be 100% payer
+        if (form.value.payer) {
+            form.value.splitRatio = [{ memberId: form.value.payer, percentage: 100 }];
+        } else {
+            form.value.splitRatio = [];
+        }
     }
-  } else {
-    if (index > -1) {
-      form.value.splitRatio[index]!.percentage = 0;
-    }
-    memberSplitPercentages.value[memberId] = null;
-  }
-  updateSplitRatioFromPercentages(); // Keep form.value.splitRatio in sync
 };
 
-const totalPercentage = computed(() => {
-  if (!form.value.isShared || !form.value.splitRatio) return 0;
-  return form.value.splitRatio.reduce((sum, item) => sum + (item.percentage || 0), 0);
-});
+const updateSplitRatio = (memberId: string, percentage: string | number | null) => {
+  const numericPercentage =
+    percentage === null || percentage === '' ? null : Number(percentage);
+  memberSplitPercentages.value[memberId] = numericPercentage;
+  // If user manually changes a value, deselect the predefined ratio
+  selectedPredefinedRatioId.value = null;
+};
 
 const distributeEqually = () => {
-  if (!form.value.isShared || activeMembers.value.length === 0) return;
-  const count = activeMembers.value.length;
-  const percentage = parseFloat((100 / count).toFixed(2));
-  const remainder = 100 - (percentage * count);
+  const activeCount = activeMembers.value.length;
+  if (activeCount === 0) return;
 
-  form.value.splitRatio = activeMembers.value.map((member, index) => {
-    let finalPercentage = percentage;
-    if (index === 0 && remainder !== 0) {
-      finalPercentage = parseFloat((percentage + remainder).toFixed(2));
+  const percentage = 100 / activeCount;
+
+  // Round to 2 decimal places to handle cases like 100/3
+  const roundedPercentage = Math.round(percentage * 100) / 100;
+
+  let distributedTotal = 0;
+  activeMembers.value.forEach((member, index) => {
+    if (index < activeCount - 1) {
+      memberSplitPercentages.value[member.id] = roundedPercentage;
+      distributedTotal += roundedPercentage;
+    } else {
+      // Assign the remainder to the last person to ensure total is exactly 100
+      memberSplitPercentages.value[member.id] = 100 - distributedTotal;
     }
-    return { memberId: member.id, percentage: finalPercentage };
   });
-  selectedPredefinedRatioId.value = null; // Clear predefined selection
-  updateMemberSplitPercentagesFromForm();
+  selectedPredefinedRatioId.value = null;
 };
 
-const resetForm = async () => { // Make async to use await with nextTick
-  const currentDate = form.value.date; // Save the current date
-  const currentPayer = form.value.payer; // Save the current payer
-  const currentType = form.value.type; // Save the current type
-
+const resetForm = async () => {
+  const currentFamilyId = form.value.familyId;
   form.value = {
-    categoryId: null as string | null,
-    date: currentDate, // Keep current date
-    amount: null as number | null,
+    date: dayjs().format('YYYY/MM/DD'),
+    familyId: currentFamilyId, // Keep the current family
+    payer: authStore.user?.id ?? null,
     note: '',
-    payer: currentPayer, // Keep current payer
-    isShared: false,
-    splitRatio: null as SplitRatioItem[] | null,
-    selectedPredefinedRatioId: null, // Reset predefined selection
-    type: currentType, // Keep current type
+    amount: null,
+    categoryId: null,
+    isShared: true,
+    splitRatio: [],
+    type: 'expense',
   };
-  updateMemberSplitPercentagesFromForm(); // Reset UI for split percentages
+  memberSplitPercentages.value = {};
+  selectedPredefinedRatioId.value = null;
 
-  // Ensure resetValidation is called after the form model has been updated
-  // and the DOM has had a chance to react if necessary (though usually not needed for resetValidation)
-  if (entryForm.value) {    await nextTick(); // Wait for Vue to update the DOM based on model changes
-    entryForm.value.resetValidation(); // Now reset validation state
+  await nextTick();
+  entryForm.value?.resetValidation();
+
+  // Set default payer if applicable
+  if (activeMembers.value.some(m => m.id === authStore.user?.id)) {
+    form.value.payer = authStore.user?.id ?? null;
   }
 };
 
@@ -414,26 +381,33 @@ const onSubmit = async () => {
       $q.notify({ type: 'negative', message: 'Tổng tỷ lệ phân chia cho chi phí chung phải là 100%.' });
       return;
     }
-    // Task 3.10: Logic lưu transaction
-    const transactionData: NewTransactionData = {
-      categoryId: form.value.categoryId as string, // Ensured by validation
-      date: form.value.date, // string in YYYY/MM/DD format
-      amount: form.value.amount as number, // Ensured by validation
-      note: form.value.note,
-      payer: form.value.payer, // string (userId) or null
-      isShared: form.value.isShared,
-      splitRatio: form.value.isShared
-        ? (form.value.splitRatio ? form.value.splitRatio.filter(sr => sr.percentage && sr.percentage > 0) : null)
-        : (form.value.payer ? [{ memberId: form.value.payer, percentage: 100 }] : null),
-      type: form.value.type,
+
+    // Finalize split ratio based on current state
+    const finalSplitRatio = form.value.isShared
+      ? Object.entries(memberSplitPercentages.value)
+          .map(([memberId, percentage]) => ({
+            memberId,
+            percentage: Number(percentage) || 0,
+          }))
+          .filter(item => item.percentage > 0)
+      : (form.value.payer ? [{ memberId: form.value.payer, percentage: 100 }] : null);
+
+
+    const transactionPayload: NewTransactionData = {
+      ...form.value,
+      amount: form.value.amount as number,
+      categoryId: form.value.categoryId as string,
+      familyId: form.value.familyId as string,
+      splitRatio: finalSplitRatio,
     };
-    if (transactionData.splitRatio && transactionData.splitRatio.length === 0) {
-      transactionData.splitRatio = null;
+
+    if (transactionPayload.splitRatio && transactionPayload.splitRatio.length === 0) {
+      transactionPayload.splitRatio = null;
     }
 
-    await transactionStore.addTransaction(transactionData);
+    await transactionStore.addTransaction(transactionPayload);
     $q.notify({ type: 'positive', message: 'Đã lưu giao dịch!' });
-    await resetForm(); // Reset form after successful submission
+    await resetForm();
   } else {
     $q.notify({
       color: 'negative',
@@ -443,49 +417,65 @@ const onSubmit = async () => {
   }
 };
 
-// Watchers để tự động cập nhật splitRatio khi categoryId hoặc isShared thay đổi
-watch(() => form.value.categoryId, (newCategoryId) => {
-  onCategorySelected(newCategoryId);
-});
+watch(
+  () => form.value.familyId,
+  (newFamilyId, oldFamilyId) => {
+    if (!newFamilyId || newFamilyId === oldFamilyId) return;
 
-watch(() => form.value.isShared, (newIsShared) => {
-  onSharedChange(newIsShared);
-});
+    // Update global state, which will trigger watchers in stores to load data
+    familyStore.selectedFamilyId = newFamilyId;
 
-// Watcher cho payer để cập nhật splitRatio khi không phải chi chung
-watch(() => form.value.payer, (newPayer) => {
-  onPayerChange(newPayer);
-});
+    // Reset form fields that depend on the family
+    form.value.categoryId = null;
+    form.value.payer = null;
+    form.value.isShared = true;
+    form.value.splitRatio = [];
+    memberSplitPercentages.value = {};
+    selectedPredefinedRatioId.value = null;
 
-onMounted(async () => {
-  const initialLoadPromises = [];
-
-  // Load categories if not already loaded
-  if (categoryStore.categories.length === 0) {
-    initialLoadPromises.push(categoryStore.loadCategories());
+    // Use nextTick to allow the activeMembers computed property to update
+    void nextTick(() => {
+        if (activeMembers.value.some(m => m.id === authStore.user?.id)) {
+            form.value.payer = authStore.user?.id ?? null;
+        }
+        entryForm.value?.resetValidation();
+    });
   }
-  // Load household members if not already loaded
-  if (householdMemberStore.members.length === 0) {
-    initialLoadPromises.push(householdMemberStore.loadMembers());
-  }
-  // Load predefined split ratios if not already loaded
-  if (predefinedSplitRatioStore.predefinedRatios.length === 0) {
-    initialLoadPromises.push(predefinedSplitRatioStore.loadPredefinedRatios());
-  }
+);
 
-  try {
-    await Promise.all(initialLoadPromises);
-  } catch (error) {
-    console.error('Error during initial data loading for QuickEntryForm:', error);
-    // Notifications are typically handled by individual store actions
+watch(selectedPredefinedRatioId, (newId) => {
+  if (newId) {
+    const ratio = predefinedSplitRatioStore.getRatioById(newId);
+    if (ratio) {
+      // Clear existing splits
+      memberSplitPercentages.value = {};
+      const activeMemberIds = new Set(activeMembers.value.map(m => m.id));
+
+      // Apply predefined splits only for active members
+      ratio.splitRatio.forEach((item: SplitRatioItem) => {
+        if (activeMemberIds.has(item.memberId)) {
+           memberSplitPercentages.value[item.memberId] = item.percentage;
+        }
+      });
+    }
+  } else {
+      // If the predefined ratio is cleared, we don't clear manual entries.
+      // The user might want to adjust from a preset.
   }
 });
-
 </script>
 
-<style scoped>
-.q-scroll-area--horizontal .q-scrollarea__content {
-  display: flex;
-  flex-wrap: nowrap;
+<style lang="scss" scoped>
+.bordered {
+  border: 1px solid #e0e0e0;
+}
+
+.rounded-borders {
+  border-radius: 4px; /* Or your theme's default */
+}
+
+/* Add some breathing room to the scroll area */
+.q-scroll-area--horizontal {
+  padding-bottom: 8px;
 }
 </style>

@@ -3,15 +3,15 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { IsDateString, IsNotEmpty, IsNumber, IsOptional, IsString, IsUUID, Min } from 'class-validator';
 
 export class CreateSettlementDto {
-  @ApiProperty({ description: 'ID of the member who made the payment.', example: 'uuid-for-payer' })
+  @ApiProperty({ description: 'ID of the payer household membership.', example: 'uuid-for-payer-membership' })
   @IsNotEmpty()
   @IsUUID()
-  payerId!: string;
+  payerMembershipId!: string;
 
-  @ApiProperty({ description: 'ID of the member who received the payment.', example: 'uuid-for-payee' })
+  @ApiProperty({ description: 'ID of the payee household membership.', example: 'uuid-for-payee-membership' })
   @IsNotEmpty()
   @IsUUID()
-  payeeId!: string;
+  payeeMembershipId!: string;
 
   @ApiProperty({ description: 'Amount of the settlement.', example: 50.0 })
   @IsNotEmpty()

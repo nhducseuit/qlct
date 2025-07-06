@@ -6,32 +6,59 @@
           <div class="text-h6">{{ editingMember ? 'Sửa Thành viên' : 'Thêm Thành viên Mới' }}</div>
         </q-card-section>
 
+
         <q-card-section class="q-pt-md">
-          <q-input
-            filled
-            v-model="formData.name"
-            label="Tên thành viên *"
-            lazy-rules
-            :rules="[val => !!val || 'Tên không được để trống']"
-            autofocus
-          />
+          <q-tabs v-model="mode" dense class="q-mb-md">
+            <q-tab name="link" label="Liên kết người đã có" />
+            <q-tab name="create" label="Tạo người mới" />
+          </q-tabs>
+
+          <div v-if="mode === 'link'">
+            <q-select
+              filled
+              v-model="selectedPerson"
+              :options="personOptions"
+              option-label="name"
+              option-value="id"
+              label="Chọn người đã có *"
+              use-input
+              input-debounce="300"
+              @filter="filterPersons"
+              :loading="personLoading"
+              :rules="[val => !!val || 'Vui lòng chọn người']"
+              autofocus
+            />
+          </div>
+
+          <div v-else>
+            <q-input
+              filled
+              v-model="formData.name"
+              label="Tên người mới *"
+              lazy-rules
+              :rules="[val => !!val || 'Tên không được để trống']"
+              autofocus
+            />
+            <q-input
+              filled
+              v-model="formData.email"
+              label="Email"
+              type="email"
+              class="q-mt-sm"
+            />
+            <q-input
+              filled
+              v-model="formData.phone"
+              label="Số điện thoại"
+              class="q-mt-sm"
+            />
+          </div>
 
           <q-checkbox
             v-model="formData.isActive"
             label="Đang hoạt động"
             class="q-mt-md"
           />
-
-          <!-- Order field can be added later if manual ordering is needed from the form -->
-          <!-- <q-input
-            v-if="editingMember"
-            filled
-            v-model.number="formData.order"
-            label="Thứ tự (không bắt buộc)"
-            type="number"
-            class="q-mt-md"
-          /> -->
-
         </q-card-section>
 
         <q-card-actions align="right" class="text-primary q-pb-md q-pr-md">
@@ -47,7 +74,7 @@
 import { ref, onMounted } from 'vue';
 import { useDialogPluginComponent, QForm } from 'quasar';
 import type { HouseholdMember } from 'src/models';
-import type { CreateHouseholdMemberPayload, UpdateHouseholdMemberPayload } from 'src/services/householdMemberApiService';
+import type { CreateHouseholdMemberPayload } from 'src/services/householdMemberApiService';
 
 interface Props {
   editingMember?: HouseholdMember | null;
@@ -62,26 +89,55 @@ defineEmits([
 const { dialogRef, onDialogHide, onDialogOK, onDialogCancel } = useDialogPluginComponent();
 
 const memberFormRef = ref<QForm | null>(null);
-const formData = ref<Partial<CreateHouseholdMemberPayload | UpdateHouseholdMemberPayload>>({
+const formData = ref<Partial<CreateHouseholdMemberPayload & { email?: string; phone?: string }>>({
   name: '',
-  isActive: true, // Default to active for new members
-  order: undefined, // Let backend handle order for new members initially
+  email: '',
+  phone: '',
+  isActive: true,
+  // Do not include 'order' at all unless it is a number
 });
+
+const mode = ref<'link' | 'create'>('link');
+import type { Person } from 'src/services/personApiService';
+const selectedPerson = ref<Person | null>(null);
+const personOptions = ref<Person[]>([]);
+const personLoading = ref(false);
 
 onMounted(() => {
   if (props.editingMember) {
     formData.value = {
-      name: props.editingMember.name,
+      ...(props.editingMember.person?.name !== undefined ? { name: props.editingMember.person.name } : {}),
+      ...(props.editingMember.person?.email !== undefined ? { email: props.editingMember.person.email } : {}),
+      ...(props.editingMember.person?.phone !== undefined ? { phone: props.editingMember.person.phone } : {}),
       isActive: props.editingMember.isActive,
-      order: props.editingMember.order ?? undefined, // Use undefined if null
+      ...(typeof props.editingMember.order === 'number' ? { order: props.editingMember.order } : {}),
     };
+    mode.value = 'create'; // Editing always uses create mode
   }
 });
+
+import { searchPersonsAPI } from 'src/services/personApiService';
+const filterPersons = async (val: string, update: (cb: () => void) => void) => {
+  personLoading.value = true;
+  try {
+    const results = await searchPersonsAPI(val);
+    personOptions.value = results;
+  } catch {
+    personOptions.value = [];
+  } finally {
+    personLoading.value = false;
+    update(() => {});
+  }
+};
 
 const onSubmit = async () => {
   if (!memberFormRef.value) return;
   const isValid = await memberFormRef.value.validate();
-  if (isValid) {
+  if (!isValid) return;
+  if (mode.value === 'link') {
+    if (!selectedPerson.value) return;
+    onDialogOK({ personId: selectedPerson.value.id, isActive: formData.value.isActive });
+  } else {
     onDialogOK(formData.value);
   }
 };

@@ -2,6 +2,7 @@
 
 // Corresponds to Backend: src/auth/dto/register.dto.ts
 export interface RegisterDto {
+  name: string;
   email: string;
   password?: string; // Make password optional for frontend state before sending
 }
@@ -15,7 +16,9 @@ export interface LoginDto {
 // Corresponds to Backend: src/auth/interfaces/user-payload.interface.ts
 export interface UserPayload {
   id: string;
+  name: string | null;
   email: string;
+  familyId: string;
 }
 
 export interface AuthResponseDto {

@@ -34,19 +34,24 @@ export class TransactionController {
   @ApiResponse({ status: 201, description: 'The transaction has been successfully created.', type: TransactionResponseDto })
   @ApiResponse({ status: 400, description: 'Bad Request.' })
   @ApiResponse({ status: 401, description: 'Unauthorized.' })
-  create(@Body() createTransactionDto: CreateTransactionDto, @Req() req: AuthenticatedRequest): Promise<TransactionModel> {
-    const familyId = req.user.familyId;
-    return this.transactionService.create(createTransactionDto, familyId);
+  create(
+    @Body() createTransactionDto: CreateTransactionDto,
+    @Req() req: AuthenticatedRequest,
+  ): Promise<TransactionModel> {
+    // The FamilyGuard has already validated that the user is part of this family.
+    return this.transactionService.create(createTransactionDto, req.user.id);
   }
 
   @Get()
   @ApiOperation({ summary: 'Get transactions for the authenticated user, with optional filters' })
   @ApiResponse({ status: 200, description: 'Successfully retrieved transactions.', type: [TransactionResponseDto] })
   @ApiResponse({ status: 401, description: 'Unauthorized.' })
-  findFiltered(
+  findAll(
     @Req() req: AuthenticatedRequest,
     @Query() queryDto: GetTransactionsQueryDto
   ): Promise<TransactionModel[]> {
+    // The FamilyGuard has already validated the familyId and attached it to the request.
+    // We use the familyId from the user object on the request.
     const familyId = req.user.familyId;
     return this.transactionService.findFiltered(familyId, queryDto);
   }
@@ -58,9 +63,9 @@ export class TransactionController {
   @ApiResponse({ status: 401, description: 'Unauthorized.' })
   @ApiResponse({ status: 403, description: 'Forbidden.' })
   @ApiResponse({ status: 404, description: 'Transaction not found.' })
-  findOne(@Param('id', ParseUUIDPipe) id: string, @Req() req: AuthenticatedRequest): Promise<TransactionModel> {
-    const familyId = req.user.familyId;
-    return this.transactionService.findOne(id, familyId);
+  findOne(@Param('id', ParseUUIDPipe) id: string, @Body() body: { familyId: string }): Promise<TransactionModel | null> {
+    // The FamilyGuard has already validated the familyId in the body.
+    return this.transactionService.findOne(id, body.familyId);
   }
 
   @Patch(':id')
@@ -74,21 +79,21 @@ export class TransactionController {
   update(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() updateTransactionDto: UpdateTransactionDto,
-    @Req() req: AuthenticatedRequest
-  ): Promise<TransactionModel> {
-    const familyId = req.user.familyId;
-    return this.transactionService.update(id, updateTransactionDto, familyId);
+    @Req() req: AuthenticatedRequest,
+  ): Promise<TransactionModel | null> {
+    // The FamilyGuard has already validated the familyId in the body.
+    return this.transactionService.update(id, updateTransactionDto, req.user.id);
   }
 
   @Delete(':id')
   @ApiOperation({ summary: 'Delete a transaction by ID' })
   @ApiParam({ name: 'id', description: 'Transaction ID (UUID)', type: String })
-  @ApiResponse({ status: 200, description: 'The transaction has been successfully deleted.' })
+  @ApiResponse({ status: 200, description: 'The transaction has been successfully deleted.', type: Object })
   @ApiResponse({ status: 401, description: 'Unauthorized.' })
   @ApiResponse({ status: 403, description: 'Forbidden.' })
   @ApiResponse({ status: 404, description: 'Transaction not found.' })
-  remove(@Param('id', ParseUUIDPipe) id: string, @Req() req: AuthenticatedRequest): Promise<{ message: string }> {
-    const familyId = req.user.familyId;
-    return this.transactionService.remove(id, familyId);
+  remove(@Param('id', ParseUUIDPipe) id: string, @Body() body: { familyId: string }): Promise<{ message: string }> {
+    // The FamilyGuard has already validated the familyId in the body.
+    return this.transactionService.remove(id, body.familyId);
   }
 }

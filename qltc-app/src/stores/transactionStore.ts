@@ -15,6 +15,7 @@ import type { NewTransactionData, Transaction } from 'src/models'; // Ensure Spl
 import { useQuasar } from 'quasar';
 import { dayjs } from 'src/boot/dayjs';
 import { useAuthStore } from './authStore';
+import { useFamilyStore } from './familyStore';
 import { connect } from 'src/services/socketService'; // Renamed connectSocket to connect
 import { AxiosError } from 'axios';
 import type { Socket } from 'socket.io-client';
@@ -27,17 +28,30 @@ export const useTransactionStore = defineStore('transactions', () => {
   const categoryPeriodTransactionsLoading = ref(false);
   const authStore = useAuthStore();
   let storeSocket: Socket | null = null; // Renamed to avoid confusion with global socket
+  const familyStore = useFamilyStore();
 
   const addTransaction = async (transactionData: NewTransactionData) => {
     if (!authStore.isAuthenticated) {
       $q.notify({ type: 'negative', message: 'Lỗi người dùng, không thể thêm giao dịch.' });
       throw new Error('User not authenticated');
     }
+    const familyId = familyStore.selectedFamilyId;
+    if (!familyId) {
+      $q.notify({ type: 'negative', message: 'Vui lòng chọn gia đình trước khi thêm giao dịch.' });
+      throw new Error('No family selected');
+    }
+
+    // Validate required fields before creating the payload
+    if (!transactionData.categoryId || !transactionData.amount) {
+      const errorMessage = 'Category and amount are required fields.';
+      console.error(`[TransactionStore] ${errorMessage}`);
+      $q.notify({ type: 'negative', message: 'Vui lòng điền đầy đủ thông tin danh mục và số tiền.' });
+      throw new Error(errorMessage);
+    }
 
     // Ensure date is parsed as UTC from YYYY/MM/DD format to preserve the day
     // then convert to ISO 8601 string format for the backend.
     const isoDate = dayjs.utc(transactionData.date, 'YYYY/MM/DD').toISOString();
-
     const payload: CreateTransactionPayload = {
       categoryId: transactionData.categoryId,
       amount: transactionData.amount,
@@ -48,7 +62,6 @@ export const useTransactionStore = defineStore('transactions', () => {
       isShared: transactionData.isShared,
       splitRatio: transactionData.splitRatio,
     };
-
     try {
       await addTransactionAPI(payload);
       // UI update will be handled by WebSocket event
@@ -69,19 +82,20 @@ export const useTransactionStore = defineStore('transactions', () => {
       $q.notify({ type: 'negative', message: 'Lỗi người dùng, không thể cập nhật giao dịch.' });
       throw new Error('User not authenticated');
     }
-
+    const familyId = familyStore.selectedFamilyId;
+    if (!familyId) {
+      $q.notify({ type: 'negative', message: 'Vui lòng chọn gia đình trước khi cập nhật giao dịch.' });
+      throw new Error('No family selected');
+    }
     const payloadForApi: UpdateTransactionPayload = { ...updates };
     // If date is being updated and is in YYYY/MM/DD string format, parse as UTC
     if (payloadForApi.date && typeof payloadForApi.date === 'string') {
       // Assuming the date string from updates is also in 'YYYY/MM/DD' format
       payloadForApi.date = dayjs.utc(payloadForApi.date, 'YYYY/MM/DD').toISOString();
     }
-
     // Sanitize payload: remove backend-managed fields that shouldn't be in an update DTO
     // eslint-disable-next-line @typescript-eslint/no-unused-vars, @typescript-eslint/no-explicit-any
     const { id: _id, userId: _userId, createdAt: _createdAt, updatedAt: _updatedAt, ...finalPayload } = payloadForApi as any;
-
-
     try {
       console.log(`[TransactionStore] Updating transaction ${id} with payload:`, JSON.parse(JSON.stringify(finalPayload)));
       const updatedTransaction = await updateTransactionAPI(id, finalPayload);
@@ -106,6 +120,11 @@ export const useTransactionStore = defineStore('transactions', () => {
     if (!authStore.isAuthenticated) {
       $q.notify({ type: 'negative', message: 'Lỗi người dùng, không thể xóa giao dịch.' });
       throw new Error('User not authenticated');
+    }
+    const familyId = familyStore.selectedFamilyId;
+    if (!familyId) {
+      $q.notify({ type: 'negative', message: 'Vui lòng chọn gia đình trước khi xóa giao dịch.' });
+      throw new Error('No family selected');
     }
     try {
       const result = await deleteTransactionAPI(id);
@@ -132,15 +151,22 @@ export const useTransactionStore = defineStore('transactions', () => {
     }
   };
 
-  const loadTransactions = async (query?: GetTransactionsQueryPayload) => {
+  const loadTransactions = async (query?: Omit<GetTransactionsQueryPayload, 'familyId'>) => {
     if (!authStore.isAuthenticated) {
       console.log('[TransactionStore] User not authenticated, skipping transaction load.');
       transactions.value = [];
       if (!query) categoryPeriodTransactions.value = null; // Clear specific transactions if general load
       return;
     }
+    const familyId = familyStore.selectedFamilyId;
+    if (!familyId) {
+      transactions.value = [];
+      if (!query) categoryPeriodTransactions.value = null;
+      $q.notify({ type: 'negative', message: 'Vui lòng chọn gia đình để xem giao dịch.' });
+      return;
+    }
     try {
-      const fetchedTransactions = await fetchTransactionsAPI(query);
+      const fetchedTransactions = await fetchTransactionsAPI({ ...query });
       transactions.value = fetchedTransactions.sort((a, b) => dayjs(b.date).valueOf() - dayjs(a.date).valueOf());
       console.log('[TransactionStore] Transactions loaded:', transactions.value.length);
     } catch (error) {
@@ -162,10 +188,15 @@ export const useTransactionStore = defineStore('transactions', () => {
     memberIds?: string[],
     transactionType?: 'expense' | 'income' | 'all',
     isStrictMode?: boolean,
-
   ) => {
     if (!authStore.isAuthenticated) {
       categoryPeriodTransactions.value = null;
+      return;
+    }
+    const familyId = familyStore.selectedFamilyId;
+    if (!familyId) {
+      categoryPeriodTransactions.value = null;
+      $q.notify({ type: 'negative', message: 'Vui lòng chọn gia đình để xem chi tiết giao dịch.' });
       return;
     }
     categoryPeriodTransactionsLoading.value = true;
@@ -185,11 +216,14 @@ export const useTransactionStore = defineStore('transactions', () => {
         query.transactionType = transactionType;
       }
       if (isStrictMode !== undefined) {
-        query.isStrictMode = isStrictMode ? 'true' : 'false'; // Convert boolean to string for DTO
+        query.isStrictMode = isStrictMode ? 'true' : 'false';
       }
-      console.log('[TransactionStore] Loading transactions for category/period with query:', query);
-      const fetched = await fetchTransactionsAPI(query); // Use the enhanced fetchTransactionsAPI
-      categoryPeriodTransactions.value = fetched.sort((a, b) => dayjs(b.date).valueOf() - dayjs(a.date).valueOf());
+
+      const fetchedTransactions = await fetchTransactionsAPI(query);
+
+      // This logic seems to be for a specific view, so we'll put the result
+      // in the dedicated state property.
+      categoryPeriodTransactions.value = fetchedTransactions.sort((a, b) => dayjs(b.date).valueOf() - dayjs(a.date).valueOf());
     } catch (error) {
       console.error('Failed to load transactions for category/period:', error);
       $q.notify({
@@ -208,12 +242,22 @@ export const useTransactionStore = defineStore('transactions', () => {
       console.warn('[TransactionStore] getTransactionsByDateRange called: User not authenticated.');
       return [];
     }
+    const familyId = familyStore.selectedFamilyId;
+    if (!familyId) {
+      $q.notify({ type: 'negative', message: 'Vui lòng chọn gia đình để xem giao dịch.' });
+      return [];
+    }
     return fetchTransactionsByDateRangeAPI(startDate, endDate);
   };
 
   const getTransactionsByCategory = async (categoryId: string): Promise<Transaction[]> => {
     if (!authStore.isAuthenticated) {
       console.warn('[TransactionStore] getTransactionsByCategory called: User not authenticated.');
+      return [];
+    }
+    const familyId = familyStore.selectedFamilyId;
+    if (!familyId) {
+      $q.notify({ type: 'negative', message: 'Vui lòng chọn gia đình để xem giao dịch.' });
       return [];
     }
     return fetchTransactionsByCategoryAPI(categoryId);
@@ -317,11 +361,16 @@ export const useTransactionStore = defineStore('transactions', () => {
     }
   };
 
+
+  // Reload transactions when auth or family changes
   authStore.$subscribe(() => {
     initializeStore();
   });
-
+  familyStore.$subscribe(() => {
     initializeStore();
+  });
+
+  initializeStore();
 
   return {
     transactions,

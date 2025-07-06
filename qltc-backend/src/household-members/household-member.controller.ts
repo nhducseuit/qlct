@@ -7,8 +7,7 @@ import {
   Param,
   Delete,
   UseGuards,
-  Req,
-  ParseUUIDPipe,
+  Req
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiParam } from '@nestjs/swagger';
 import { HouseholdMemberService } from './household-member.service';
@@ -44,28 +43,37 @@ export class HouseholdMemberController {
     return this.householdMemberService.findAll(familyId);
   }
 
+  @Get('my-members-by-family')
+  @ApiOperation({ summary: 'Get all my household members grouped by family (hierarchical)' })
+  @ApiResponse({ status: 200, description: 'List of household members grouped by family.' })
+  @ApiResponse({ status: 401, description: 'Unauthorized.' })
+  async getMyMembersByFamily(@Req() req: AuthenticatedRequest) {
+    const { email } = req.user;
+    return this.householdMemberService.getMyMembersGroupedByFamilyByEmail(email);
+  }
+
   @Get(':id')
   @ApiOperation({ summary: 'Get a household member by ID' })
-  @ApiParam({ name: 'id', description: 'Household Member ID (UUID)', type: String })
+  @ApiParam({ name: 'id', description: 'Household Member ID', type: String })
   @ApiResponse({ status: 200, description: 'The found household member.', type: CreateHouseholdMemberDto })
   @ApiResponse({ status: 401, description: 'Unauthorized.' })
   @ApiResponse({ status: 403, description: 'Forbidden.' })
   @ApiResponse({ status: 404, description: 'Household member not found.' })
-  findOne(@Param('id', ParseUUIDPipe) id: string, @Req() req: AuthenticatedRequest) {
+  findOne(@Param('id') id: string, @Req() req: AuthenticatedRequest) {
     const { familyId } = req.user; // Extract familyId from the request
     return this.householdMemberService.findOne(id, familyId); // Pass familyId to the service
   }
 
   @Patch(':id')
   @ApiOperation({ summary: 'Update a household member by ID' })
-  @ApiParam({ name: 'id', description: 'Household Member ID (UUID)', type: String })
+  @ApiParam({ name: 'id', description: 'Household Member ID', type: String })
   @ApiResponse({ status: 200, description: 'The household member has been successfully updated.', type: CreateHouseholdMemberDto })
   @ApiResponse({ status: 400, description: 'Bad Request.' })
   @ApiResponse({ status: 401, description: 'Unauthorized.' })
   @ApiResponse({ status: 403, description: 'Forbidden.' })
   @ApiResponse({ status: 404, description: 'Household member not found.' })
   update(
-    @Param('id', ParseUUIDPipe) id: string,
+    @Param('id') id: string,
     @Body() updateHouseholdMemberDto: UpdateHouseholdMemberDto,
     @Req() req: AuthenticatedRequest,
   ) {
@@ -75,12 +83,12 @@ export class HouseholdMemberController {
 
   @Delete(':id')
   @ApiOperation({ summary: 'Delete a household member by ID' })
-  @ApiParam({ name: 'id', description: 'Household Member ID (UUID)', type: String })
+  @ApiParam({ name: 'id', description: 'Household Member ID', type: String })
   @ApiResponse({ status: 200, description: 'The household member has been successfully deleted.' })
   @ApiResponse({ status: 401, description: 'Unauthorized.' })
   @ApiResponse({ status: 403, description: 'Forbidden.' })
   @ApiResponse({ status: 404, description: 'Household member not found.' })
-  remove(@Param('id', ParseUUIDPipe) id: string, @Req() req: AuthenticatedRequest) {
+  remove(@Param('id') id: string, @Req() req: AuthenticatedRequest) {
     const { familyId, id: userId } = req.user;
     return this.householdMemberService.remove(id, familyId, userId);
   }

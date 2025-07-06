@@ -14,8 +14,8 @@
        <TablerIcon :name="category.icon" size="xs" />
     </q-item-section>
 
-     <q-item-section :class="{'text-grey-5': category.isHidden }">
-      <q-item-label :lines="1">{{ category.name }}</q-item-label>
+     <q-item-section>
+      <q-item-label :lines="1" :class="{'text-grey-5': category.isHidden }">{{ category.name }}</q-item-label>
       <q-item-label caption v-if="category.budgetLimit">
         Hạn mức: {{ new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(category.budgetLimit) }}
       </q-item-label>
@@ -118,13 +118,13 @@ interface Props {
 
 defineProps<Props>();
 
-defineEmits<{
-  (e: 'edit', category: Category): void;
-  (e: 'delete', id: string): void;
-  (e: 'toggle-pin', id: string): void;
-  (e: 'toggle-hide', id: string): void;
-  (e: 'add-sub', parentId: string): void;
-  (e: 'move-up', id: string): void;
-  (e: 'move-down', id: string): void;
-}>();
+defineEmits([
+  'move-up',
+  'move-down',
+  'toggle-pin',
+  'toggle-hide',
+  'edit',
+  'delete',
+  'add-sub',
+]);
 </script>

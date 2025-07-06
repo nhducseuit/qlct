@@ -36,9 +36,9 @@
 
           <q-item-section>
             <q-item-label>
-              <span class="text-weight-medium">{{ settlement.payer.name }}</span>
+              <span class="text-weight-medium">{{ settlement.payer.personName }}</span>
               đã trả cho
-              <span class="text-weight-medium">{{ settlement.payee.name }}</span>
+              <span class="text-weight-medium">{{ settlement.payee.personName }}</span>
             </q-item-label>
             <q-item-label caption lines="1">
               Ghi chú: {{ settlement.note || 'Không có' }}

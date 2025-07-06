@@ -2,10 +2,10 @@ import { IsString, IsNotEmpty, IsOptional, IsBoolean, IsNumber } from 'class-val
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class CreateHouseholdMemberDto {
-  @ApiProperty({ description: 'Name of the household member', example: 'Chồng' })
+  @ApiProperty({ description: 'Person ID (required)', example: 'uuid-of-person' })
   @IsString()
   @IsNotEmpty()
-  name!: string;
+  personId!: string;
 
   @ApiPropertyOptional({ description: 'Whether the member is active', default: true })
   @IsBoolean()
@@ -16,7 +16,4 @@ export class CreateHouseholdMemberDto {
   @IsNumber()
   @IsOptional()
   order?: number;
-
-  // userId will be set by the service based on the authenticated user,
-  // so it's not part of the DTO received from the client.
 }

@@ -224,9 +224,6 @@ export class SummariesService {
         // For now, let's assume year-long monthly breakdown or adjust if specific month is intended.
         // This example will take all transactions for the year and then could be filtered/grouped by month if needed.
         // For simplicity, let's assume the periodType implies the granularity of the breakdown for the whole year.
-        // If a specific month is needed, the query DTO and date range logic would need adjustment.
-        // For now, we'll use the whole year for transaction fetching, and the frontend can decide how to display.
-        // A more precise interpretation: if periodType is monthly, it means "for each month in the year".
         // However, category breakdown is usually for *a* specific period (e.g., breakdown for Jan 2023, or Q1 2023, or Year 2023).
         // Let's assume the query means "category breakdown for the entirety of the selected year, grouped by category".
         // The PeriodType here might be better named e.g. "ReportPeriod" if it's for a single period report.
@@ -473,17 +470,17 @@ export class SummariesService {
     console.log(`[DEBUG] getMemberBreakdown - Initial Transactions Count: ${transactions.length}, For period: ${startDate.toISOString()} to ${endDate.toISOString()}`);
     // console.log(`[DEBUG] getMemberBreakdown - Initial Transactions Content: ${JSON.stringify(transactions)}`); // Uncomment for deep inspection if needed
     console.log(`[DEBUG] getMemberBreakdown - Values before filtering: memberIds=${JSON.stringify(memberIds)}, isStrictModeEnabled=${isStrictModeEnabled}`);
-    const allUserMembers = await this.prisma.householdMember.findMany({
-      where: { isActive: true }, // Per user request, data is not siloed by user
-      select: { id: true, name: true },
+    const allUserMembers = await this.prisma.householdMembership.findMany({
+      where: { isActive: true },
+      include: { person: true },
     });
 
     const membersToReportOn = (memberIds && memberIds.length > 0)
-      ? allUserMembers.filter(m => memberIds.includes(m.id))
+      ? allUserMembers.filter((m: any) => memberIds.includes(m.id))
       : allUserMembers; // If no specific members selected, report on all active members
 
     const memberTotals: Record<string, { income: number; expense: number }> = {};
-    membersToReportOn.forEach(m => {
+    membersToReportOn.forEach((m: any) => {
       memberTotals[m.id] = { income: 0, expense: 0 };
     });
 
@@ -545,9 +542,9 @@ export class SummariesService {
       }
     }
     console.log('[DEBUG] getMemberBreakdown - Calculated Member Totals:', JSON.stringify(memberTotals));
-    const result: MemberBreakdownItemDto[] = membersToReportOn.map(member => ({
+    const result: MemberBreakdownItemDto[] = membersToReportOn.map((member: any) => ({
       memberId: member.id,
-      memberName: member.name,
+      memberName: member.person.name,
       totalIncome: memberTotals[member.id]?.income || 0,
       totalExpense: memberTotals[member.id]?.expense || 0,
       netChange: (memberTotals[member.id]?.income || 0) - (memberTotals[member.id]?.expense || 0),

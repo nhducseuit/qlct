@@ -39,7 +39,7 @@ export interface GetTransactionsQueryPayload {
 }
 
 
-export const fetchTransactionsAPI = async (query?: GetTransactionsQueryPayload): Promise<Transaction[]> => {
+export const fetchTransactionsAPI = async (query: GetTransactionsQueryPayload): Promise<Transaction[]> => {
   console.log('[TransactionApiService] fetchTransactionsAPI called with query:', query);
   try {
     const response = await apiClient.get<Transaction[]>(API_URL, {
@@ -86,7 +86,7 @@ export const updateTransactionAPI = async (
 export const deleteTransactionAPI = async (transactionId: string): Promise<{ message: string }> => {
   console.log(`[TransactionApiService] deleteTransactionAPI called for transactionId: ${transactionId}`);
   try {
-    // Backend returns a message object upon successful deletion
+    // Backend no longer needs familyId as a query param for deletion
     const response = await apiClient.delete<{ message: string }>(`${API_URL}/${transactionId}`);
     return response.data;
   } catch (error) {
@@ -95,29 +95,19 @@ export const deleteTransactionAPI = async (transactionId: string): Promise<{ mes
   }
 };
 
-// Placeholder: Backend filtering for these would be more efficient.
-export const fetchTransactionsByDateRangeAPI = async (startDate: string, endDate: string): Promise<Transaction[]> => {
-  console.log(`[TransactionApiService] fetchTransactionsByDateRangeAPI called for range: ${startDate} - ${endDate}`);
-  // TODO: Implement backend filtering or accept client-side filtering for now.
-  // Example if backend supports query params:
-  // const response = await apiClient.get<Transaction[]>(API_URL, { params: { startDate, endDate } });
-  // return response.data;
-  console.warn('fetchTransactionsByDateRangeAPI is using client-side filtering as a placeholder.');
-  const allTransactions = await fetchTransactionsAPI();
-  // Perform client-side filtering (less efficient for large datasets)
-  return allTransactions.filter(t => {
-    const transactionDate = t.date; // Assuming date is already in a comparable format or convert
-    return transactionDate >= startDate && transactionDate <= endDate;
-  });
+// Placeholder for fetching by date range - to be implemented if needed
+export const fetchTransactionsByDateRangeAPI = async (
+  startDate: string,
+  endDate: string,
+): Promise<Transaction[]> => {
+  // The main fetchTransactionsAPI can handle date ranges.
+  return fetchTransactionsAPI({ startDate, endDate });
 };
 
-export const fetchTransactionsByCategoryAPI = async (categoryId: string): Promise<Transaction[]> => {
-  console.log(`[TransactionApiService] fetchTransactionsByCategoryAPI called for categoryId: ${categoryId}`);
-  // TODO: Implement backend filtering or accept client-side filtering for now.
-  // Example if backend supports query params:
-  // const response = await apiClient.get<Transaction[]>(API_URL, { params: { categoryId } });
-  // return response.data;
-  console.warn('fetchTransactionsByCategoryAPI is using client-side filtering as a placeholder.');
-  const allTransactions = await fetchTransactionsAPI();
-  return allTransactions.filter(t => t.categoryId === categoryId);
+// Placeholder for fetching by category - to be implemented if needed
+export const fetchTransactionsByCategoryAPI = async (
+  categoryId: string,
+): Promise<Transaction[]> => {
+  // The main fetchTransactionsAPI can handle filtering by category.
+  return fetchTransactionsAPI({ categoryId });
 };

@@ -1,3 +1,7 @@
+# The following items were moved from Sprint 5:
+- [ ] Admin capabilities (editing members of their own and nested families) (moved from Sprint 5)
+- [ ] Default to assigning new members to default family (if/when adding is enabled) (moved from Sprint 5)
+- [ ] Access control/escalation for household members (moved from Sprint 5)
 # Sprint 7: Multi-User Onboarding & Permissions
 
 **Sprint Goal:** Expand the application to support multiple users by implementing invitation and role management functionalities.

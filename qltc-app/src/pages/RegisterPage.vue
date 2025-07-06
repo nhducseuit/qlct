@@ -11,6 +11,13 @@
         <q-form @submit.prevent="handleRegister" class="q-gutter-md">
           <q-input
             filled
+            v-model="name"
+            label="Họ và tên"
+            lazy-rules
+            :rules="[val => !!val || 'Vui lòng nhập họ và tên']"
+          />
+          <q-input
+            filled
             v-model="email"
             label="Email"
             lazy-rules
@@ -64,6 +71,7 @@ import type { RegisterDto } from 'src/models/auth';
 const $q = useQuasar();
 const authStore = useAuthStore(); // For setting user state after registration
 
+const name = ref('');
 const email = ref('');
 const password = ref('');
 const confirmPassword = ref('');
@@ -77,6 +85,7 @@ const handleRegister = async () => {
 
   isLoading.value = true;
   const registerData: RegisterDto = {
+    name: name.value,
     email: email.value,
     password: password.value,
   };

@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia';
-import { ref } from 'vue';
+import { ref, watch } from 'vue';
 import { useQuasar } from 'quasar';
 import { useAuthStore } from './authStore';
 import { connect } from 'src/services/socketService';
@@ -13,12 +13,15 @@ import {
   type CreatePredefinedSplitRatioPayload,
   type UpdatePredefinedSplitRatioPayload,
 } from 'src/services/predefinedSplitRatioApiService';
+import { useFamilyStore } from './familyStore';
+import { AxiosError } from 'axios';
 
 // Define the structure for a Predefined Split Ratio
 export interface PredefinedSplitRatio {
   id: string;
   name: string;
   splitRatio: SplitRatioItem[]; // Array of { memberId: string, percentage: number }
+  familyId: string;
   userId: string; // Assuming backend includes this
   createdAt: string;
   updatedAt: string;
@@ -29,6 +32,17 @@ export const usePredefinedSplitRatioStore = defineStore('predefinedSplitRatios',
   const authStore = useAuthStore();
   const predefinedRatios = ref<PredefinedSplitRatio[]>([]);
   let storeSocket: Socket | null = null;
+  const familyStore = useFamilyStore();
+
+  // Watch for family change and reload ratios
+  watch(
+    () => familyStore.selectedFamilyId,
+    () => {
+      if (authStore.isAuthenticated) {
+        void loadPredefinedRatios();
+      }
+    }
+  );
 
   const loadPredefinedRatios = async () => {
     if (!authStore.isAuthenticated) {
@@ -36,10 +50,17 @@ export const usePredefinedSplitRatioStore = defineStore('predefinedSplitRatios',
       predefinedRatios.value = [];
       return;
     }
+    // familyId is not passed to the API, but this check ensures we don't load if no family is selected
+    const familyId = familyStore.selectedFamilyId;
+    if (!familyId) {
+      console.warn('[PredefinedSplitRatioStore] No family selected, skipping ratio load.');
+      predefinedRatios.value = [];
+      return;
+    }
     try {
-      console.log('[PredefinedSplitRatioStore] Loading predefined split ratios from API...');
+      console.log('[PredefinedSplitRatioStore] Loading predefined split ratios from API for the current family.');
       const fetchedRatios = await fetchPredefinedSplitRatiosAPI();
-      predefinedRatios.value = fetchedRatios; // No specific sorting mentioned, keep as is or add
+      predefinedRatios.value = fetchedRatios;
       console.log('[PredefinedSplitRatioStore] Predefined split ratios loaded:', predefinedRatios.value.length);
     } catch (error) {
       console.error('Failed to load predefined split ratios:', error);
@@ -56,7 +77,9 @@ export const usePredefinedSplitRatioStore = defineStore('predefinedSplitRatios',
       $q.notify({ type: 'negative', message: 'Lỗi người dùng, không thể thêm tỷ lệ chia.' });
       throw new Error('User not authenticated');
     }
+
     try {
+      // familyId is not part of the payload, it's handled by the backend
       const addedRatio = await addPredefinedSplitRatioAPI(payload);
       // WebSocket event will handle UI update
       $q.notify({ type: 'positive', message: 'Đã thêm tỷ lệ chia mặc định mới.' });
@@ -97,119 +120,68 @@ export const usePredefinedSplitRatioStore = defineStore('predefinedSplitRatios',
     } catch (error) {
       console.error('Failed to delete predefined split ratio:', error);
       // Error notification can be more specific if backend provides details
-      $q.notify({ type: 'negative', message: 'Xóa tỷ lệ chia thất bại.', icon: 'report_problem' });
+      if (error instanceof AxiosError && error.response?.data?.message) {
+         $q.notify({ type: 'negative', message: `Xóa tỷ lệ chia thất bại: ${error.response.data.message}`, icon: 'report_problem' });
+      } else {
+         $q.notify({ type: 'negative', message: 'Xóa tỷ lệ chia thất bại.', icon: 'report_problem' });
+      }
       throw error;
     }
   };
 
-
-  const getPredefinedRatioById = (id: string): PredefinedSplitRatio | undefined => {
+  const getRatioById = (id: string) => {
     return predefinedRatios.value.find(r => r.id === id);
   };
 
-  // --- WebSocket Event Handling ---
-  const handlePredefinedRatioUpdate = (data: { operation: string; item?: PredefinedSplitRatio; itemId?: string }) => {
-    console.log('[PredefinedSplitRatioStore] Received predefined_split_ratios_updated event:', data);
-    let changed = false;
-    switch (data.operation) {
-      case 'create':
-        if (data.item) {
-          const exists = predefinedRatios.value.some(r => r.id === data.item!.id);
-          if (!exists) {
-            predefinedRatios.value.push(data.item);
-            changed = true;
-          }
-        }
-        break;
-      case 'update':
-        if (data.item) {
-          const index = predefinedRatios.value.findIndex(r => r.id === data.item!.id);
-          if (index !== -1) {
-            predefinedRatios.value.splice(index, 1, data.item);
-            changed = true;
-          } else {
-            predefinedRatios.value.push(data.item); // If not found, might be new for this client
-            changed = true;
-          }
-        }
-        break;
-      case 'delete':
-        if (data.itemId) {
-          const initialLength = predefinedRatios.value.length;
-          predefinedRatios.value = predefinedRatios.value.filter(r => r.id !== data.itemId);
-          if (predefinedRatios.value.length !== initialLength) changed = true;
-        }
-        break;
-      default:
-        console.warn('[PredefinedSplitRatioStore] Unknown operation from WebSocket:', data.operation);
-    }
-    if (changed) {
-      // Optional: Add sorting if needed
-      // predefinedRatios.value.sort((a, b) => a.name.localeCompare(b.name));
-      console.log('[PredefinedSplitRatioStore] Predefined split ratio list updated. New length:', predefinedRatios.value.length);
-    }
+  const handlePredefinedRatioUpdate = () => {
+    console.log('[PredefinedSplitRatioStore] Received predefined_split_ratios_updated event. Reloading ratios.');
+    void loadPredefinedRatios();
   };
 
-  const setupSocketListeners = async () => {
-    if (authStore.isAuthenticated) {
-      try {
-        console.log(`[PredefinedSplitRatioStore] Attempting to connect socket and set up listeners.`);
-        const connectedSocketInstance = await connect();
-
-        if (connectedSocketInstance?.connected) {
-          storeSocket = connectedSocketInstance;
-          console.log(`[PredefinedSplitRatioStore] Socket connected (${storeSocket.id}). Setting up WebSocket listeners for predefined_split_ratios_updated`);
-          storeSocket.off('predefined_split_ratios_updated', handlePredefinedRatioUpdate);
-          storeSocket.on('predefined_split_ratios_updated', handlePredefinedRatioUpdate);
-        } else {
-          console.warn('[PredefinedSplitRatioStore] Failed to connect socket or socket not connected after attempt. Listeners not set up.');
-          if (storeSocket) {
-              storeSocket.off('predefined_split_ratios_updated', handlePredefinedRatioUpdate);
-              storeSocket = null;
-          }
-        }
-      } catch (error) {
-        console.error('[PredefinedSplitRatioStore] Error during socket connection or listener setup:', error);
-        if (storeSocket) {
-          storeSocket.off('predefined_split_ratios_updated', handlePredefinedRatioUpdate);
-          storeSocket = null;
-        }
-      }
-    } else {
-      clearSocketListeners();
-    }
-  };
-
-  const clearSocketListeners = () => {
+  // WebSocket connection logic
+  const setupSocketListeners = () => {
     if (storeSocket) {
-      console.log(`[PredefinedSplitRatioStore] Clearing WebSocket listeners for predefined_split_ratios_updated from socket ${storeSocket.id}`);
       storeSocket.off('predefined_split_ratios_updated', handlePredefinedRatioUpdate);
-    }
-    storeSocket = null;
-  };
-
-  const initializeStore = () => {
-    if (authStore.isAuthenticated) {
-      void loadPredefinedRatios();
-      void setupSocketListeners();
-    } else {
-      predefinedRatios.value = [];
-      clearSocketListeners();
+      storeSocket.on('predefined_split_ratios_updated', handlePredefinedRatioUpdate);
     }
   };
 
-  authStore.$subscribe(() => {
-    initializeStore();
-  });
+  const connectSocket = async () => {
+    if (storeSocket?.connected) {
+      console.log('[PredefinedSplitRatioStore] Socket already connected.');
+      return;
+    }
+    try {
+      console.log('[PredefinedSplitRatioStore] Connecting socket...');
+      storeSocket = await connect();
+      if (storeSocket) {
+        console.log(`[PredefinedSplitRatioStore] Socket connected (${storeSocket.id}). Setting up WebSocket listeners.`);
+        setupSocketListeners();
+      } else {
+        console.error('[PredefinedSplitRatioStore] Socket connection returned null.');
+      }
+    } catch (error) {
+      console.error('[PredefinedSplitRatioStore] Socket connection failed:', error);
+    }
+  };
 
-    initializeStore();
+  const disconnectSocket = () => {
+    if (storeSocket) {
+      console.log('[PredefinedSplitRatioStore] Disconnecting socket...');
+      storeSocket.off('predefined_split_ratios_updated', handlePredefinedRatioUpdate);
+      storeSocket.disconnect();
+      storeSocket = null;
+    }
+  };
 
   return {
     predefinedRatios,
     loadPredefinedRatios,
-    getPredefinedRatioById,
     addPredefinedRatio,
     updatePredefinedRatio,
     deletePredefinedRatio,
+    getRatioById, // Expose the new getter
+    connectSocket,
+    disconnectSocket,
   };
 });

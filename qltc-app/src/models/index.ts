@@ -15,9 +15,10 @@ export interface Transaction {
 
 // In src/stores/transactionStore.ts
 export interface NewTransactionData {
-  categoryId: string;
+  familyId: string | null; // Add familyId here
+  categoryId: string | null;
   date: string; // Or Date, depending on what your store expects before conversion
-  amount: number;
+  amount: number | null;
   note?: string | null;
   payer: string | null; // userId
   isShared: boolean;
@@ -48,22 +49,26 @@ export interface Category {
   icon?: string | null;
   color?: string | null;
   isPinned: boolean;
-  order: number;
   isHidden: boolean;
-  budgetLimit?: number | null;
+  order: number;
   defaultSplitRatio?: SplitRatioItem[] | null; // Ensure this matches
+  budgetLimit?: number | null; // ADDED: budget limit for the category
   userId: string; // Assuming backend sends this
+  familyId: string; // ADDED: familyId for grouping and filtering
   createdAt: string; // Or Date
   updatedAt: string; // Or Date
   // children?: Category[]; // Dynamically added for UI if needed
 }
 
+import type { Person } from 'src/services/personApiService';
 export interface HouseholdMember {
   id: string;
-  name: string;
+  person: Person;
   isActive: boolean;
   order?: number | null; // Make order optional and nullable to match backend
   userId: string;
   createdAt: string; // Or Date
   updatedAt: string; // Or Date
 }
+
+export * from './family';

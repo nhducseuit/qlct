@@ -9,6 +9,7 @@ import { SettlementDto, SettlementMemberDto } from './dto/settlement.dto';
 import { GetSettlementsQueryDto } from './dto/get-settlements-query.dto';
 import { PaginatedSettlementsResponseDto, PaginationMetaDto } from './dto/paginated-settlements-response.dto';
 import { NotificationsGateway } from '../notifications/notifications.gateway';
+import { FamilyService } from '../families/family.service';
 
 interface SplitRatioItem {
   memberId: string;
@@ -20,14 +21,16 @@ export class SettlementsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly notificationsGateway: NotificationsGateway,
+    private readonly familyService: FamilyService,
   ) {}
 
   async calculateBalances(familyId: string, query: GetBalancesQueryDto): Promise<BalancesResponseDto> {
     console.log('Calculating balances for family:', familyId, 'with query:', query);
+    const familyTreeIds = await this.familyService.getFamilyTreeIds(familyId);
 
-    const activeMembers = await this.prisma.householdMember.findMany({
-      where: { familyId, isActive: true },
-      select: { id: true, name: true },
+    const activeMembers = await this.prisma.householdMembership.findMany({
+      where: { familyId: { in: familyTreeIds }, isActive: true },
+      include: { person: true },
     });
 
     if (activeMembers.length < 2) {
@@ -36,7 +39,7 @@ export class SettlementsService {
 
     const sharedTransactions = await this.prisma.transaction.findMany({
       where: {
-        familyId,
+        familyId: { in: familyTreeIds },
         isShared: true,
         splitRatio: { not: Prisma.DbNull },
       },
@@ -48,9 +51,9 @@ export class SettlementsService {
     });
 
     const rawOwedAmounts: Record<string, Record<string, number>> = {};
-    activeMembers.forEach((m1) => {
+    activeMembers.forEach((m1: any) => {
       rawOwedAmounts[m1.id] = {};
-      activeMembers.forEach((m2) => {
+      activeMembers.forEach((m2: any) => {
         if (m1.id !== m2.id) {
           rawOwedAmounts[m1.id][m2.id] = 0;
         }
@@ -69,7 +72,7 @@ export class SettlementsService {
       for (const item of splitRatioItems) {
         if (item.memberId === payerId) continue;
 
-        if (!activeMembers.find((m) => m.id === item.memberId) || !activeMembers.find((m) => m.id === payerId)) {
+        if (!activeMembers.find((m: any) => m.id === item.memberId) || !activeMembers.find((m: any) => m.id === payerId)) {
           continue;
         }
 
@@ -79,21 +82,21 @@ export class SettlementsService {
     }
 
     const settlements = await this.prisma.settlement.findMany({
-      where: { familyId },
+      where: { familyId: { in: familyTreeIds } },
       select: {
-        payerId: true,
-        payeeId: true,
+        payerMembershipId: true,
+        payeeMembershipId: true,
         amount: true,
       },
     });
 
     for (const settlement of settlements) {
-      rawOwedAmounts[settlement.payerId][settlement.payeeId] =
-        (rawOwedAmounts[settlement.payerId][settlement.payeeId] || 0) - settlement.amount;
+      rawOwedAmounts[settlement.payerMembershipId][settlement.payeeMembershipId] =
+        (rawOwedAmounts[settlement.payerMembershipId][settlement.payeeMembershipId] || 0) - settlement.amount;
     }
 
     const finalBalances: DetailedMemberBalanceDto[] = [];
-    const memberMap = new Map(activeMembers.map((m) => [m.id, m.name]));
+    const memberMap = new Map(activeMembers.map((m: any) => [m.id, m.person.name]));
 
     for (let i = 0; i < activeMembers.length; i++) {
       for (let j = i + 1; j < activeMembers.length; j++) {
@@ -107,11 +110,11 @@ export class SettlementsService {
 
         if (netAmountM1OwesM2 !== 0) {
           finalBalances.push({
-            memberOneId: memberOne.id,
+            personOneId: memberOne.personId,
             memberOneName: memberMap.get(memberOne.id)!,
-            memberTwoId: memberTwo.id,
+            personTwoId: memberTwo.personId,
             memberTwoName: memberMap.get(memberTwo.id)!,
-            netAmountMemberOneOwesMemberTwo: parseFloat(netAmountM1OwesM2.toFixed(2)),
+            netAmountPersonOneOwesPersonTwo: parseFloat(netAmountM1OwesM2.toFixed(2)),
           });
         }
       }
@@ -125,16 +128,17 @@ export class SettlementsService {
     userId: string,
     createSettlementDto: CreateSettlementDto,
   ): Promise<SettlementDto> {
-    if (createSettlementDto.payerId === createSettlementDto.payeeId) {
+    if (createSettlementDto.payerMembershipId === createSettlementDto.payeeMembershipId) {
       throw new BadRequestException('Payer and Payee cannot be the same member.');
     }
 
-    const members = await this.prisma.householdMember.findMany({
+    const members = await this.prisma.householdMembership.findMany({
       where: {
         familyId,
-        id: { in: [createSettlementDto.payerId, createSettlementDto.payeeId] },
+        id: { in: [createSettlementDto.payerMembershipId, createSettlementDto.payeeMembershipId] },
         isActive: true,
       },
+      include: { person: true },
     });
 
     if (members.length !== 2) {
@@ -143,13 +147,16 @@ export class SettlementsService {
 
     const settlement = await this.prisma.settlement.create({
       data: {
-        ...createSettlementDto,
         date: new Date(createSettlementDto.date),
         familyId: familyId,
+        amount: createSettlementDto.amount,
+        note: createSettlementDto.note,
+        payerMembershipId: createSettlementDto.payerMembershipId,
+        payeeMembershipId: createSettlementDto.payeeMembershipId,
       },
       include: {
-        payer: { select: { id: true, name: true } },
-        payee: { select: { id: true, name: true } },
+        payer: { include: { person: true } },
+        payee: { include: { person: true } },
       },
     });
 
@@ -158,17 +165,17 @@ export class SettlementsService {
       amount: settlement.amount,
       date: settlement.date.toISOString(),
       note: settlement.note,
-      payerId: settlement.payerId,
-      payer: settlement.payer as SettlementMemberDto,
-      payeeId: settlement.payeeId,
-      payee: settlement.payee as SettlementMemberDto,
+      payerMembershipId: settlement.payerMembershipId,
+      payer: { id: settlement.payer.id, person: { id: settlement.payer.person.id, name: settlement.payer.person.name } },
+      payeeMembershipId: settlement.payeeMembershipId,
+      payee: { id: settlement.payee.id, person: { id: settlement.payee.person.id, name: settlement.payee.person.name } },
       familyId: settlement.familyId,
       createdAt: settlement.createdAt.toISOString(),
       updatedAt: settlement.updatedAt.toISOString(),
     };
 
     this.notificationsGateway.sendToUser(userId, 'settlements_updated', {
-      message: `Thanh toán từ ${mappedSettlement.payer.name} đến ${mappedSettlement.payee.name} đã được ghi nhận.`,
+      message: `Thanh toán từ ${mappedSettlement.payer.person.name} đến ${mappedSettlement.payee.person.name} đã được ghi nhận.`,
       operation: 'create',
       item: mappedSettlement,
     });
@@ -180,13 +187,14 @@ export class SettlementsService {
     familyId: string,
     query: GetSettlementsQueryDto,
   ): Promise<PaginatedSettlementsResponseDto> {
-    const { page = 1, limit = 10, payerId, payeeId, startDate, endDate } = query;
+    const { page = 1, limit = 10, payerMembershipId, payeeMembershipId, startDate, endDate } = query;
     const skip = (page - 1) * limit;
+    const familyTreeIds = await this.familyService.getFamilyTreeIds(familyId);
 
-    const whereClause: Prisma.SettlementWhereInput = { familyId };
+    const whereClause: Prisma.SettlementWhereInput = { familyId: { in: familyTreeIds } };
 
-    if (payerId) whereClause.payerId = payerId;
-    if (payeeId) whereClause.payeeId = payeeId;
+    if (payerMembershipId) whereClause.payerMembershipId = payerMembershipId;
+    if (payeeMembershipId) whereClause.payeeMembershipId = payeeMembershipId;
     if (startDate) {
       if (typeof whereClause.date !== 'object' || whereClause.date === null) whereClause.date = {};
       (whereClause.date as Prisma.DateTimeFilter).gte = new Date(startDate);
@@ -200,8 +208,8 @@ export class SettlementsService {
       this.prisma.settlement.findMany({
         where: whereClause,
         include: {
-          payer: { select: { id: true, name: true } },
-          payee: { select: { id: true, name: true } },
+          payer: { include: { person: true } },
+          payee: { include: { person: true } },
         },
         orderBy: { date: 'desc' },
         skip,
@@ -215,10 +223,10 @@ export class SettlementsService {
       amount: s.amount,
       date: s.date.toISOString(),
       note: s.note,
-      payerId: s.payerId,
-      payer: s.payer as SettlementMemberDto,
-      payeeId: s.payeeId,
-      payee: s.payee as SettlementMemberDto,
+      payerMembershipId: s.payerMembershipId,
+      payer: { id: s.payer.id, person: { id: s.payer.person.id, name: s.payer.person.name } },
+      payeeMembershipId: s.payeeMembershipId,
+      payee: { id: s.payee.id, person: { id: s.payee.person.id, name: s.payee.person.name } },
       familyId: s.familyId,
       createdAt: s.createdAt.toISOString(),
       updatedAt: s.updatedAt.toISOString(),

@@ -8,8 +8,8 @@ import {
   Delete,
   UseGuards,
   Req,
-  ParseUUIDPipe,
   HttpCode,
+  BadRequestException,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiParam } from '@nestjs/swagger';
 import { CategoryService } from './category.service';
@@ -33,8 +33,10 @@ export class CategoryController {
   @ApiResponse({ status: 400, description: 'Bad Request.' })
   @ApiResponse({ status: 401, description: 'Unauthorized.' })
   create(@Body() createCategoryDto: CreateCategoryDto, @Req() req: AuthenticatedRequest) {
-    const { familyId, id: userId } = req.user;
-    return this.categoryService.create(createCategoryDto, familyId, userId);
+    const { id: userId } = req.user;
+    // The familyId from the DTO is now the source of truth.
+    // The FamilyGuard should ensure that the user has access to this family.
+    return this.categoryService.create(createCategoryDto, createCategoryDto.familyId, userId);
   }
 
   @Get()
@@ -42,7 +44,12 @@ export class CategoryController {
   @ApiResponse({ status: 200, description: 'List of categories for the family.', type: [CreateCategoryDto] })
   @ApiResponse({ status: 401, description: 'Unauthorized.' })
   findAll(@Req() req: AuthenticatedRequest) {
-    const { familyId } = req.user;
+    // The FamilyGuard ensures that the user has access to the familyId in the query
+    // The familyId from the query is the source of truth.
+    const { familyId } = req.query;
+    if (typeof familyId !== 'string') {
+      throw new BadRequestException('familyId query parameter is required and must be a string.');
+    }
     return this.categoryService.findAll(familyId);
   }
 
@@ -53,7 +60,7 @@ export class CategoryController {
   @ApiResponse({ status: 401, description: 'Unauthorized.' })
   @ApiResponse({ status: 403, description: 'Forbidden.' })
   @ApiResponse({ status: 404, description: 'Category not found.' })
-  findOne(@Param('id', ParseUUIDPipe) id: string, @Req() req: AuthenticatedRequest) {
+  findOne(@Param('id') id: string, @Req() req: AuthenticatedRequest) {
     const { familyId } = req.user;
     return this.categoryService.findOne(id, familyId);
   }
@@ -67,7 +74,7 @@ export class CategoryController {
   @ApiResponse({ status: 403, description: 'Forbidden.' })
   @ApiResponse({ status: 404, description: 'Category not found.' })
   update(
-    @Param('id', ParseUUIDPipe) id: string,
+    @Param('id') id: string,
     @Body() updateCategoryDto: UpdateCategoryDto,
     @Req() req: AuthenticatedRequest,
   ) {
@@ -82,7 +89,7 @@ export class CategoryController {
   @ApiResponse({ status: 401, description: 'Unauthorized.' })
   @ApiResponse({ status: 403, description: 'Forbidden.' })
   @ApiResponse({ status: 404, description: 'Category not found.' })
-  remove(@Param('id', ParseUUIDPipe) id: string, @Req() req: AuthenticatedRequest) {
+  remove(@Param('id') id: string, @Req() req: AuthenticatedRequest) {
     const { familyId, id: userId } = req.user;
     return this.categoryService.remove(id, familyId, userId);
   }

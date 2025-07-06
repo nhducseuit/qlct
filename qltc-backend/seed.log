@@ -1,0 +1,259 @@
+Environment variables loaded from .env
+Running seed command `ts-node prisma/seed.ts` ...
+Starting modular seed process...
+Seeding families...
+Families seeded.
+Seeding persons...
+Persons seeded.
+Seeding memberships...
+Memberships seeded.
+Seeding users...
+Users seeded.
+Seeding predefined split ratios...
+Predefined split ratios seeded.
+Seeding categories...
+Categories seeded.
+Returning clean category map: {
+  nhaCua: {
+    id: 'f35b2279-c7d3-4ff6-b867-b79955b5227e',
+    key: 'nhaCua',
+    name: 'Nhà cửa',
+    parentId: null,
+    icon: null,
+    color: null,
+    isPinned: false,
+    order: null,
+    isHidden: false,
+    budgetLimit: null,
+    createdAt: 2025-07-06T08:37:07.911Z,
+    updatedAt: 2025-07-06T10:48:38.654Z,
+    defaultSplitRatio: { connect: [Object] },
+    familyId: 'big-family-1'
+  },
+  dichVuChung: {
+    id: 'cat-nha-chung-services',
+    key: 'dichVuChung',
+    name: 'Dịch vụ chung',
+    parentId: null,
+    icon: null,
+    color: null,
+    isPinned: false,
+    order: null,
+    isHidden: false,
+    budgetLimit: null,
+    createdAt: 2025-07-06T08:37:07.911Z,
+    updatedAt: 2025-07-06T10:48:38.657Z,
+    defaultSplitRatio: { connect: [Object] },
+    familyId: 'big-family-1'
+  },
+  anUong: {
+    id: '76528a8a-a82a-4ef0-87aa-256ac621b43b',
+    key: 'anUong',
+    name: 'Ăn uống',
+    parentId: null,
+    icon: null,
+    color: null,
+    isPinned: false,
+    order: null,
+    isHidden: false,
+    budgetLimit: null,
+    createdAt: 2025-07-06T08:37:07.911Z,
+    updatedAt: 2025-07-06T10:48:38.659Z,
+    defaultSplitRatio: { connect: [Object] },
+    familyId: 'small-family-1'
+  },
+  diLai: {
+    id: '5ae9865d-4041-4612-a757-8730161071c7',
+    key: 'diLai',
+    name: 'Đi lại',
+    parentId: null,
+    icon: null,
+    color: null,
+    isPinned: false,
+    order: null,
+    isHidden: false,
+    budgetLimit: null,
+    createdAt: 2025-07-06T08:37:07.911Z,
+    updatedAt: 2025-07-06T10:48:38.662Z,
+    defaultSplitRatio: { connect: [Object] },
+    familyId: 'small-family-1'
+  },
+  muaSamDucDiep: {
+    id: '87ae0b88-d46d-42fe-965c-6813268e44d1',
+    key: 'muaSamDucDiep',
+    name: 'Mua sắm',
+    parentId: null,
+    icon: null,
+    color: null,
+    isPinned: false,
+    order: null,
+    isHidden: false,
+    budgetLimit: null,
+    createdAt: 2025-07-06T08:37:07.911Z,
+    updatedAt: 2025-07-06T10:48:38.664Z,
+    defaultSplitRatio: null,
+    familyId: 'small-family-1'
+  },
+  sucKhoe: {
+    id: '5d271e51-1c6b-4919-b76e-d7a59e719b22',
+    key: 'sucKhoe',
+    name: 'Sức khỏe',
+    parentId: null,
+    icon: null,
+    color: null,
+    isPinned: false,
+    order: null,
+    isHidden: false,
+    budgetLimit: null,
+    createdAt: 2025-07-06T08:37:07.911Z,
+    updatedAt: 2025-07-06T10:48:38.666Z,
+    defaultSplitRatio: null,
+    familyId: 'small-family-1'
+  },
+  giaiTri: {
+    id: '182fe1c6-5b87-4468-93ba-159e01146b3d',
+    key: 'giaiTri',
+    name: 'Giải trí',
+    parentId: null,
+    icon: null,
+    color: null,
+    isPinned: false,
+    order: null,
+    isHidden: false,
+    budgetLimit: null,
+    createdAt: 2025-07-06T08:37:07.911Z,
+    updatedAt: 2025-07-06T10:48:38.668Z,
+    defaultSplitRatio: { connect: [Object] },
+    familyId: 'small-family-2'
+  },
+  hocTap: {
+    id: '270c1489-c0a3-457d-b778-59e222880073',
+    key: 'hocTap',
+    name: 'Học tập',
+    parentId: null,
+    icon: null,
+    color: null,
+    isPinned: false,
+    order: null,
+    isHidden: false,
+    budgetLimit: null,
+    createdAt: 2025-07-06T08:37:07.911Z,
+    updatedAt: 2025-07-06T10:48:38.670Z,
+    defaultSplitRatio: null,
+    familyId: 'small-family-2'
+  },
+  muaSamAnhThuong: {
+    id: 'cat-brothers-shopping',
+    key: 'muaSamAnhThuong',
+    name: 'Mua sắm',
+    parentId: null,
+    icon: null,
+    color: null,
+    isPinned: false,
+    order: null,
+    isHidden: false,
+    budgetLimit: null,
+    createdAt: 2025-07-06T08:37:07.911Z,
+    updatedAt: 2025-07-06T10:48:38.672Z,
+    defaultSplitRatio: null,
+    familyId: 'small-family-2'
+  },
+  khac: {
+    id: '714920cc-22c9-4e14-a8cd-88d488ffeb58',
+    key: 'khac',
+    name: 'Khác',
+    parentId: null,
+    icon: null,
+    color: null,
+    isPinned: false,
+    order: null,
+    isHidden: false,
+    budgetLimit: null,
+    createdAt: 2025-07-06T08:37:07.911Z,
+    updatedAt: 2025-07-06T10:48:38.674Z,
+    defaultSplitRatio: null,
+    familyId: 'small-family-1'
+  }
+}
+[DIAG] categoryMapFromSeed (key => id):
+    nhaCua => f35b2279-c7d3-4ff6-b867-b79955b5227e
+    dichVuChung => cat-nha-chung-services
+    anUong => 76528a8a-a82a-4ef0-87aa-256ac621b43b
+    diLai => 5ae9865d-4041-4612-a757-8730161071c7
+    muaSamDucDiep => 87ae0b88-d46d-42fe-965c-6813268e44d1
+    sucKhoe => 5d271e51-1c6b-4919-b76e-d7a59e719b22
+    giaiTri => 182fe1c6-5b87-4468-93ba-159e01146b3d
+    hocTap => 270c1489-c0a3-457d-b778-59e222880073
+    muaSamAnhThuong => cat-brothers-shopping
+    khac => 714920cc-22c9-4e14-a8cd-88d488ffeb58
+[DIAG] categoryMap (from DB, key => id):
+    nhaCua => f35b2279-c7d3-4ff6-b867-b79955b5227e
+    dichVuChung => cat-nha-chung-services
+    anUong => 76528a8a-a82a-4ef0-87aa-256ac621b43b
+    diLai => 5ae9865d-4041-4612-a757-8730161071c7
+    muaSamDucDiep => 87ae0b88-d46d-42fe-965c-6813268e44d1
+    sucKhoe => 5d271e51-1c6b-4919-b76e-d7a59e719b22
+    giaiTri => 182fe1c6-5b87-4468-93ba-159e01146b3d
+    hocTap => 270c1489-c0a3-457d-b778-59e222880073
+    muaSamAnhThuong => cat-brothers-shopping
+    khac => 714920cc-22c9-4e14-a8cd-88d488ffeb58
+[DIAG] categoryMapFromSeed["anUong"]: {
+  id: '76528a8a-a82a-4ef0-87aa-256ac621b43b',
+  key: 'anUong',
+  name: 'Ăn uống',
+  parentId: null,
+  icon: null,
+  color: null,
+  isPinned: false,
+  order: null,
+  isHidden: false,
+  budgetLimit: null,
+  createdAt: 2025-07-06T08:37:07.911Z,
+  updatedAt: 2025-07-06T10:48:38.659Z,
+  defaultSplitRatio: { connect: { id: 'ratio-my-family-50-50' } },
+  familyId: 'small-family-1'
+}
+[DIAG] categoryMap["anUong"]: {
+  id: '76528a8a-a82a-4ef0-87aa-256ac621b43b',
+  key: 'anUong',
+  name: 'Ăn uống',
+  parentId: null,
+  icon: null,
+  color: null,
+  isPinned: false,
+  order: null,
+  isHidden: false,
+  budgetLimit: null,
+  createdAt: 2025-07-06T08:37:07.911Z,
+  updatedAt: 2025-07-06T10:48:38.659Z,
+  defaultSplitRatio: { connect: { id: 'ratio-my-family-50-50' } },
+  familyId: 'small-family-1'
+}
+Available category keys: [
+  'nhaCua',
+  'dichVuChung',
+  'anUong',
+  'diLai',
+  'muaSamDucDiep',
+  'sucKhoe',
+  'giaiTri',
+  'hocTap',
+  'muaSamAnhThuong',
+  'khac'
+]
+Transaction category keys: [
+  'anUong',
+  'muaSamDucDiep',
+  'giaiTri',
+  'hocTap',
+  'dichVuChung',
+  'nhaCua'
+]
+Passing clean category map to transactions seeder.
+Seeding transactions...
+An error occurred during the seed process: TypeError: Cannot read properties of undefined (reading 'id')
+    at seedTransactions (D:\sources\qlct\qltc-backend\prisma\seed-data\transactions.ts:48:42)
+    at main (D:\sources\qlct\qltc-backend\prisma\seed.ts:57:25)
+
+An error occurred while running the seed command:
+Error: Command failed with exit code 1: ts-node prisma/seed.ts

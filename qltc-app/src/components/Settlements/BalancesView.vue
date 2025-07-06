@@ -33,10 +33,10 @@
 
     <template v-else>
       <q-list bordered separator>
-        <q-item v-for="balance in settlementStore.balances.balances" :key="`${balance.memberOneId}-${balance.memberTwoId}`">
+        <q-item v-for="balance in settlementStore.balances.balances" :key="`${balance.personOneId}-${balance.personTwoId}`">
           <q-item-section>
             <q-item-label>
-              <template v-if="balance.netAmountMemberOneOwesMemberTwo > 0">
+              <template v-if="balance.netAmountPersonOneOwesPersonTwo > 0">
                 <span class="text-weight-medium">{{ balance.memberOneName }}</span> <span class="text-negative">cần trả cho</span> <span class="text-weight-medium">{{ balance.memberTwoName }}</span>
               </template>
               <template v-else>
@@ -44,14 +44,14 @@
               </template>
             </q-item-label>
             <q-item-label caption>
-              Số tiền: {{ formatCurrency(Math.abs(balance.netAmountMemberOneOwesMemberTwo)) }}
+              Số tiền: {{ formatCurrency(Math.abs(balance.netAmountPersonOneOwesPersonTwo)) }}
             </q-item-label>
           </q-item-section>
           <q-item-section side>
             <q-chip
-              :color="balance.netAmountMemberOneOwesMemberTwo > 0 ? 'red' : 'green'"
+              :color="balance.netAmountPersonOneOwesPersonTwo > 0 ? 'red' : 'green'"
               text-color="white"
-              :label="balance.netAmountMemberOneOwesMemberTwo > 0 ? 'Cần trả' : 'Sẽ nhận'"
+              :label="balance.netAmountPersonOneOwesPersonTwo > 0 ? 'Cần trả' : 'Sẽ nhận'"
             />
           </q-item-section>
         </q-item>

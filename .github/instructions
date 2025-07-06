@@ -1,0 +1,53 @@
+# Permanent Prompt Baseline & Critical Lessons Learned
+
+## Permanent Prompt Baseline
+
+## API Payload Consistency & Layered Data Contracts (Sprint 8+)
+
+### Issue: Unwanted Field in API Payload
+- A persistent bug caused the `familyId` field to be sent in the POST body for new categories, even though the UI and dialog code explicitly excluded it.
+- Root cause: The frontend API service (`categoryApiService.ts`) forcibly added `familyId` to the POST body, regardless of the dialog's payload, due to `{ ...categoryData, familyId }` in the service function.
+- The store always passed `familyId` as a separate argument, so the service layer always injected it into the body.
+
+### Resolution
+- The fix was to remove `familyId` from the POST body in the API service, sending only the allowed fields from the dialog/component.
+- This aligned the frontend contract with the backend's expectations and eliminated the error.
+
+### Lessons Learned (Technical)
+1. **Respect Data Contracts at Each Layer:** UI, store, and API service must all agree on the payload shape. Never inject or mutate fields in the service layer unless explicitly required by the backend contract.
+2. **Centralize Payload Shaping:** The component or store should be the single source of truth for what is sent to the backend. The API service should only forward, not transform, unless absolutely necessary.
+3. **Trace the Data Flow End-to-End:** When a field appears unexpectedly in the backend, check every layer (component, store, service) for places it might be added or mutated.
+4. **Defensive Programming:** Add final defensive checks (e.g., deleting unwanted fields) before sending data, but the best solution is to avoid adding them in the first place.
+5. **Test the Actual Network Payload:** Use browser dev tools or logging to inspect the real request body, not just the code.
+
+### Lessons Learned (Process)
+1. **Root Cause Analysis:** When a bug persists despite apparent fixes, always check for hidden or duplicated logic in lower layers (services, stores).
+2. **Document Data Contracts:** Keep a clear record of what each API expects and what each layer is responsible for.
+3. **Review Service Layer Logic:** Service functions should be as thin as possible unless transformation is required by backend design.
+
+---
+
+# Critical Lessons Learned
+
+## Data Model & State Management Consistency
+1.  **Single Source of Truth for IDs:** Ensure critical identifiers have a single, consistent meaning and type across the entire stack (UI form -> state store -> API payload -> backend service -> database).
+2.  **Centralize Data Transformation:** Centralize data mapping and transformation logic in stores or services to prevent inconsistencies and make the code easier to maintain and debug.
+3.  **Regressions Reveal Deeper Issues:** Pay close attention to regressions; they often point to a more fundamental problem than the one you initially tried to solve.
+
+## Modular Seeder Debugging & Data Integrity
+1. **Define and enforce unique keys** for all entities (categories, memberships, etc.) in both schema and seed data from the beginning.
+2. **Align schema and seeders early:** Run migrations and update the database before writing or running seeders that depend on new fields.
+3. **Centralize mapping logic:** Build all lookups (e.g., categoryMap, membershipMap) by key, not by id or array index.
+4. **Add robust logging and error handling** to all seeders and orchestrators. Log missing keys, undefined references, and data mismatches.
+5. **Validate all foreign key references** before using them in upserts. Fail fast and log context if a key is missing.
+6. **Test each seeder in isolation** before integrating into the main orchestrator. Use log files to capture runtime state and error context.
+7. **Iterate and test frequently,** running the seed process after each change to catch issues early.
+
+## Team & Process
+1. **Document contracts and expectations** for all seeders and data models. Share and review these before implementation.
+2. **Communicate changes to schema or data contracts** immediately to all team members.
+3. **Review and revise lessons learned** after each major debugging session or sprint. Make it a habit to revisit this file daily and after every significant change.
+4. **Encourage defensive programming** and proactive error handling in all team code.
+5. **Foster a culture of early, frequent testing** and log-driven debugging.
+
+---

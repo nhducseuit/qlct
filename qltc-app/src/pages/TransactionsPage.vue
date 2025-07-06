@@ -150,7 +150,7 @@ const getCategoryName = (categoryId: string | null | undefined): string => {
 
 const getMemberName = (memberId: string | null | undefined): string => {
   if (!memberId) return 'Không xác định';
-  return householdMemberStore.getMemberById(memberId)?.name || memberId;
+   return householdMemberStore.getMemberById(memberId)?.person?.name || memberId;
 };
 
 const formatDate = (dateString: string, format = 'DD/MM/YYYY'): string => {

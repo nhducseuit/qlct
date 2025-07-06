@@ -1,39 +1,33 @@
 // d:\sources\qlct\qltc-app\src\models\settlement.ts
 
 // Corresponds to Backend: src/settlements/dto/member-balance.dto.ts
-export interface MemberBalanceDto {
-  memberId: string;
-  memberName: string;
-  amount: number;
-}
-
 export interface DetailedMemberBalanceDto {
-  memberOneId: string;
+  personOneId: string;
   memberOneName: string;
-  memberTwoId: string;
+  personTwoId: string;
   memberTwoName: string;
-  netAmountMemberOneOwesMemberTwo: number;
+  netAmountPersonOneOwesPersonTwo: number;
 }
 
 // Corresponds to Backend: src/settlements/dto/balances-response.dto.ts
 export interface BalancesResponseDto {
   balances: DetailedMemberBalanceDto[];
-  // userPerspectiveBalances?: MemberBalanceDto[]; // Optional, if added later
 }
 
 // Corresponds to Backend: src/settlements/dto/create-settlement.dto.ts
 export interface CreateSettlementDto {
-  payerId: string;
-  payeeId: string;
+  payerMembershipId: string;
+  payeeMembershipId: string;
   amount: number;
   date: string; // ISO 8601 date string
   note?: string;
 }
 
 // Corresponds to Backend: src/settlements/dto/settlement.dto.ts
-export interface SettlementMemberDto {
-  id: string;
-  name: string;
+export interface SettlementPersonDto {
+  personId: string;
+  personName: string;
+  membershipId: string;
 }
 
 export interface SettlementDto {
@@ -41,11 +35,9 @@ export interface SettlementDto {
   amount: number;
   date: string; // ISO Date string
   note?: string | null;
-  payerId: string;
-  payer: SettlementMemberDto;
-  payeeId: string;
-  payee: SettlementMemberDto;
-  userId: string;
+  payer: SettlementPersonDto;
+  payee: SettlementPersonDto;
+  familyId: string;
   createdAt: string; // ISO Date string
   updatedAt: string; // ISO Date string
 }
@@ -54,8 +46,8 @@ export interface SettlementDto {
 export interface GetSettlementsQueryDto {
   page?: number;
   limit?: number;
-  payerId?: string;
-  payeeId?: string;
+  payerMembershipId?: string;
+  payeeMembershipId?: string;
   startDate?: string; // ISO 8601 date string
   endDate?: string; // ISO 8601 date string
 }

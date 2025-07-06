@@ -151,4 +151,56 @@ flowchart TD
 - The production environment uses `seed.prod.ts` for minimal, safe data.
 
 > **Note:**
-> The correct seed script is executed via the orchestrator `seed.ts`, which detects the environment (development or production) and runs either `seed.dev.ts` or `seed.prod.ts` accordingly. Do not run the seed scripts directly; always use `seed.ts` for consistent behavior.`
+> The correct seed script is executed via the orchestrator `seed.ts`, which detects the environment (development or production) and runs either `seed.dev.ts` or `seed.prod.ts` accordingly. Do not run the seed scripts directly; always use `seed.ts` for consistent behavior.
+
+# Sprint 5+ Backlog & Roadmap (Refined)
+
+
+## Current Sprint (Sprint 5): Household Member & Person Management
+- [x] Normalize schema: Family, Person, HouseholdMembership (done)
+- [x] Migrate and seed baseline data (done)
+- [x] Implement Person API (CRUD, deduplication by name, auth) (done)
+- [x] Implement Membership API (link person to family, prevent duplicates) (done)
+- [x] Secure APIs with JWT (done)
+- [x] Test all flows (done)
+- [x] Update frontend: Household Member page
+  - [x] Display household members grouped by family in a hierarchical view.
+  - [x] For a normal user, the view is read-only and only shows families they are a member of.
+  - [x] Show person details (name, email, phone) for each member.
+
+
+
+## Notes
+- For now, role assignment and cross-family membership are managed manually via DB.
+- All new users are assigned to their own default family as admin.
+- Only one big family and several small families are supported for now; nesting is allowed.
+- Role management and invitation flows are hypotheses for future sprints, not current priorities.
+
+
+## Categories Management: Family-Aware Refactor (Sprint 5)
+- [ ] Update backend: Ensure all category endpoints require and check `familyId` for all CRUD operations
+    - [ ] Add/Update: Only allow creation/edit for categories in the current family context
+    - [ ] Delete: Only allow deletion for categories in the current family context
+    - [ ] List: Only return categories for the current family (and/or subfamilies, if required)
+- [ ] Update backend: Enforce access control so only family members can manage their family's categories
+- [ ] Update backend: Add tests for family-aware category permissions
+- [x] Update categoryStore: Load categories for the current family context only *(Now fetches for current and parent family)*
+- [x] Update categoryStore: Add, edit, and delete actions must include current `familyId`
+- [x] Update categoryStore: Implement WebSocket handlers for real-time, in-place updates *(New task)*
+- [x] Update CategoriesPage.vue: Display categories grouped or filtered by family
+- [x] Update CategoriesPage.vue: Add/Edit dialogs show and use the current family context
+    - [x] "Add Root": Allow family selection (current/parent), defaulting to current.
+    - [x] "Add Child": Inherit family from parent, no selection allowed.
+    - [x] "Edit": Disable family selection.
+    - [x] Ensure split ratio members update based on selected family.
+- [ ] Update CategoriesPage.vue: Hide or disable actions for categories outside the user's family
+- [ ] Update tests: Add/expand frontend tests for family-aware category management
+- [ ] Update documentation: Document new family-aware category logic and usage
+
+## Quick Entry Form: Family-Aware Refactor (Sprint 5)
+- [ ] **Update Family Dropdown:** Only list families the current user is a member of.
+- [ ] **Fix Payer Field:** Ensure the payer's name is displayed instead of their UUID.
+- [ ] **Update Category Lists:** Filter "Quick Select" and the main category dropdown to show only categories from the selected family.
+- [ ] **Update Split Ratio Members:** Filter the list of members for cost splitting based on the selected family.
+- [ ] **Implement Reset Logic:** When the selected family changes, reset all dependent fields (Payer, Category, Split Ratios).
+- [ ] **Ensure Correct Initialization:** On component mount, correctly initialize all family-dependent data based on the default selected family.

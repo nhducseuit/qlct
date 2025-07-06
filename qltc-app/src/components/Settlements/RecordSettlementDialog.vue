@@ -9,7 +9,7 @@
         <q-card-section class="q-gutter-md">
           <q-select
             filled
-            v-model="form.payerId"
+            v-model="form.payerMembershipId"
             :options="payerOptions"
             label="Người trả tiền"
             emit-value
@@ -20,14 +20,14 @@
 
           <q-select
             filled
-            v-model="form.payeeId"
+            v-model="form.payeeMembershipId"
             :options="payeeOptions"
             label="Người nhận tiền"
             emit-value
             map-options
             :rules="[
               val => !!val || 'Vui lòng chọn người nhận.',
-              val => val !== form.payerId || 'Người nhận phải khác người trả.'
+              val => val !== form.payerMembershipId || 'Người nhận phải khác người trả.'
             ]"
           />
 
@@ -99,8 +99,8 @@ const householdMemberStore = useHouseholdMemberStore();
 
 // const entryForm = ref<QForm | null>(null); // Not strictly needed for validation if using q-form's submit
 const form = ref<CreateSettlementDto>({
-  payerId: '',
-  payeeId: '',
+  payerMembershipId: '',
+  payeeMembershipId: '',
   amount: null as unknown as number, // Initialize with null for validation
   date: dayjs().format('YYYY/MM/DD'), // Quasar default date format
   note: '',
@@ -112,20 +112,20 @@ const activeMembers = computed(() =>
 
 const memberOptions = computed(() =>
   activeMembers.value.map(member => ({
-    label: member.name,
+    label: member.person?.name,
     value: member.id,
   }))
 );
 
 const payerOptions = computed(() => memberOptions.value);
 const payeeOptions = computed(() =>
-  memberOptions.value.filter(member => member.value !== form.value.payerId)
+  memberOptions.value.filter(member => member.value !== form.value.payerMembershipId)
 );
 
 // Ensure payee is cleared if payer is selected and they are the same
 const clearPayeeIfSame = (payerId: string) => {
-  if (form.value.payeeId === payerId) {
-    form.value.payeeId = '';
+  if (form.value.payeeMembershipId === payerId) {
+    form.value.payeeMembershipId = '';
   }
 };
 
@@ -133,7 +133,7 @@ const onSubmit = async () => {
   // QForm's @submit.prevent handles validation triggering automatically
   // if rules are set on individual components.
 
-  if (form.value.payerId === form.value.payeeId) {
+  if (form.value.payerMembershipId === form.value.payeeMembershipId) {
     settlementStore.createSettlementError = 'Người trả và người nhận không được giống nhau.';
     return;
   }

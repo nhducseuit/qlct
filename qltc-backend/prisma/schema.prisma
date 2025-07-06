@@ -34,6 +34,7 @@ model User {
   id        String   @id @default(uuid())
   email     String   @unique
   password  String // Stores hashed password
+  name      String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -43,6 +44,7 @@ model User {
 
 model Category {
   id                String   @id @default(uuid())
+  key               String?   @unique
   name              String
   parentId          String?
   icon              String?
@@ -80,15 +82,19 @@ model Transaction {
 
   categoryId String
   category   Category @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+
+  payerMembership HouseholdMembership? @relation("PayerTransactions", fields: [payer], references: [id], onDelete: SetNull, onUpdate: Cascade)
 }
 
 
 model Person {
-  id        String   @id @default(uuid())
-  name      String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
+  id          String                @id @default(uuid())
+  name        String
+  email       String?               @unique
+  phone       String?
+  socialId    String?               @unique
+  createdAt   DateTime              @default(now())
+  updatedAt   DateTime              @updatedAt
   memberships HouseholdMembership[]
 }
 
@@ -106,6 +112,7 @@ model HouseholdMembership {
 
   paidSettlements     Settlement[] @relation("PaidSettlements")
   receivedSettlements Settlement[] @relation("ReceivedSettlements")
+  transactionsAsPayer Transaction[] @relation("PayerTransactions")
 
   @@unique([personId, familyId])
   @@index([familyId])

@@ -8,6 +8,13 @@ import { NotificationsGateway } from '../notifications/notifications.gateway';
 import { Transaction, Prisma } from '@prisma/client';
 import { GetTransactionsQueryDto } from './dto/get-transactions-query.dto';
 import dayjs from 'dayjs';
+import { FamilyService } from '../families/family.service';
+
+// This type enhances Prisma's Transaction with the relations we expect to include.
+type TransactionWithDetails = Transaction & {
+  payerMembership?: { person: { name: string } } | null;
+  category?: any; // Keeping category flexible for now
+};
 
 interface SplitRatioItem {
   memberId: string;
@@ -21,6 +28,7 @@ export class TransactionService {
     private readonly categoryService: CategoryService,
     private readonly householdMemberService: HouseholdMemberService,
     private readonly notificationsGateway: NotificationsGateway,
+    private readonly familyService: FamilyService,
   ) {}
 
   private parseSplitRatio(splitRatioJson: Prisma.JsonValue | null): Array<{ memberId: string; percentage: number }> | null {
@@ -52,10 +60,10 @@ export class TransactionService {
    * Non-shared expenses and incomes are excluded.
    */
   private applyStrictMode(
-    transactions: Transaction[], // Prisma's Transaction type
-    selectedMemberIds: string[], // Must be provided if isStrictMode is true
-  ): Transaction[] {
-    const filteredAndAdjusted: Transaction[] = [];
+    transactions: TransactionWithDetails[],
+    selectedMemberIds: string[],
+  ): TransactionWithDetails[] {
+    const filteredAndAdjusted: TransactionWithDetails[] = [];
     for (const transaction of transactions) {
       if (transaction.type === 'expense' && transaction.isShared) {
         const splitRatioArray = this.parseSplitRatio(transaction.splitRatio);
@@ -83,27 +91,25 @@ export class TransactionService {
   }
 
   private applyNonStrictModeMemberFilter(
-    transactions: Transaction[], // Prisma's Transaction type
+    transactions: TransactionWithDetails[],
     selectedMemberIds: string[],
-  ): Transaction[] {
-    return transactions.filter(transaction => {
+  ): TransactionWithDetails[] {
+    return transactions.filter((transaction) => {
       if (transaction.isShared) {
         const splitRatioArray = this.parseSplitRatio(transaction.splitRatio);
-        return splitRatioArray?.some(srItem => selectedMemberIds.includes(srItem.memberId)) || false;
-      } else { // Non-shared transaction
+        return splitRatioArray?.some((srItem) => selectedMemberIds.includes(srItem.memberId)) || false;
+      } else {
+        // Non-shared transaction
         return transaction.payer ? selectedMemberIds.includes(transaction.payer) : false;
       }
     });
   }
 
-  async create(createTransactionDto: CreateTransactionDto, userId: string): Promise<Transaction> {
-    // Validate category existence (must belong to the same family)
-    const familyId = userId; // Actually, should be passed as familyId, not userId
+  async create(createTransactionDto: CreateTransactionDto, familyId: string): Promise<Transaction> {
     const category = await this.categoryService.findOne(createTransactionDto.categoryId, familyId);
 
     if (createTransactionDto.payer) {
-      // Validate payer existence (must belong to the same family)
-      const payerMember = await this.householdMemberService.findOne(createTransactionDto.payer, familyId);
+      await this.householdMemberService.findOne(createTransactionDto.payer, familyId);
     }
 
     let finalSplitRatio: Prisma.InputJsonValue | undefined =
@@ -117,7 +123,7 @@ export class TransactionService {
       data: {
         ...createTransactionDto,
         familyId,
-        date: new Date(createTransactionDto.date), // Convert date string to Date object
+        date: new Date(createTransactionDto.date),
         splitRatio: finalSplitRatio,
       },
     });
@@ -130,8 +136,13 @@ export class TransactionService {
     return newTransaction;
   }
 
-  async findFiltered(userId: string, query: GetTransactionsQueryDto): Promise<Transaction[]> {
-    const where: Prisma.TransactionWhereInput = { }; // No userId filter here, as per global access
+  async findFiltered(familyId: string, query: GetTransactionsQueryDto): Promise<TransactionWithDetails[]> {
+    if (!familyId) {
+      throw new Error('familyId must be provided to findFiltered');
+    }
+    const familyIds = await this.familyService.getFamilyTreeIds(familyId);
+
+    const where: Prisma.TransactionWhereInput = { familyId: { in: familyIds } };
 
     if (query.categoryId) {
       where.categoryId = query.categoryId;
@@ -172,12 +183,16 @@ export class TransactionService {
       if (startDate) where.date.gte = startDate;
       if (endDate) where.date.lte = endDate;
     }
-    
-    let transactions = await this.prisma.transaction.findMany({
+
+    let transactions: TransactionWithDetails[] = await this.prisma.transaction.findMany({
       where,
+      include: {
+        payerMembership: { include: { person: true } },
+        category: true,
+      },
       orderBy: { date: 'desc' },
     });
-    
+
     const isStrictModeEnabled = query.isStrictMode === 'true'; // Convert string to boolean
     const memberIds = query.memberIds;
 
@@ -206,46 +221,52 @@ export class TransactionService {
     return transactions;
   }
 
-  async findOne(id: string, userId: string): Promise<Transaction> {
+  async findOne(id: string, familyId: string): Promise<TransactionWithDetails> {
     const transaction = await this.prisma.transaction.findUnique({
       where: { id },
+      include: {
+        payerMembership: { include: { person: true } },
+        category: true,
+      },
     });
     if (!transaction) {
       throw new NotFoundException(`Transaction with ID "${id}" not found`);
     }
+
+    const familyTreeIds = await this.familyService.getFamilyTreeIds(familyId);
+    if (!familyTreeIds.includes(transaction.familyId)) {
+      throw new ForbiddenException('You do not have permission to view this transaction.');
+    }
+
     return transaction;
   }
 
-  async update(id: string, updateTransactionDto: UpdateTransactionDto, userId: string): Promise<Transaction> {
-    const familyId = userId; // Actually, should be passed as familyId, not userId
+  async update(id: string, updateTransactionDto: UpdateTransactionDto, familyId: string): Promise<Transaction> {
     const transaction = await this.prisma.transaction.findUnique({ where: { id } });
-    if (!transaction) throw new NotFoundException(`Transaction with ID "${id}" not found`);
-    if (transaction.familyId !== familyId) {
+    if (!transaction) throw new NotFoundException(`Transaction with ID \"${id}\" not found`);
+
+    const familyTreeIds = await this.familyService.getFamilyTreeIds(familyId);
+    if (!familyTreeIds.includes(transaction.familyId)) {
       throw new ForbiddenException('You do not have permission to update this transaction.');
     }
 
-    const dataToUpdate: Prisma.TransactionUpdateInput = {};
+    const { splitRatio, ...restOfDto } = updateTransactionDto;
+    const dataToUpdate: Prisma.TransactionUpdateInput = { ...restOfDto };
 
-    if (updateTransactionDto.amount !== undefined) dataToUpdate.amount = updateTransactionDto.amount;
-    if (updateTransactionDto.date !== undefined) dataToUpdate.date = new Date(updateTransactionDto.date);
-    if (updateTransactionDto.note !== undefined) dataToUpdate.note = updateTransactionDto.note;
-    if (updateTransactionDto.type !== undefined) dataToUpdate.type = updateTransactionDto.type;
-    if (updateTransactionDto.payer !== undefined) {
-      if (updateTransactionDto.payer === null) {
-        dataToUpdate.payer = null;
-      } else {
-        const payerMember = await this.householdMemberService.findOne(updateTransactionDto.payer, familyId);
-        dataToUpdate.payer = updateTransactionDto.payer;
-      }
+    if (updateTransactionDto.date) {
+      dataToUpdate.date = new Date(updateTransactionDto.date);
     }
-    if (updateTransactionDto.isShared !== undefined) dataToUpdate.isShared = updateTransactionDto.isShared;
 
-    if (updateTransactionDto.categoryId !== undefined) {
-      const category = await this.categoryService.findOne(updateTransactionDto.categoryId, familyId);
-      dataToUpdate.category = { connect: { id: updateTransactionDto.categoryId } };
+    if (updateTransactionDto.payer) {
+      await this.householdMemberService.findOne(updateTransactionDto.payer, familyId);
     }
-    if (updateTransactionDto.splitRatio !== undefined) {
-      dataToUpdate.splitRatio = updateTransactionDto.splitRatio as unknown as Prisma.InputJsonValue;
+
+    if (updateTransactionDto.categoryId) {
+      await this.categoryService.findOne(updateTransactionDto.categoryId, familyId);
+    }
+
+    if (splitRatio !== undefined) {
+      dataToUpdate.splitRatio = splitRatio as unknown as Prisma.InputJsonValue;
     } else if (updateTransactionDto.isShared === true && transaction.isShared === false) {
       const categoryIdToUse = updateTransactionDto.categoryId || transaction.categoryId;
       const category = await this.categoryService.findOne(categoryIdToUse, familyId);

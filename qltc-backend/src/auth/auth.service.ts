@@ -29,18 +29,31 @@ export class AuthService {
     if (!user) {
       throw new UnauthorizedException('Invalid credentials');
     }
-    
+
+    const person = await this.prisma.person.findUnique({
+      where: { email: user.email },
+      include: { memberships: true }, // Corrected relation name
+    });
+
+    if (!person || person.memberships.length === 0) {
+      throw new UnauthorizedException('User is not associated with any family.');
+    }
+
+    const familyId = person.memberships[0].familyId;
+
     const payload: UserPayload = {
       id: user.id,
       email: user.email,
-      familyId: user.familyId,
+      name: user.name,
+      familyId: familyId,
     };
     return {
       accessToken: this.jwtService.sign(payload),
       user: {
         id: user.id,
+        name: user.name,
         email: user.email,
-        familyId: user.familyId,
+        familyId: familyId,
       },
     };
   }
@@ -55,38 +68,60 @@ export class AuthService {
 
     const hashedPassword = await bcrypt.hash(registerDto.password, 10);
 
-    // Use a transaction to create a family and a user together
-    const newUser = await this.prisma.$transaction(async (tx) => {
+    // Use a transaction to create all necessary records atomically
+    const { user: newUser, familyId } = await this.prisma.$transaction(async (tx) => {
       // 1. Create a new Family for the user
       const newFamily = await tx.family.create({
         data: {
-          name: `${registerDto.email}'s Family`,
+          name: `${registerDto.name}'s Family`,
         },
       });
 
       // 2. Create the new user and link them to the new family
       const user = await tx.user.create({
         data: {
+          name: registerDto.name,
           email: registerDto.email,
           password: hashedPassword,
-          familyId: newFamily.id,
+          family: {
+            connect: { id: newFamily.id },
+          },
         },
       });
-      return user;
+
+      // 3. Create a corresponding Person record for the user
+      const person = await tx.person.create({
+        data: {
+          name: registerDto.name,
+          email: registerDto.email,
+        },
+      });
+
+      // 4. Create the HouseholdMembership to link the Person to the Family
+      await tx.householdMembership.create({
+        data: {
+          familyId: newFamily.id,
+          personId: person.id,
+        },
+      });
+
+      return { user, familyId: newFamily.id };
     });
 
     const payload: UserPayload = {
       id: newUser.id,
       email: newUser.email,
-      familyId: newUser.familyId,
+      name: newUser.name,
+      familyId: familyId,
     };
 
     return {
       accessToken: this.jwtService.sign(payload),
       user: {
         id: newUser.id,
+        name: newUser.name,
         email: newUser.email,
-        familyId: newUser.familyId,
+        familyId: familyId,
       },
     };
   }
@@ -94,7 +129,7 @@ export class AuthService {
   async findUserById(id: string): Promise<UserPayload | null> {
     const user = await this.prisma.user.findUnique({
       where: { id },
-      select: { id: true, email: true, familyId: true },
+      select: { id: true, name: true, email: true, familyId: true },
     });
     if (user) {
       return user;

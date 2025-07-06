@@ -251,7 +251,7 @@ const memberFilterOptions = computed(() =>
   householdMemberStore.members
     .filter(m => m.isActive)
     .map(member => ({
-      label: member.name,
+      label: member.person?.name,
       value: member.id,
     })).sort((a,b) => a.label.localeCompare(b.label))
 );

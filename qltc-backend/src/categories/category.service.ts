@@ -5,12 +5,14 @@ import { UpdateCategoryDto } from './dto/update-category.dto';
 import { ReorderCategoriesDto } from './dto/reorder-categories.dto';
 import { Category, Prisma } from '@prisma/client';
 import { NotificationsGateway } from '../notifications/notifications.gateway';
+import { FamilyService } from '../families/family.service';
 
 @Injectable()
 export class CategoryService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly notificationsGateway: NotificationsGateway,
+    private readonly familyService: FamilyService,
   ) {}
 
   async create(createCategoryDto: CreateCategoryDto, familyId: string, userId: string): Promise<Category> {
@@ -43,8 +45,10 @@ export class CategoryService {
   }
 
   async findAll(familyId: string): Promise<Category[]> {
+    const familyIds = await this.familyService.getFamilyTreeIds(familyId);
+
     return this.prisma.category.findMany({
-      where: { familyId: familyId },
+      where: { familyId: { in: familyIds } },
       orderBy: { order: 'asc' },
     });
   }
@@ -66,6 +70,7 @@ export class CategoryService {
   }
 
   async update(id: string, updateCategoryDto: UpdateCategoryDto, familyId: string, userId: string): Promise<Category> {
+
     const existingCategory = await this.prisma.category.findUnique({
       where: { id },
     });
@@ -73,7 +78,9 @@ export class CategoryService {
     if (!existingCategory) {
       throw new NotFoundException(`Category with ID "${id}" not found.`);
     }
-    if (existingCategory.familyId !== familyId) {
+    // Allow update if the category's familyId is in the user's family tree (self or ancestor)
+    const allowedFamilyIds = await this.familyService.getFamilyTreeIds(familyId);
+    if (!allowedFamilyIds.includes(existingCategory.familyId)) {
       throw new ForbiddenException('You do not have permission to update this category.');
     }
 

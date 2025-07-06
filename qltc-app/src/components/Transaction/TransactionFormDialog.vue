@@ -99,7 +99,7 @@
               Không có thành viên nào đang hoạt động để phân chia.
             </div>
             <div v-for="member in activeMembers" :key="member.id" class="row items-center q-mb-xs">
-              <div class="col-5 ellipsis">{{ member.name }}</div>
+              <div class="col-5 ellipsis">{{ member.person?.name }}</div>
               <div class="col-5">
                 <q-input
                   dense
@@ -198,7 +198,7 @@ const categoryOptions = computed(() =>
 
 const payerOptions = computed(() =>
   householdMemberStore.members.filter(member => member.isActive).map(member => ({
-    label: member.name,
+    label: member.person?.name,
     value: member.id,
   }))
 );

@@ -25,50 +25,70 @@ enum TransactionType {
 export class CreateTransactionDto {
   @ApiProperty({ description: 'Amount of the transaction', example: 150000 })
   @IsNumber()
-  @Min(0.01, { message: 'Amount must be greater than 0' }) // Assuming amount cannot be zero
+  @Min(0.01, { message: 'Amount must be greater than 0' })
   amount!: number;
 
-  @ApiProperty({ description: 'Date of the transaction (ISO 8601 format)', example: '2025-07-06T10:00:00.000Z' })
+  @ApiProperty({
+    description: 'Date of the transaction (ISO 8601 format)',
+    example: '2025-07-06T10:00:00.000Z',
+  })
   @IsDateString()
-  date!: string; // Will be converted to Date object by Prisma
+  date!: string;
 
-  @ApiPropertyOptional({ description: 'Optional note for the transaction', example: 'Lunch with colleagues' })
+  @ApiPropertyOptional({
+    description: 'Optional note for the transaction',
+    example: 'Lunch with colleagues',
+  })
   @IsString()
   @IsOptional()
   note?: string | null;
 
-  @ApiProperty({ description: 'Type of transaction', enum: TransactionType, example: TransactionType.EXPENSE })
+  @ApiProperty({
+    description: 'Type of transaction',
+    enum: TransactionType,
+    example: TransactionType.EXPENSE,
+  })
   @IsEnum(TransactionType)
   type!: TransactionType;
 
-  @ApiPropertyOptional({ description: 'ID of the household member who paid/received', example: 'uuid-for-chong' })
-  @IsUUID()
-  @IsOptional()
-  payer?: string | null; // Will store HouseholdMember ID
-
-  @ApiPropertyOptional({ description: 'Is this a shared transaction?', default: false })
-  @IsBoolean()
-  @IsOptional()
-  isShared?: boolean = false;
-
-  @ApiProperty({ description: 'ID of the category for this transaction', example: 'uuid-for-category' })
+  @ApiProperty({
+    description: 'The ID of the category for this transaction.',
+    example: 'a1b2c3d4-e5f6-7890-1234-567890abcdef',
+  })
+  @IsNotEmpty()
   @IsUUID()
   categoryId!: string;
 
   @ApiPropertyOptional({
-    description: 'Custom split ratio for this transaction. If isShared is true and this is not provided, category default will be used. Sum of percentages must be 100 if provided.',
+    description:
+      'The ID of the household member who paid for this transaction. Required for non-shared expenses.',
+    example: 'b1c2d3e4-f5g6-7890-1234-567890abcdef',
+  })
+  @IsUUID()
+  @IsOptional()
+  payer?: string | null;
+
+  @ApiPropertyOptional({
+    description: 'Whether the transaction is shared among household members',
+    example: true,
+  })
+  @IsBoolean()
+  @IsOptional()
+  isShared?: boolean;
+
+  @ApiPropertyOptional({
+    description:
+      'The split ratio for the transaction. Required for shared expenses if no default is set on the category.',
     type: [SplitRatioItemDto],
-    example: [{ memberId: 'uuid-chong', percentage: 60 }, { memberId: 'uuid-vo', percentage: 40 }],
+    example: [
+      { memberId: 'm1', percentage: 50 },
+      { memberId: 'm2', percentage: 50 },
+    ],
   })
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => SplitRatioItemDto)
-  @Validate(IsSplitRatioSum100Constraint, {
-    message: 'The sum of percentages in splitRatio must be 100 if the array is provided and not empty.',
-  })
+  @Validate(IsSplitRatioSum100Constraint)
   @IsOptional()
-  splitRatio?: SplitRatioItemDto[];
-
-  // userId will be set by the service based on the authenticated user.
-  // createdAt and updatedAt will be set by the database/Prisma.
+  splitRatio?: SplitRatioItemDto[] | null;
 }

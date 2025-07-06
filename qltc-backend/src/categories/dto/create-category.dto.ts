@@ -22,6 +22,11 @@ export class CreateCategoryDto {
   @IsNotEmpty()
   name!: string;
 
+  @ApiProperty({ description: 'ID of the family this category belongs to' })
+  @IsString()
+  @IsNotEmpty()
+  familyId!: string;
+
   @ApiPropertyOptional({ description: 'ID of the parent category if this is a sub-category', example: 'uuid-parent' })
   @IsString()
   @IsOptional()

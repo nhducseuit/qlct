@@ -1,20 +1,34 @@
 import apiClient from './api'; // Import the configured Axios instance
-import type { HouseholdMember } from 'src/models'; // Assuming HouseholdMember type is in src/models
+import type { HouseholdMember, Family } from 'src/models'; // Assuming HouseholdMember type is in src/models
+
 
 // Define DTO types for request payloads, aligning with backend DTOs
 export interface CreateHouseholdMemberPayload {
-  name: string;
+  name?: string; // Optional: only required when creating a new person inline (legacy)
   isActive?: boolean;
-  order?: number | undefined;
+  order?: number;
+  personId?: string;
 }
 
 export type UpdateHouseholdMemberPayload = Partial<CreateHouseholdMemberPayload>;
 
 const API_URL = '/household-members'; // Matches your HouseholdMemberController route
 
+// Define the structure for the hierarchical response
+export interface FamilyMemberGroup extends Family {
+  members: HouseholdMember[];
+}
+
 export const fetchHouseholdMembersAPI = async (): Promise<HouseholdMember[]> => {
   console.log('[HouseholdMemberApiService] fetchHouseholdMembersAPI called');
   const response = await apiClient.get<HouseholdMember[]>(API_URL);
+  return response.data;
+};
+
+// New function to fetch all members for the user, grouped by family
+export const fetchAllMyMembersGroupedByFamilyAPI = async (): Promise<FamilyMemberGroup[]> => {
+  console.log('[HouseholdMemberApiService] fetchAllMyMembersGroupedByFamilyAPI called');
+  const response = await apiClient.get<FamilyMemberGroup[]>(`${API_URL}/my-members-by-family`);
   return response.data;
 };
 

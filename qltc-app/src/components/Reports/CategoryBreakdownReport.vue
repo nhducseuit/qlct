@@ -192,7 +192,7 @@ const transactionDetailColumns: QTableColumn[] = [
 
 const getMemberName = (memberId?: string | null): string => {
   if (!memberId) return 'N/A';
-  return householdMemberStore.getMemberById(memberId)?.name || memberId;
+  return householdMemberStore.getMemberById(memberId)?.person?.name || memberId;
 };
 
 const formatDate = (dateString: string, format = 'DD/MM/YYYY'): string => {

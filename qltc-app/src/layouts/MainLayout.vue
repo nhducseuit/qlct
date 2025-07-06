@@ -1,76 +1,94 @@
 <template>
-  <q-layout view="lHh Lpr lFf">
-    <q-header elevated class="bg-primary text-white">
-      <q-toolbar>
-        <q-btn
-          flat
-          dense
-          round
-          icon="menu"
-          aria-label="Menu"
-          @click="toggleLeftDrawer"
-        />
-
-        <q-toolbar-title>
-          {{ currentRouteTitle }}
-        </q-toolbar-title>
-
-        <div v-if="authStore.isAuthenticated && authStore.user" class="row items-center">
-          <q-avatar icon="person" color="white" text-color="primary" size="sm" class="q-mr-sm gt-xs" />
-          <span class="q-mr-md gt-xs">
-            Chào, {{ authStore.user.email }}
-          </span>
+  <div>
+    <q-layout v-if="initialized" view="lHh Lpr lFf">
+      <q-header elevated class="bg-primary text-white">
+        <q-toolbar>
           <q-btn
             flat
             dense
             round
-            icon="logout"
-            aria-label="Đăng xuất"
-            @click="handleLogout"
-            title="Đăng xuất"
+            icon="menu"
+            aria-label="Menu"
+            @click="toggleLeftDrawer"
           />
-        </div>
-      </q-toolbar>
-    </q-header>
 
-    <q-drawer
-      v-model="leftDrawerOpen"
-      show-if-above
-      bordered
-      v-if="authStore.isAuthenticated"
-    >
-      <q-list>
-        <q-item-label
-          header
-        >
-          Truy cập nhanh
-        </q-item-label>
+          <q-toolbar-title>
+            {{ currentRouteTitle }}
+          </q-toolbar-title>
 
-        <EssentialLink
-          v-for="link in filteredLinksList"
-          :key="link.title"
-          v-bind="link"
-        />
-      </q-list>
-    </q-drawer>
+          <div v-if="authStore.isAuthenticated && authStore.user" class="row items-center">
+            <q-avatar icon="person" color="white" text-color="primary" size="sm" class="q-mr-sm gt-xs" />
+            <span class="q-mr-md gt-xs">
+              Chào, {{ authStore.user.email }}
+            </span>
+            <q-btn
+              flat
+              dense
+              round
+              icon="logout"
+              aria-label="Đăng xuất"
+              @click="handleLogout"
+              title="Đăng xuất"
+            />
+          </div>
+        </q-toolbar>
+      </q-header>
 
-    <!-- Page container will render login/register if not authenticated, or main content if authenticated -->
-    <q-page-container>
-      <router-view />
-    </q-page-container>
-  </q-layout>
+      <q-drawer
+        v-model="leftDrawerOpen"
+        show-if-above
+        bordered
+        v-if="authStore.isAuthenticated"
+      >
+        <q-list>
+          <q-item-label
+            header
+          >
+            Truy cập nhanh
+          </q-item-label>
+
+          <EssentialLink
+            v-for="link in filteredLinksList"
+            :key="link.title"
+            v-bind="link"
+          />
+        </q-list>
+      </q-drawer>
+
+      <!-- Page container will render login/register if not authenticated, or main content if authenticated -->
+      <q-page-container>
+        <router-view />
+      </q-page-container>
+    </q-layout>
+    <div v-else class="q-pa-xl flex flex-center">
+      <q-spinner-dots color="primary" size="40px" />
+      <span class="q-ml-md">Đang tải dữ liệu gia đình...</span>
+    </div>
+  </div>
 </template>
 
+
 <script setup lang="ts">
-import { ref, computed } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import { useQuasar } from 'quasar';
 import { useAuthStore } from 'src/stores/authStore';
-import { useRoute } from 'vue-router'; // Import useRoute
+import { useRoute } from 'vue-router';
 import EssentialLink, { type EssentialLinkProps } from 'components/EssentialLink.vue';
+import { useFamilyStore } from 'src/stores/familyStore';
 
 const $q = useQuasar();
-const route = useRoute(); // Get current route
+const route = useRoute();
 const authStore = useAuthStore();
+const familyStore = useFamilyStore();
+
+const initialized = ref(false);
+
+onMounted(async () => {
+  if (authStore.isAuthenticated) {
+    await familyStore.loadFamilies();
+  }
+  initialized.value = true;
+});
 
 const linksList: EssentialLinkProps[] = [
   {

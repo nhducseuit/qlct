@@ -3,10 +3,11 @@ import { SettlementsController } from './settlements.controller';
 import { SettlementsService } from './settlements.service';
 import { PrismaModule } from '../prisma/prisma.module';
 import { NotificationsModule } from '../notifications/notifications.module';
+import { FamilyModule } from '../families/family.module';
 
 @Module({
-  imports: [PrismaModule, NotificationsModule], // Add PrismaModule and NotificationsModule here
+  imports: [PrismaModule, NotificationsModule, FamilyModule], // Add FamilyModule
   controllers: [SettlementsController],
-  providers: [SettlementsService]
+  providers: [SettlementsService],
 })
 export class SettlementsModule {}

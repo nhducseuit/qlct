@@ -1,10 +1,18 @@
 // src/transactions/dto/get-transactions-query.dto.ts
-import { IsEnum, IsInt, IsOptional, Max, Min, IsUUID, IsArray, IsDateString, IsBooleanString } from 'class-validator';
+import { IsEnum, IsInt, IsOptional, Max, Min, IsUUID, IsArray, IsDateString, IsBooleanString, IsNotEmpty } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type, Transform } from 'class-transformer';
 import { PeriodType } from '../../summaries/dto/get-totals-summary.dto'; // Reusing PeriodType
 
 export class GetTransactionsQueryDto {
+  @ApiPropertyOptional({
+    description: 'The ID of the family to filter transactions for. If not provided, it will be inferred from the user\'s current family.',
+    example: 'a1b2c3d4-e5f6-7890-1234-567890abcdef',
+  })
+  @IsOptional()
+  @IsUUID()
+  familyId?: string;
+
   @ApiPropertyOptional({
     description: 'Filter by Category ID.',
     example: 'a1b2c3d4-e5f6-7890-1234-567890abcdef',

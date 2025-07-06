@@ -5,8 +5,8 @@ export class SettlementMemberDto {
   @ApiProperty()
   id!: string;
 
-  @ApiProperty()
-  name!: string;
+  @ApiProperty({ description: 'Person details' })
+  person!: { id: string; name: string };
 }
 export class SettlementDto {
   @ApiProperty()
@@ -22,18 +22,17 @@ export class SettlementDto {
   note?: string | null;
 
   @ApiProperty()
-  payerId!: string;
+  payerMembershipId!: string;
 
-  @ApiProperty({ type: SettlementMemberDto, description: 'Details of the payer' })
+  @ApiProperty({ type: SettlementMemberDto, description: 'Details of the payer membership' })
   payer!: SettlementMemberDto;
 
   @ApiProperty()
-  payeeId!: string;
+  payeeMembershipId!: string;
 
-  @ApiProperty({ type: SettlementMemberDto, description: 'Details of the payee' })
+  @ApiProperty({ type: SettlementMemberDto, description: 'Details of the payee membership' })
   payee!: SettlementMemberDto;
 
-  // userId removed: not present in new schema
   @ApiProperty()
   familyId!: string;
 

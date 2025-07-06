@@ -28,22 +28,22 @@ export class GetSettlementsQueryDto {
   limit?: number = 10;
 
   @ApiPropertyOptional({
-    description: 'Filter by payer member ID.',
+    description: 'Filter by payer household membership ID.',
     type: String,
     format: 'uuid',
   })
   @IsOptional()
   @IsUUID()
-  payerId?: string;
+  payerMembershipId?: string;
 
   @ApiPropertyOptional({
-    description: 'Filter by payee member ID.',
+    description: 'Filter by payee household membership ID.',
     type: String,
     format: 'uuid',
   })
   @IsOptional()
   @IsUUID()
-  payeeId?: string;
+  payeeMembershipId?: string;
 
   @ApiPropertyOptional({
     description: 'Filter by start date (ISO 8601 format).',

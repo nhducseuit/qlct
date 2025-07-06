@@ -12,12 +12,13 @@ const API_URL = '/predefined-split-ratios'; // Matches your PredefinedSplitRatio
 export interface CreatePredefinedSplitRatioPayload {
   name: string;
   splitRatio: SplitRatioItem[];
+  // familyId is derived from the user's token on the backend
 }
 
 export type UpdatePredefinedSplitRatioPayload = Partial<CreatePredefinedSplitRatioPayload>;
 
 export const fetchPredefinedSplitRatiosAPI = async (): Promise<PredefinedSplitRatio[]> => {
-  console.log('[PredefinedSplitRatioApiService] fetchPredefinedSplitRatiosAPI called');
+  console.log(`[PredefinedSplitRatioApiService] fetchPredefinedSplitRatiosAPI called`);
   try {
     const response = await apiClient.get<PredefinedSplitRatio[]>(API_URL);
     return response.data;
@@ -28,7 +29,7 @@ export const fetchPredefinedSplitRatiosAPI = async (): Promise<PredefinedSplitRa
 };
 
 export const addPredefinedSplitRatioAPI = async (
-  payload: CreatePredefinedSplitRatioPayload,
+  payload: CreatePredefinedSplitRatioPayload
 ): Promise<PredefinedSplitRatio> => {
   console.log('[PredefinedSplitRatioApiService] addPredefinedSplitRatioAPI called', payload);
   try {

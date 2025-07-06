@@ -1,5 +1,5 @@
 <template>
-  <q-dialog ref="dialogRef" @hide="onDialogHide" persistent>
+  <q-dialog ref="dialogRef" @hide="onDialogHide">
     <q-card class="q-dialog-plugin" style="width: 500px; max-width: 90vw">
       <q-form @submit.prevent="onSubmit">
         <q-card-section class="bg-primary text-white">
@@ -19,43 +19,24 @@
             autofocus
           />
 
-          <!-- TODO: Task 4.6: Chọn icon, màu sắc -->
-          <div>
-            <div class="text-subtitle2 q-mb-xs">Chọn Icon:</div>
-            <q-btn flat dense :label="formData.icon ? formData.icon.replace('Icon', '') : 'Chọn icon'">
-              <TablerIcon v-if="formData.icon" :name="formData.icon" class="q-ml-sm" />
-              <q-icon v-else name="sym_o_add_photo_alternate" class="q-ml-sm" />
-              <q-popup-proxy>
-                <IconPicker @icon-selected="handleIconSelected" />
-              </q-popup-proxy>
-            </q-btn>
-            <q-btn
-              v-if="formData.icon"
-              flat
-              dense
-              icon="close"
-              size="sm"
-              @click="formData.icon = ''"
-              class="q-ml-sm"
-              title="Xóa icon"
+
+
+          <!-- Family selection for new parent categories (right below name) -->
+          <div v-if="!editingCategory && !formData.parentId" class="q-mb-md">
+            <q-select
+              filled
+              v-model="formData.familyId"
+              :options="familySelectOptions"
+              option-value="id"
+              option-label="name"
+              label="Chọn gia đình cho danh mục này *"
+              :rules="[val => !!val || 'Vui lòng chọn gia đình']"
+              emit-value
+              map-options
+              @update:model-value="updateDefaultMemberSplitPercentagesFromForm"
             />
           </div>
 
-          <q-input
-            v-if="!formData.parentId"
-            filled
-            v-model="formData.color"
-            label="Mã màu (ví dụ: #FF0000)"
-            hint="Chỉ áp dụng cho danh mục cha"
-          >
-            <template v-slot:append>
-              <q-icon name="colorize" class="cursor-pointer">
-                <q-popup-proxy cover transition-show="scale" transition-hide="scale">
-                  <q-color v-model="formData.color" />
-                </q-popup-proxy>
-              </q-icon>
-            </template>
-          </q-input>
 
           <q-input
             filled
@@ -66,39 +47,45 @@
             clearable
             input-class="text-right"
           />
-          <!-- Default SplitRatio Input Section -->
+          <!-- Default SplitRatio Input Section (disabled if no family selected) -->
           <div class="q-mt-md q-pa-md bordered rounded-borders bg-grey-1">
             <div class="text-subtitle2 q-mb-sm">Tỷ lệ chia mặc định (tổng phải là 100%):</div>
-            <div v-if="activeMembers.length === 0" class="text-caption text-negative">
-              Không có thành viên nào đang hoạt động để phân chia.
+            <div v-if="!familyIdForSplitRatio" class="text-caption text-negative">
+              Vui lòng chọn gia đình trước khi phân chia.
             </div>
-            <div v-for="member in activeMembers" :key="member.id" class="row items-center q-mb-xs">
-              <div class="col-5 ellipsis">{{ member.name }}</div>
-              <div class="col-5">
-                <q-input
-                  dense
-                  filled
-                  type="number"
-                  v-model.number="defaultMemberSplitPercentages[member.id]"
-                  @update:model-value="val => updateDefaultSplitRatio(member.id, val)"
-                  suffix="%"
-                  :rules="[
-                    val => val === null || val === '' || (val >= 0 && val <= 100) || '0-100',
-                  ]"
-                  input-class="text-right"
-                />
+            <template v-else>
+              <div v-if="activeMembers.length === 0" class="text-caption text-negative">
+                Không có thành viên nào đang hoạt động để phân chia.
               </div>
-            </div>
-            <div class="row justify-end items-center q-mt-sm">
-              <q-btn flat dense size="sm" label="Chia đều" @click="distributeDefaultEqually" class="q-mr-sm" v-if="activeMembers.length > 0"/>
-              <div class="text-subtitle2" :class="{'text-negative': totalDefaultPercentage !== 100 && activeMembers.length > 0}">
-                Tổng: {{ totalDefaultPercentage }}%
+              <div v-for="member in activeMembers" :key="member.id" class="row items-center q-mb-xs">
+                <div class="col-5 ellipsis">{{ member.person?.name }}</div>
+                <div class="col-5">
+                  <q-input
+                    dense
+                    filled
+                    type="number"
+                    v-model.number="defaultMemberSplitPercentages[member.id]"
+                    @update:model-value="val => updateDefaultSplitRatio(member.id, val)"
+                    suffix="%"
+                    :rules="[
+                      val => val === null || val === '' || (val >= 0 && val <= 100) || '0-100',
+                    ]"
+                    input-class="text-right"
+                  />
+                </div>
               </div>
-            </div>
-            <div v-if="totalDefaultPercentage !== 100 && (formData.defaultSplitRatio && formData.defaultSplitRatio.length > 0) && activeMembers.length > 0" class="text-caption text-negative q-mt-xs">
-              Tổng tỷ lệ phân chia mặc định phải là 100%.
-            </div>
+              <div class="row justify-end items-center q-mt-sm">
+                <q-btn flat dense size="sm" label="Chia đều" @click="distributeDefaultEqually" class="q-mr-sm" v-if="activeMembers.length > 0"/>
+                <div class="text-subtitle2" :class="{'text-negative': totalDefaultPercentage !== 100 && activeMembers.length > 0}">
+                  Tổng: {{ totalDefaultPercentage }}%
+                </div>
+              </div>
+              <div v-if="totalDefaultPercentage !== 100 && (formData.defaultSplitRatio && formData.defaultSplitRatio.length > 0) && activeMembers.length > 0" class="text-caption text-negative q-mt-xs">
+                Tổng tỷ lệ phân chia mặc định phải là 100%.
+              </div>
+            </template>
           </div>
+
 
         </q-card-section>
 
@@ -115,9 +102,9 @@
 import { ref, onMounted, watch, computed  } from 'vue';
 import { useDialogPluginComponent, QForm } from 'quasar';
 import type { Category, SplitRatioItem } from 'src/models';
-import TablerIcon from 'src/components/Common/TablerIcon.vue';
-import IconPicker from 'src/components/Category/IconPicker.vue'; // Import IconPicker
 import { useHouseholdMemberStore } from 'src/stores/householdMemberStore'; // Import household member store
+import { useCategoryStore } from 'src/stores/categoryStore';
+import { useFamilyStore } from 'src/stores/familyStore';
 
 interface Props {
   editingCategory?: Category | null;
@@ -133,6 +120,8 @@ defineEmits([
 
 const { dialogRef, onDialogHide, onDialogOK, onDialogCancel } = useDialogPluginComponent();
 const householdMemberStore = useHouseholdMemberStore();
+const categoryStore = useCategoryStore();
+const familyStore = useFamilyStore();
 
 // const formRef = ref<QForm | null>(null);
 const formData = ref<Partial<Category>>({
@@ -147,9 +136,31 @@ const formData = ref<Partial<Category>>({
   order: 0, // Sẽ cần logic để xác định order sau
 });
 
-const activeMembers = computed(() =>
-  householdMemberStore.members.filter(member => member.isActive)
-);
+const familyIdForSplitRatio = computed<string | null>(() => {
+  // For editing, the category's own familyId is authoritative.
+  if (props.editingCategory?.familyId) {
+    return props.editingCategory.familyId;
+  }
+  // For a new root category, the familyId is selected in the form.
+  if (formData.value.familyId) {
+    return formData.value.familyId;
+  }
+  // For a new sub-category, find the parent's familyId.
+  if (props.parentId) {
+    const parentCategory = categoryStore.categories.find(c => c.id === props.parentId);
+    return parentCategory?.familyId ?? null;
+  }
+  return null;
+});
+
+const activeMembers = computed(() => {
+  const targetFamilyId = familyIdForSplitRatio.value;
+  if (!targetFamilyId) return [];
+
+  // Now, find the family group. The familyGroups are keyed by familyId.
+  const group = householdMemberStore.familyGroups.find(fg => fg.id === targetFamilyId);
+  return group ? group.members.filter(member => member.isActive) : [];
+});
 
 const defaultMemberSplitPercentages = ref<Record<string, number | null>>({});
 
@@ -204,75 +215,127 @@ const distributeDefaultEqually = () => {
   updateDefaultMemberSplitPercentagesFromForm();
 };
 
-onMounted(() => {
-  if (props.editingCategory) {
-    // Destructure to remove 'children' or any other non-Category properties
-    // that might have been added for UI purposes (e.g., by hierarchicalCategories)
-    const categoryDataForForm = { ...props.editingCategory } as Category & { children?: Category[] };
-    delete categoryDataForForm.children; // Explicitly remove the children property
-    formData.value = categoryDataForForm; // Assign the modified object
-    // Ensure defaultSplitRatio is correctly typed if coming from editingCategory
-    if (props.editingCategory.defaultSplitRatio) {
-      formData.value.defaultSplitRatio = JSON.parse(JSON.stringify(props.editingCategory.defaultSplitRatio));
+// Helper: get all ancestor family IDs (including self)
+import type { Family } from 'src/models/family';
+function getFamilyAndAncestors(families: Family[], selectedFamilyId: string): string[] {
+  const ids: string[] = [];
+  let currentId: string | undefined = selectedFamilyId;
+  const famMap: Record<string, Family> = Object.fromEntries(families.map((f: Family) => [f.id, f]));
+  while (currentId) {
+    ids.push(currentId);
+    const fam: Family | undefined = famMap[currentId];
+    if (fam && fam.parentId) {
+      currentId = fam.parentId;
     } else {
-      formData.value.defaultSplitRatio = null;
-    }
-  } else {
-    // Set default color for new parent categories if desired
-    if (!props.parentId) {
-      formData.value.color = '#424242'; // Example default color (grey-9)
+      break;
     }
   }
-  updateDefaultMemberSplitPercentagesFromForm(); // Initialize UI inputs
+  return ids;
+}
+
+// Improved: Always include all user's families (from familyGroups) and their ancestors, deduped, user's own at top
+const familySelectOptions = computed(() => {
+  // Collect all user's family IDs from familyGroups
+  const userFamilyIds = householdMemberStore.familyGroups.map(fg => fg.id).filter(Boolean);
+  // Collect all ancestors for each user's family
+  // eslint-disable-next-line prefer-const
+  let allowedFamilyIds: string[] = [];
+  userFamilyIds.forEach(fid => {
+    allowedFamilyIds.push(fid);
+    allowedFamilyIds.push(...getFamilyAndAncestors(familyStore.families, fid).filter(id => id !== fid));
+  });
+  // Remove duplicates, keep first occurrence, and put user's own families at the top
+  const seen = new Set<string>();
+  const uniqueIds = allowedFamilyIds.filter(id => {
+    if (seen.has(id)) return false;
+    seen.add(id);
+    return true;
+  });
+  // Map to family objects
+  const options = uniqueIds
+    .map(fid => {
+      const fam = familyStore.families.find(f => f.id === fid);
+      return fam ? { id: fam.id, name: fam.name || 'Gia đình không tên' } : null;
+    })
+    .filter(Boolean);
+  // If still empty, fallback: show all families (should not happen, but for robustness)
+  if (options.length === 0 && familyStore.families.length > 0) {
+    return familyStore.families.map(fam => ({ id: fam.id, name: fam.name || 'Gia đình không tên' }));
+  }
+  return options;
 });
+
+const onSubmit = () => {
+  // If creating a new sub-category, its familyId MUST be inherited from the parent.
+  if (!props.editingCategory && props.parentId) {
+    const parentCategory = categoryStore.getCategoryById(props.parentId);
+    if (parentCategory) {
+      formData.value.familyId = parentCategory.familyId;
+    } else {
+      console.error('Parent category not found, cannot assign familyId.');
+      return; // Abort
+    }
+  }
+
+  // Validate total percentage only if a split ratio is defined
+  if (
+    formData.value.defaultSplitRatio &&
+    formData.value.defaultSplitRatio.length > 0 &&
+    totalDefaultPercentage.value !== 100
+  ) {
+    console.error('Total split ratio must be 100%');
+    // Optionally notify user
+    return; // Abort submission
+  }
+
+  // Clean up the split ratio: remove members with 0, null, or undefined percentage
+  if (formData.value.defaultSplitRatio) {
+    const cleanedRatio = formData.value.defaultSplitRatio.filter(
+      sr => sr.percentage && sr.percentage > 0
+    );
+    formData.value.defaultSplitRatio = cleanedRatio.length > 0 ? cleanedRatio : null;
+  }
+
+  onDialogOK(formData.value);
+};
+
+onMounted(() => {
+  if (props.editingCategory) {
+    // Deep copy to avoid mutating the original prop object
+    formData.value = JSON.parse(JSON.stringify(props.editingCategory));
+    if (!formData.value.defaultSplitRatio) {
+      formData.value.defaultSplitRatio = [];
+    }
+    updateDefaultMemberSplitPercentagesFromForm();
+  } else {
+    formData.value.parentId = props.parentId ?? null;
+    // For a new ROOT category, set default familyId to the currently selected one.
+    if (!props.parentId && familyStore.selectedFamilyId) {
+      formData.value.familyId = familyStore.selectedFamilyId;
+    }
+    // For a new CHILD category, the familyId is determined onSubmit from its parent.
+    updateDefaultMemberSplitPercentagesFromForm();
+  }
+});
+
+// Watch for changes in active members and repopulate the percentages
+// This is crucial if the family/member data loads after the dialog is mounted
+watch(activeMembers, () => {
+  updateDefaultMemberSplitPercentagesFromForm();
+}, { deep: true });
 
 // Nếu parentId thay đổi (ví dụ: dialog được tái sử dụng), cập nhật formData.parentId
 watch(() => props.parentId, (newParentId) => {
   formData.value.parentId = newParentId ?? null;
 });
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const handleIconSelected = (iconName: string) => {
   formData.value.icon = iconName;
-};
-
-const onSubmit = () => {
-  // const isValid = await formRef.value?.validate(); // Nếu có formRef
-  // if (!isValid) return;
-
-  // Nếu không có editingCategory, đây là thêm mới, gán các giá trị mặc định còn thiếu
-  const dataToSend = { ...formData.value };
-
-  if (!props.editingCategory) {
-    dataToSend.isPinned = dataToSend.isPinned ?? false;
-    dataToSend.isHidden = dataToSend.isHidden ?? false;
-    // `order` sẽ cần được xử lý ở store hoặc khi gọi action
-  }
-
-  // Ensure empty string for color becomes null
-  if (dataToSend.color === '') {
-    dataToSend.color = null;
-  }
-
-  // Validate and process defaultSplitRatio
-  if (dataToSend.defaultSplitRatio && dataToSend.defaultSplitRatio.length > 0) {
-    if (totalDefaultPercentage.value !== 100 && activeMembers.value.length > 0) {
-      // $q.notify is not available here directly, consider emitting an error or handling in parent
-      console.error('Tổng tỷ lệ phân chia mặc định phải là 100%.');
-      // alert('Tổng tỷ lệ phân chia mặc định phải là 100%.'); // Simple alert for now
-      return; // Prevent dialog closing
-    }
-    dataToSend.defaultSplitRatio = dataToSend.defaultSplitRatio.filter(sr => sr.percentage && sr.percentage > 0);
-    if (dataToSend.defaultSplitRatio.length === 0) dataToSend.defaultSplitRatio = null;
-  } else {
-    dataToSend.defaultSplitRatio = null; // Ensure it's null if empty or not set
-  }
-  onDialogOK(dataToSend);
 };
 
 </script>
 
 <style scoped>
-.q-dialog-plugin {
-  /* Add any specific styling for the dialog card here */
-}
+
 </style>

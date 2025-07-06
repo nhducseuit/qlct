@@ -3,403 +3,221 @@ import { PrismaClient } from '@prisma/client';
 const prisma = new PrismaClient();
 
 async function main() {
-  // Families (baseline from backfill, aligned with production seed)
-  await prisma.family.upsert({
+  // Step 1: Define Family Structure
+  const bigFamily = await prisma.family.upsert({
     where: { id: 'big-family-1' },
     update: { name: 'Nhà chung' },
     create: { id: 'big-family-1', name: 'Nhà chung' },
   });
-  await prisma.family.upsert({
+
+  const ducDiepFamily = await prisma.family.upsert({
     where: { id: 'small-family-1' },
-    update: { name: '2vc', parentId: 'big-family-1' },
-    create: { id: 'small-family-1', name: '2vc', parentId: 'big-family-1' },
-  });
-
-  // Users (baseline from backfill)
-  await prisma.user.upsert({
-    where: { id: 'd848cfca-b85c-41cb-b9c7-d8321ff7346f' },
-    update: {
-      familyId: 'small-family-1',
-    },
+    update: { name: 'Nhà Đức Điệp', parentId: bigFamily.id },
     create: {
-      id: 'd848cfca-b85c-41cb-b9c7-d8321ff7346f',
-      email: 'dev-user@example.com',
-      password: 'hashedpassword', // Replace with a real hash if needed
-      familyId: 'small-family-1',
+      id: 'small-family-1',
+      name: 'Nhà Đức Điệp',
+      parentId: bigFamily.id,
     },
   });
 
-  // Persons (baseline from backfill)
-  // Small family (2vc)
-  await prisma.person.upsert({
-    where: { id: 'dbb1ac1e-246e-4288-be7e-8eaf4a966f57' },
-    update: { name: 'Dev User' },
+  const anhThuongFamily = await prisma.family.upsert({
+    where: { id: 'small-family-2' },
+    update: { name: 'Nhà Anh Thương', parentId: bigFamily.id },
     create: {
-      id: 'dbb1ac1e-246e-4288-be7e-8eaf4a966f57',
-      name: 'Dev User',
-    },
-  });
-  await prisma.person.upsert({
-    where: { id: '8b89ccb7-cc3e-40b5-9fba-3f680772c2c4' },
-    update: { name: 'Member 2' },
-    create: {
-      id: '8b89ccb7-cc3e-40b5-9fba-3f680772c2c4',
-      name: 'Member 2',
-    },
-  });
-  // Big family (4 people)
-  await prisma.person.upsert({
-    where: { id: '577ee6f9-283e-46c7-bbb3-9910bc70e2d5' },
-    update: { name: 'Person A' },
-    create: {
-      id: '577ee6f9-283e-46c7-bbb3-9910bc70e2d5',
-      name: 'Person A',
-    },
-  });
-  await prisma.person.upsert({
-    where: { id: '910b287d-d365-4daa-83d5-11c096b07068' },
-    update: { name: 'Person B' },
-    create: {
-      id: '910b287d-d365-4daa-83d5-11c096b07068',
-      name: 'Person B',
-    },
-  });
-  await prisma.person.upsert({
-    where: { id: '16e9f4a9-2cc9-4c42-b0df-445a3a48ad44' },
-    update: { name: 'Person C' },
-    create: {
-      id: '16e9f4a9-2cc9-4c42-b0df-445a3a48ad44',
-      name: 'Person C',
-    },
-  });
-  await prisma.person.upsert({
-    where: { id: '94e6e8bf-3a8a-4234-a07c-28c54c1a06e6' },
-    update: { name: 'Person D' },
-    create: {
-      id: '94e6e8bf-3a8a-4234-a07c-28c54c1a06e6',
-      name: 'Person D',
+      id: 'small-family-2',
+      name: 'Nhà Anh Thương',
+      parentId: bigFamily.id,
     },
   });
 
-  // Memberships (baseline from backfill, IDs and data preserved)
-  // Small family memberships (2vc)
-  await prisma.householdMembership.upsert({
-    where: { id: '6e90d131-e1cc-4355-9030-505ee6ca7e96' },
-    update: {
-      personId: 'dbb1ac1e-246e-4288-be7e-8eaf4a966f57',
-      familyId: 'small-family-1',
-      isActive: true,
-      order: 0,
-    },
-    create: {
-      id: '6e90d131-e1cc-4355-9030-505ee6ca7e96',
-      personId: 'dbb1ac1e-246e-4288-be7e-8eaf4a966f57',
-      familyId: 'small-family-1',
-      isActive: true,
-      order: 0,
-    },
+  // Step 2: Define Persons
+  const duc = await prisma.person.upsert({
+    where: { id: 'person-duc' },
+    update: { name: 'Duc' },
+    create: { id: 'person-duc', name: 'Duc' },
   });
-  await prisma.householdMembership.upsert({
-    where: { id: '061731f1-7857-4055-aa8d-f0f4bdc1fff1' },
-    update: {
-      personId: '8b89ccb7-cc3e-40b5-9fba-3f680772c2c4',
-      familyId: 'small-family-1',
-      isActive: true,
-      order: 1,
-    },
-    create: {
-      id: '061731f1-7857-4055-aa8d-f0f4bdc1fff1',
-      personId: '8b89ccb7-cc3e-40b5-9fba-3f680772c2c4',
-      familyId: 'small-family-1',
-      isActive: true,
-      order: 1,
-    },
+  const diep = await prisma.person.upsert({
+    where: { id: 'person-diep' },
+    update: { name: 'Diep' },
+    create: { id: 'person-diep', name: 'Diep' },
   });
-  // Big family memberships (4 people)
-  await prisma.householdMembership.upsert({
-    where: { id: 'b1a1b1c1-d1e1-41f1-81a1-111111111111' },
-    update: {
-      personId: '577ee6f9-283e-46c7-bbb3-9910bc70e2d5',
-      familyId: 'big-family-1',
-      isActive: true,
-      order: 0,
-    },
-    create: {
-      id: 'b1a1b1c1-d1e1-41f1-81a1-111111111111',
-      personId: '577ee6f9-283e-46c7-bbb3-9910bc70e2d5',
-      familyId: 'big-family-1',
-      isActive: true,
-      order: 0,
-    },
+  const anh = await prisma.person.upsert({
+    where: { id: 'person-anh' },
+    update: { name: 'Anh' },
+    create: { id: 'person-anh', name: 'Anh' },
   });
-  await prisma.householdMembership.upsert({
-    where: { id: 'b2a2b2c2-d2e2-42f2-82a2-222222222222' },
-    update: {
-      personId: '910b287d-d365-4daa-83d5-11c096b07068',
-      familyId: 'big-family-1',
-      isActive: true,
-      order: 1,
-    },
-    create: {
-      id: 'b2a2b2c2-d2e2-42f2-82a2-222222222222',
-      personId: '910b287d-d365-4daa-83d5-11c096b07068',
-      familyId: 'big-family-1',
-      isActive: true,
-      order: 1,
-    },
+  const thuong = await prisma.person.upsert({
+    where: { id: 'person-thuong' },
+    update: { name: 'Thuong' },
+    create: { id: 'person-thuong', name: 'Thuong' },
   });
-  await prisma.householdMembership.upsert({
-    where: { id: 'b3a3b3c3-d3e3-43f3-83a3-333333333333' },
-    update: {
-      personId: '16e9f4a9-2cc9-4c42-b0df-445a3a48ad44',
-      familyId: 'big-family-1',
-      isActive: true,
-      order: 2,
-    },
-    create: {
-      id: 'b3a3b3c3-d3e3-43f3-83a3-333333333333',
-      personId: '16e9f4a9-2cc9-4c42-b0df-445a3a48ad44',
-      familyId: 'big-family-1',
-      isActive: true,
-      order: 2,
-    },
+  const thao = await prisma.person.upsert({
+    where: { id: 'person-thao' },
+    update: { name: 'Thao' },
+    create: { id: 'person-thao', name: 'Thao' },
   });
-  await prisma.householdMembership.upsert({
-    where: { id: 'b4a4b4c4-d4e4-44f4-84a4-444444444444' },
-    update: {
-      personId: '94e6e8bf-3a8a-4234-a07c-28c54c1a06e6',
-      familyId: 'big-family-1',
-      isActive: true,
-      order: 3,
-    },
-    create: {
-      id: 'b4a4b4c4-d4e4-44f4-84a4-444444444444',
-      personId: '94e6e8bf-3a8a-4234-a07c-28c54c1a06e6',
-      familyId: 'big-family-1',
-      isActive: true,
-      order: 3,
-    },
-  });
-  // All other members to big-family-1 (example, add more as needed)
-  // await prisma.householdMember.upsert({ ... });
 
-  // Categories (baseline from production dump)
-  const baselineCategories = [
-    { id: '76528a8a-a82a-4ef0-87aa-256ac621b43b', name: 'Ăn uống', familyId: 'big-family-1', defaultSplitRatio: { id: '2a1b71b6-7f26-4bfa-b7b2-9fecccee9030' } },
-    { id: '5ae9865d-4041-4612-a757-8730161071c7', name: 'Đi lại', familyId: 'small-family-1', defaultSplitRatio: { id: 'b3396d63-7620-40fa-999a-5a6323069d24' } },
-    { id: '87ae0b88-d46d-42fe-965c-6813268e44d1', name: 'Mua sắm', familyId: 'small-family-1' },
-    { id: '182fe1c6-5b87-4468-93ba-159e01146b3d', name: 'Giải trí', familyId: 'small-family-1' },
-    { id: '270c1489-c0a3-457d-b778-59e222880073', name: 'Học tập', familyId: 'small-family-1', defaultSplitRatio: { id: 'b3396d63-7620-40fa-999a-5a6323069d24' } },
-    { id: '5d271e51-1c6b-4919-b76e-d7a59e719b22', name: 'Sức khỏe', familyId: 'small-family-1' },
-    { id: 'f35b2279-c7d3-4ff6-b867-b79955b5227e', name: 'Nhà cửa', familyId: 'big-family-1', defaultSplitRatio: { id: '2a1b71b6-7f26-4bfa-b7b2-9fecccee9030' } },
-    { id: '714920cc-22c9-4e14-a8cd-88d488ffeb58', name: 'Khác', familyId: 'small-family-1' },
-  ];
-  for (const cat of baselineCategories) {
-    await prisma.category.upsert({
-      where: { id: cat.id },
-      update: {
-        name: cat.name,
-        familyId: cat.familyId,
-        ...(cat.defaultSplitRatio ? { defaultSplitRatio: cat.defaultSplitRatio } : {}),
-      },
-      create: {
-        id: cat.id,
-        name: cat.name,
-        familyId: cat.familyId,
-        ...(cat.defaultSplitRatio ? { defaultSplitRatio: cat.defaultSplitRatio } : {}),
-      },
-    });
-  }
-  // All other categories to big-family-1 (add as needed)
-
-  // PredefinedSplitRatio (baseline from backfill, aligned with production seed)
-  await prisma.predefinedSplitRatio.upsert({
-    where: { id: 'b3396d63-7620-40fa-999a-5a6323069d24' },
-    update: {
-      name: 'Đức Điệp (2vc)',
-      splitRatio: [
-        { memberId: '577ee6f9-283e-46c7-bbb3-9910bc70e2d5', percentage: 50 },
-        { memberId: '910b287d-d365-4daa-83d5-11c096b07068', percentage: 50 },
-      ],
-      familyId: 'small-family-1',
-    },
-    create: {
-      id: 'b3396d63-7620-40fa-999a-5a6323069d24',
-      name: 'Đức Điệp (2vc)',
-      splitRatio: [
-        { memberId: '577ee6f9-283e-46c7-bbb3-9910bc70e2d5', percentage: 50 },
-        { memberId: '910b287d-d365-4daa-83d5-11c096b07068', percentage: 50 },
-      ],
-      familyId: 'small-family-1',
-    },
+  // Step 3: Create Household Memberships
+  // Everyone is in the big family
+  const ducBigMember = await prisma.householdMembership.upsert({
+    where: { id: 'member-duc-big' },
+    update: {},
+    create: { id: 'member-duc-big', personId: duc.id, familyId: bigFamily.id },
   });
-  await prisma.predefinedSplitRatio.upsert({
-    where: { id: '2a1b71b6-7f26-4bfa-b7b2-9fecccee9030' },
-    update: {
-      name: 'Nhà chung (4 người)',
-      splitRatio: [
-        { memberId: '16e9f4a9-2cc9-4c42-b0df-445a3a48ad44', percentage: 25 },
-        { memberId: '910b287d-d365-4daa-83d5-11c096b07068', percentage: 25 },
-        { memberId: '94e6e8bf-3a8a-4234-a07c-28c54c1a06e6', percentage: 25 },
-        { memberId: '577ee6f9-283e-46c7-bbb3-9910bc70e2d5', percentage: 25 },
-      ],
-      familyId: 'small-family-1',
-    },
-    create: {
-      id: '2a1b71b6-7f26-4bfa-b7b2-9fecccee9030',
-      name: 'Nhà chung (4 người)',
-      splitRatio: [
-        { memberId: '16e9f4a9-2cc9-4c42-b0df-445a3a48ad44', percentage: 25 },
-        { memberId: '910b287d-d365-4daa-83d5-11c096b07068', percentage: 25 },
-        { memberId: '94e6e8bf-3a8a-4234-a07c-28c54c1a06e6', percentage: 25 },
-        { memberId: '577ee6f9-283e-46c7-bbb3-9910bc70e2d5', percentage: 25 },
-      ],
-      familyId: 'small-family-1',
-    },
+  const diepBigMember = await prisma.householdMembership.upsert({
+    where: { id: 'member-diep-big' },
+    update: {},
+    create: { id: 'member-diep-big', personId: diep.id, familyId: bigFamily.id },
   });
-  // All other ratios to big-family-1 (add as needed)
+  const anhBigMember = await prisma.householdMembership.upsert({
+    where: { id: 'member-anh-big' },
+    update: {},
+    create: { id: 'member-anh-big', personId: anh.id, familyId: bigFamily.id },
+  });
+  const thuongBigMember = await prisma.householdMembership.upsert({
+    where: { id: 'member-thuong-big' },
+    update: {},
+    create: { id: 'member-thuong-big', personId: thuong.id, familyId: bigFamily.id },
+  });
+  const thaoBigMember = await prisma.householdMembership.upsert({
+    where: { id: 'member-thao-big' },
+    update: {},
+    create: { id: 'member-thao-big', personId: thao.id, familyId: bigFamily.id },
+  });
 
-  // Transactions (baseline from backfill, 10 diverse cases)
+  // Nested family memberships
+  const ducSmallMember = await prisma.householdMembership.upsert({
+    where: { id: 'member-duc-small' },
+    update: {},
+    create: { id: 'member-duc-small', personId: duc.id, familyId: ducDiepFamily.id },
+  });
+  const diepSmallMember = await prisma.householdMembership.upsert({
+    where: { id: 'member-diep-small' },
+    update: {},
+    create: { id: 'member-diep-small', personId: diep.id, familyId: ducDiepFamily.id },
+  });
+  const anhSmallMember = await prisma.householdMembership.upsert({
+    where: { id: 'member-anh-small' },
+    update: {},
+    create: { id: 'member-anh-small', personId: anh.id, familyId: anhThuongFamily.id },
+  });
+  const thuongSmallMember = await prisma.householdMembership.upsert({
+    where: { id: 'member-thuong-small' },
+    update: {},
+    create: { id: 'member-thuong-small', personId: thuong.id, familyId: anhThuongFamily.id },
+  });
+
+  // Step 4: Create Categories
+  const catAnUong = await prisma.category.upsert({
+    where: { id: 'cat-an-uong' },
+    update: {},
+    create: { id: 'cat-an-uong', name: 'Ăn uống', familyId: bigFamily.id },
+  });
+  const catNhaCua = await prisma.category.upsert({
+    where: { id: 'cat-nha-cua' },
+    update: {},
+    create: { id: 'cat-nha-cua', name: 'Nhà cửa', familyId: bigFamily.id },
+  });
+  const catDuLich = await prisma.category.upsert({
+    where: { id: 'cat-du-lich' },
+    update: {},
+    create: { id: 'cat-du-lich', name: 'Du lịch', familyId: anhThuongFamily.id },
+  });
+  const catMuaSam = await prisma.category.upsert({
+    where: { id: 'cat-mua-sam' },
+    update: {},
+    create: { id: 'cat-mua-sam', name: 'Mua sắm', familyId: ducDiepFamily.id },
+  });
+  const catCaNhan = await prisma.category.upsert({
+    where: { id: 'cat-ca-nhan' },
+    update: {},
+    create: { id: 'cat-ca-nhan', name: 'Cá nhân', familyId: bigFamily.id },
+  });
+
+
+  // Step 5: Create Transactions
   const transactions = [
-    // 5 in July 2025
+    // Case 1: Shared expense in "Nhà chung" (Duc pays for food for everyone)
     {
-      id: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
-      amount: 500000,
+      id: 'txn-1',
+      amount: 1000000,
       date: new Date('2025-07-01T12:00:00Z'),
-      note: 'Ăn uống cuối tuần',
+      note: 'Tiệc nhà chung',
       type: 'expense',
-      payer: 'dbb1ac1e-246e-4288-be7e-8eaf4a966f57',
+      payer: ducBigMember.id,
       isShared: true,
       splitRatio: [
-        { memberId: '577ee6f9-283e-46c7-bbb3-9910bc70e2d5', percentage: 50 },
-        { memberId: '910b287d-d365-4daa-83d5-11c096b07068', percentage: 50 },
+        { memberId: ducBigMember.id, percentage: 20 },
+        { memberId: diepBigMember.id, percentage: 20 },
+        { memberId: anhBigMember.id, percentage: 20 },
+        { memberId: thuongBigMember.id, percentage: 20 },
+        { memberId: thaoBigMember.id, percentage: 20 },
       ],
-      familyId: 'small-family-1',
-      categoryId: '76528a8a-a82a-4ef0-87aa-256ac621b43b',
+      familyId: bigFamily.id,
+      categoryId: catAnUong.id,
     },
+    // Case 2: Expense for a nested family (Diep pays for shopping for her family)
     {
-      id: 'b2c3d4e5-f6a7-8901-bcda-ef2345678901',
-      amount: 200000,
+      id: 'txn-2',
+      amount: 500000,
       date: new Date('2025-07-02T09:00:00Z'),
-      note: 'Mua sắm cá nhân',
+      note: 'Mua sắm cho nhà Đức Điệp',
       type: 'expense',
-      payer: 'dbb1ac1e-246e-4288-be7e-8eaf4a966f57',
-      isShared: false,
-      splitRatio: [],
-      familyId: 'small-family-1',
-      categoryId: '87ae0b88-d46d-42fe-965c-6813268e44d1',
-    },
-    {
-      id: 'c3d4e5f6-a789-0123-cdab-ef3456789012',
-      amount: 300000,
-      date: new Date('2025-07-03T18:00:00Z'),
-      note: 'Đi lại cho thành viên 2',
-      type: 'expense',
-      payer: 'dbb1ac1e-246e-4288-be7e-8eaf4a966f57',
+      payer: diepSmallMember.id,
       isShared: true,
       splitRatio: [
-        { memberId: '910b287d-d365-4daa-83d5-11c096b07068', percentage: 100 },
+        { memberId: ducSmallMember.id, percentage: 50 },
+        { memberId: diepSmallMember.id, percentage: 50 },
       ],
-      familyId: 'small-family-1',
-      categoryId: '5ae9865d-4041-4612-a757-8730161071c7',
+      familyId: ducDiepFamily.id,
+      categoryId: catMuaSam.id,
     },
+    // Case 3: Personal expense (Thao buys something for herself)
     {
-      id: 'd4e5f6a7-8901-2345-dabc-ef4567890123',
-      amount: 150000,
-      date: new Date('2025-07-04T08:30:00Z'),
-      note: 'Giải trí cá nhân',
-      type: 'expense',
-      payer: '910b287d-d365-4daa-83d5-11c096b07068',
-      isShared: false,
-      splitRatio: [],
-      familyId: 'small-family-1',
-      categoryId: '182fe1c6-5b87-4468-93ba-159e01146b3d',
-    },
-    {
-      id: 'e5f6a789-0123-4567-abcd-ef5678901234',
-      amount: 400000,
-      date: new Date('2025-07-05T14:00:00Z'),
-      note: 'Học tập (70/30)',
-      type: 'expense',
-      payer: 'dbb1ac1e-246e-4288-be7e-8eaf4a966f57',
-      isShared: true,
-      splitRatio: [
-        { memberId: '577ee6f9-283e-46c7-bbb3-9910bc70e2d5', percentage: 70 },
-        { memberId: '910b287d-d365-4daa-83d5-11c096b07068', percentage: 30 },
-      ],
-      familyId: 'small-family-1',
-      categoryId: '270c1489-c0a3-457d-b778-59e222880073',
-    },
-    // 5 in June 2025
-    {
-      id: 'f6a78901-2345-6789-bcda-ef6789012345',
-      amount: 600000,
-      date: new Date('2025-06-06T19:00:00Z'),
-      note: 'Sức khỏe chung',
-      type: 'expense',
-      payer: '910b287d-d365-4daa-83d5-11c096b07068',
-      isShared: true,
-      splitRatio: [
-        { memberId: '577ee6f9-283e-46c7-bbb3-9910bc70e2d5', percentage: 50 },
-        { memberId: '910b287d-d365-4daa-83d5-11c096b07068', percentage: 50 },
-      ],
-      familyId: 'small-family-1',
-      categoryId: '5d271e51-1c6b-4919-b76e-d7a59e719b22',
-    },
-    {
-      id: 'a7890123-4567-89ab-cdef-678901234567',
-      amount: 120000,
-      date: new Date('2025-06-07T10:00:00Z'),
-      note: 'Nhà cửa cá nhân',
-      type: 'expense',
-      payer: 'dbb1ac1e-246e-4288-be7e-8eaf4a966f57',
-      isShared: false,
-      splitRatio: [],
-      familyId: 'small-family-1',
-      categoryId: 'f35b2279-c7d3-4ff6-b867-b79955b5227e',
-    },
-    {
-      id: 'b8901234-5678-9abc-def0-789012345678',
+      id: 'txn-3',
       amount: 250000,
-      date: new Date('2025-06-08T15:00:00Z'),
-      note: 'Khác (100% Dev User)',
+      date: new Date('2025-07-03T18:00:00Z'),
+      note: 'Mua đồ cá nhân',
       type: 'expense',
-      payer: '910b287d-d365-4daa-83d5-11c096b07068',
-      isShared: true,
-      splitRatio: [
-        { memberId: 'dbb1ac1e-246e-4288-be7e-8eaf4a966f57', percentage: 100 },
-      ],
-      familyId: 'small-family-1',
-      categoryId: '714920cc-22c9-4e14-a8cd-88d488ffeb58',
-    },
-    {
-      id: 'c9012345-6789-abcd-ef01-890123456789',
-      amount: 800000,
-      date: new Date('2025-06-09T20:00:00Z'),
-      note: 'Ăn uống giữa tuần',
-      type: 'expense',
-      payer: 'dbb1ac1e-246e-4288-be7e-8eaf4a966f57',
-      isShared: true,
-      splitRatio: [
-        { memberId: '577ee6f9-283e-46c7-bbb3-9910bc70e2d5', percentage: 50 },
-        { memberId: '910b287d-d365-4daa-83d5-11c096b07068', percentage: 50 },
-      ],
-      familyId: 'small-family-1',
-      categoryId: '76528a8a-a82a-4ef0-87aa-256ac621b43b',
-    },
-    {
-      id: 'd0123456-789a-bcde-f012-90123456789a',
-      amount: 180000,
-      date: new Date('2025-06-10T11:00:00Z'),
-      note: 'Đi lại cá nhân',
-      type: 'expense',
-      payer: '910b287d-d365-4daa-83d5-11c096b07068',
+      payer: thaoBigMember.id,
       isShared: false,
       splitRatio: [],
-      familyId: 'small-family-1',
-      categoryId: '5ae9865d-4041-4612-a757-8730161071c7',
+      familyId: bigFamily.id, // Personal expenses can still be logged under a family context
+      categoryId: catCaNhan.id,
+    },
+    // Case 4: Paying for someone else (Anh pays for a trip for Thao)
+    {
+      id: 'txn-4',
+      amount: 700000,
+      date: new Date('2025-07-04T08:30:00Z'),
+      note: 'Anh trả tiền du lịch cho Thảo',
+      type: 'expense',
+      payer: anhBigMember.id,
+      isShared: true,
+      splitRatio: [
+        { memberId: thaoBigMember.id, percentage: 100 },
+      ],
+      familyId: bigFamily.id,
+      categoryId: catDuLich.id, // Note: Category is from Anh's family, but tx is in big family
+    },
+     // Case 5: Shared expense in nested family (Anh pays for travel for his family)
+    {
+      id: 'txn-5',
+      amount: 1500000,
+      date: new Date('2025-06-20T10:00:00Z'),
+      note: 'Du lịch hè nhà Anh Thương',
+      type: 'expense',
+      payer: anhSmallMember.id,
+      isShared: true,
+      splitRatio: [
+        { memberId: anhSmallMember.id, percentage: 50 },
+        { memberId: thuongSmallMember.id, percentage: 50 },
+      ],
+      familyId: anhThuongFamily.id,
+      categoryId: catDuLich.id,
     },
   ];
+
   for (const tx of transactions) {
     await prisma.transaction.upsert({
       where: { id: tx.id },
@@ -408,7 +226,10 @@ async function main() {
     });
   }
 
-  console.log('Dev seed baseline (matching backfill) complete.');
+  console.log('DEV SEED: Successfully seeded data based on user feedback.');
+  console.log('- 3 families (1 parent, 2 nested)');
+  console.log('- 5 members with correct family relations');
+  console.log('- Diverse categories and transactions');
 }
 
 main()
