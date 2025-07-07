@@ -34,3 +34,4 @@
 
 **Key Principle:**
 - Always ensure backend and frontend event logic, access rules, and state retention are consistent and robust. Document all changes and lessons to prevent regressions and knowledge loss.
+ 
