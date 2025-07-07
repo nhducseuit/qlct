@@ -1,3 +1,6 @@
+import type { Person } from './person';
+import type { HouseholdMember } from './householdMember';
+
 export interface Transaction {
   id: string; // UUID, unique
   categoryId: string; // Foreign key to Category
@@ -45,30 +48,20 @@ export interface SplitRatioItem {
 export interface Category {
   id: string;
   name: string;
-  parentId?: string | null;
-  icon?: string | null;
-  color?: string | null;
+  parentId: string | null;
+  icon: string | null;
+  color: string | null;
   isPinned: boolean;
   isHidden: boolean;
-  order: number;
-  defaultSplitRatio?: SplitRatioItem[] | null; // Ensure this matches
-  budgetLimit?: number | null; // ADDED: budget limit for the category
-  userId: string; // Assuming backend sends this
-  familyId: string; // ADDED: familyId for grouping and filtering
-  createdAt: string; // Or Date
-  updatedAt: string; // Or Date
-  // children?: Category[]; // Dynamically added for UI if needed
+  order: number | null;
+  defaultSplitRatio: SplitRatioItem[] | null;
+  familyId: string;
+  budgetLimit: number | null; // Added this line
+  createdAt: string;
+  updatedAt: string;
 }
 
-import type { Person } from 'src/services/personApiService';
-export interface HouseholdMember {
-  id: string;
-  person: Person;
-  isActive: boolean;
-  order?: number | null; // Make order optional and nullable to match backend
-  userId: string;
-  createdAt: string; // Or Date
-  updatedAt: string; // Or Date
-}
-
+export * from './auth';
 export * from './family';
+export type { Person };
+export type { HouseholdMember };

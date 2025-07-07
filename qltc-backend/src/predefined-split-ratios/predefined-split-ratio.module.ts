@@ -3,10 +3,12 @@ import { PredefinedSplitRatioService } from './predefined-split-ratio.service';
 import { PredefinedSplitRatioController } from './predefined-split-ratio.controller';
 import { NotificationsModule } from '../notifications/notifications.module';
 
+import { FamilyModule } from '../families/family.module';
+
 @Module({
-  imports: [NotificationsModule], // Import NotificationsModule to make NotificationsGateway available
+  imports: [NotificationsModule, FamilyModule],
   controllers: [PredefinedSplitRatioController],
-  providers: [PredefinedSplitRatioService], // PrismaService is available globally
-  exports: [PredefinedSplitRatioService], // Export the service if needed elsewhere
+  providers: [PredefinedSplitRatioService],
+  exports: [PredefinedSplitRatioService],
 })
 export class PredefinedSplitRatioModule {}

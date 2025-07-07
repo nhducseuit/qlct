@@ -8,6 +8,7 @@ import { useRouter } from 'vue-router';
 import { LocalStorage } from 'quasar';
 import apiClient from 'src/services/api'; // Corrected to default import
 import { AxiosError } from 'axios';
+import { useHouseholdMemberStore } from './householdMemberStore';
 
 export const useAuthStore = defineStore('auth', () => {
   const token = ref<string | null>(LocalStorage.getItem('token') || null); // Removed redundant assertion
@@ -35,6 +36,21 @@ export const useAuthStore = defineStore('auth', () => {
 
   const $q = useQuasar();
   const router = useRouter();
+
+  const userWithMembershipsAndPerson = computed(() => {
+    if (!user.value) return null;
+    const memberStore = useHouseholdMemberStore();
+    const memberships = memberStore.allMembersWithFamily.filter(
+      (m) => m.person?.userId === user.value?.id
+    );
+    const person = memberships.length > 0 && memberships[0] ? memberships[0].person : null;
+
+    return {
+      ...user.value,
+      memberships,
+      person,
+    };
+  });
 
   // Helper function to set token and user in both store and localStorage
   const setAuthData = (authResponse: AuthResponseDto) => {
@@ -124,6 +140,8 @@ export const useAuthStore = defineStore('auth', () => {
     register,
     login,
     logout,
-    clearAuthData, // Expose clearAuthData
+    setAuthData,
+    clearAuthData,
+    userWithMembershipsAndPerson,
   };
 });

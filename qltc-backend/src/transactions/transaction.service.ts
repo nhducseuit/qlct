@@ -128,11 +128,33 @@ export class TransactionService {
       },
     });
 
-    this.notificationsGateway.sendToUser(familyId, 'transactions_updated', {
-      message: `Giao dịch mới "${newTransaction.note || newTransaction.id}" đã được tạo.`,
-      operation: 'create',
-      item: newTransaction,
+    // Emit to all userId rooms for this family
+    const memberships = await this.prisma.householdMembership.findMany({
+      where: { familyId, isActive: true },
+      include: { person: true },
     });
+    // Map person.email to userId using email matching
+    const emails = memberships.map(m => m.person.email).filter((e): e is string => !!e);
+    const users = await this.prisma.user.findMany({
+      where: {
+        email: { in: emails },
+      },
+      select: { id: true, email: true },
+    });
+    const emailToUserId = Object.fromEntries(users.map(u => [u.email, u.id]));
+    console.log('[TransactionService][create] Emitting transactions_updated to userIds:', emails.map(email => emailToUserId[email]));
+    for (const m of memberships) {
+      const email = m.person.email;
+      if (email && emailToUserId[email]) {
+        const userId = emailToUserId[email];
+        console.log(`[TransactionService][create] Emitting to userId: ${userId}`);
+        this.notificationsGateway.sendToUser(userId, 'transactions_updated', {
+          message: `Giao dịch mới "${newTransaction.note || newTransaction.id}" đã được tạo.`,
+          operation: 'create',
+          item: newTransaction,
+        });
+      }
+    }
     return newTransaction;
   }
 
@@ -282,11 +304,33 @@ export class TransactionService {
       data: dataToUpdate,
     });
 
-    this.notificationsGateway.sendToUser(familyId, 'transactions_updated', {
-      message: `Giao dịch "${updatedTransaction.note || updatedTransaction.id}" đã được cập nhật.`,
-      operation: 'update',
-      item: updatedTransaction,
+    // Emit to all userId rooms for this family
+    const memberships = await this.prisma.householdMembership.findMany({
+      where: { familyId, isActive: true },
+      include: { person: true },
     });
+    // Map person.email to userId using email matching
+    const emails = memberships.map(m => m.person.email).filter((e): e is string => !!e);
+    const users = await this.prisma.user.findMany({
+      where: {
+        email: { in: emails },
+      },
+      select: { id: true, email: true },
+    });
+    const emailToUserId = Object.fromEntries(users.map(u => [u.email, u.id]));
+    console.log('[TransactionService][update] Emitting transactions_updated to userIds:', emails.map(email => emailToUserId[email]));
+    for (const m of memberships) {
+      const email = m.person.email;
+      if (email && emailToUserId[email]) {
+        const userId = emailToUserId[email];
+        console.log(`[TransactionService][update] Emitting to userId: ${userId}`);
+        this.notificationsGateway.sendToUser(userId, 'transactions_updated', {
+          message: `Giao dịch "${updatedTransaction.note || updatedTransaction.id}" đã được cập nhật.`,
+          operation: 'update',
+          item: updatedTransaction,
+        });
+      }
+    }
 
     return updatedTransaction;
   }
@@ -301,11 +345,33 @@ export class TransactionService {
       where: { id },
     });
 
-    this.notificationsGateway.sendToUser(familyId, 'transactions_updated', {
-      message: `Giao dịch "${transaction.note || transaction.id}" đã được xóa.`,
-      operation: 'delete',
-      itemId: id,
+    // Emit to all userId rooms for this family
+    const memberships = await this.prisma.householdMembership.findMany({
+      where: { familyId, isActive: true },
+      include: { person: true },
     });
+    // Map person.email to userId using email matching
+    const emails = memberships.map(m => m.person.email).filter((e): e is string => !!e);
+    const users = await this.prisma.user.findMany({
+      where: {
+        email: { in: emails },
+      },
+      select: { id: true, email: true },
+    });
+    const emailToUserId = Object.fromEntries(users.map(u => [u.email, u.id]));
+    console.log('[TransactionService][remove] Emitting transactions_updated to userIds:', emails.map(email => emailToUserId[email]));
+    for (const m of memberships) {
+      const email = m.person.email;
+      if (email && emailToUserId[email]) {
+        const userId = emailToUserId[email];
+        console.log(`[TransactionService][remove] Emitting to userId: ${userId}`);
+        this.notificationsGateway.sendToUser(userId, 'transactions_updated', {
+          message: `Giao dịch "${transaction.note || transaction.id}" đã được xóa.`,
+          operation: 'delete',
+          itemId: id,
+        });
+      }
+    }
     return { message: `Transaction with ID "${id}" deleted successfully` };
   }
 }

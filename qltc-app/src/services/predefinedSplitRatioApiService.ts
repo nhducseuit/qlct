@@ -18,7 +18,7 @@ export interface CreatePredefinedSplitRatioPayload {
 export type UpdatePredefinedSplitRatioPayload = Partial<CreatePredefinedSplitRatioPayload>;
 
 export const fetchPredefinedSplitRatiosAPI = async (): Promise<PredefinedSplitRatio[]> => {
-  console.log(`[PredefinedSplitRatioApiService] fetchPredefinedSplitRatiosAPI called`);
+  // No familyId param, backend returns all accessible ratios (user's family and parent)
   try {
     const response = await apiClient.get<PredefinedSplitRatio[]>(API_URL);
     return response.data;

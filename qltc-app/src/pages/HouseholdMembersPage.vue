@@ -34,10 +34,10 @@
             <!-- Editable name and info left-aligned -->
             <div class="row items-center">
               <q-input
-                v-model="member.person.name"
+                :model-value="member.person ? member.person.name : ''"
+                @update:model-value="val => member.person && householdMemberStore.updateMember(member.id, { name: typeof val === 'string' ? val : '' })"
                 dense
                 borderless
-                @blur="householdMemberStore.updateMember(member.id, { name: member.person.name })"
                 :readonly="loading"
                 style="max-width: 200px; min-width: 120px;"
                 class="q-mr-md"

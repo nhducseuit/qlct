@@ -30,6 +30,11 @@ export const useTransactionStore = defineStore('transactions', () => {
   let storeSocket: Socket | null = null; // Renamed to avoid confusion with global socket
   const familyStore = useFamilyStore();
 
+  // State for retaining last selections
+  const lastSelectedFamilyId = ref<string | null>(null);
+  const lastSelectedPayer = ref<string | null>(null);
+  const lastSelectedDate = ref<string | null>(null);
+
   const addTransaction = async (transactionData: NewTransactionData) => {
     if (!authStore.isAuthenticated) {
       $q.notify({ type: 'negative', message: 'Lỗi người dùng, không thể thêm giao dịch.' });
@@ -374,14 +379,17 @@ export const useTransactionStore = defineStore('transactions', () => {
 
   return {
     transactions,
-    loadTransactions,
+    categoryPeriodTransactions,
+    categoryPeriodTransactionsLoading,
     addTransaction,
     updateTransaction,
     deleteTransaction,
     getTransactionsByDateRange,
     getTransactionsByCategory,
-    categoryPeriodTransactions,
-    categoryPeriodTransactionsLoading,
+    lastSelectedFamilyId,
+    lastSelectedPayer,
+    lastSelectedDate,
+    loadTransactions,
     loadTransactionsForCategoryPeriod,
   };
 });

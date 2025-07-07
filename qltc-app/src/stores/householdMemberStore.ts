@@ -55,7 +55,13 @@ export const useHouseholdMemberStore = defineStore('householdMembers', () => {
     try {
       console.log('[HouseholdMemberStore] Loading household members from API for family:', familyId);
       const fetchedMembers = await fetchHouseholdMembersAPI();
-      members.value = fetchedMembers.sort((a, b) => (a.order ?? Infinity) - (b.order ?? Infinity) || a.person?.name?.localeCompare(b.person?.name || ''));
+      members.value = fetchedMembers.sort((a, b) => {
+        const orderDiff = (a.order ?? Infinity) - (b.order ?? Infinity);
+        if (orderDiff !== 0) return orderDiff;
+        const aName = a.person?.name ?? '';
+        const bName = b.person?.name ?? '';
+        return aName.localeCompare(bName);
+      });
       console.log('[HouseholdMemberStore] Household members loaded:', members.value.length);
     } catch (error) {
       console.error('Failed to load household members:', error);
@@ -213,7 +219,13 @@ export const useHouseholdMemberStore = defineStore('householdMembers', () => {
     // Filter active members and sort by current order to find siblings
     const siblings = members.value
       .filter(m => m.isActive) // Only reorder active members among themselves
-      .sort((a, b) => (a.order ?? Infinity) - (b.order ?? Infinity) || a.person?.name?.localeCompare(b.person?.name || ''));
+      .sort((a, b) => {
+        const orderDiff = (a.order ?? Infinity) - (b.order ?? Infinity);
+        if (orderDiff !== 0) return orderDiff;
+        const aName = a.person?.name ?? '';
+        const bName = b.person?.name ?? '';
+        return aName.localeCompare(bName);
+      });
 
     const currentIndexInSiblings = siblings.findIndex(s => s.id === memberId);
 
@@ -286,7 +298,13 @@ export const useHouseholdMemberStore = defineStore('householdMembers', () => {
         console.warn('[HouseholdMemberStore] Unknown operation from WebSocket:', data.operation);
     }
     if (changed) {
-      members.value.sort((a, b) => (a.order ?? Infinity) - (b.order ?? Infinity) || a.person?.name?.localeCompare(b.person?.name || ''));
+      members.value.sort((a, b) => {
+        const orderDiff = (a.order ?? Infinity) - (b.order ?? Infinity);
+        if (orderDiff !== 0) return orderDiff;
+        const aName = a.person?.name ?? '';
+        const bName = b.person?.name ?? '';
+        return aName.localeCompare(bName);
+      });
       console.log('[HouseholdMemberStore] Member list updated and sorted. New length:', members.value.length);
     } else {
       console.log('[HouseholdMemberStore] No change made to local members list by this event.');

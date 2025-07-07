@@ -58,26 +58,9 @@ export const useCategoryStore = defineStore('categories', () => {
     }
     isLoading.value = true;
     try {
-      console.log('[CategoryStore] Determining families to load categories for...');
-      const familyIdsToFetch = new Set<string>([currentFamilyId]);
-
-      // Find the current family to check for a parent
-      const currentFamily = familyStore.families.find(f => f.id === currentFamilyId);
-      if (currentFamily?.parentId) {
-        familyIdsToFetch.add(currentFamily.parentId);
-      }
-
-      console.log('[CategoryStore] Loading categories from API for families:', [...familyIdsToFetch]);
-
-      const fetchPromises = [...familyIdsToFetch].map(id => fetchCategoriesAPI(id));
-      const results = await Promise.all(fetchPromises);
-      const allCategories = results.flat();
-
-      // Remove duplicates, just in case
-      const uniqueCategories = Array.from(new Map(allCategories.map(cat => [cat.id, cat])).values());
-
-      categories.value = uniqueCategories.sort((a, b) => a.order - b.order);
-      console.log('[CategoryStore] Successfully loaded and merged categories for', familyIdsToFetch.size, 'families.');
+      // Only one API call, backend returns all accessible categories (user's family and parent)
+      const allCategories = await fetchCategoriesAPI();
+      categories.value = allCategories.sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
     } catch (error) {
       console.error('Failed to load categories:', error);
       $q.notify({
@@ -235,7 +218,7 @@ export const useCategoryStore = defineStore('categories', () => {
         if (existingIndex === -1) {
           // Add the new category and then sort the entire array to maintain order.
           categories.value.push(newCategory);
-          categories.value.sort((a, b) => a.order - b.order);
+          categories.value.sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
         }
         break;
       }
@@ -250,7 +233,7 @@ export const useCategoryStore = defineStore('categories', () => {
           // If an update event comes for a category not in the list, it's likely a new
           // category from the parent family. Add it and sort.
           categories.value.push(updatedCategory);
-          categories.value.sort((a, b) => a.order - b.order);
+          categories.value.sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
         }
         break;
       }
@@ -321,7 +304,7 @@ export const useCategoryStore = defineStore('categories', () => {
             children: buildHierarchy(children, allCategories, depth + 1),
           };
         })
-        .sort((a, b) => a.order - b.order); // Sort children by order
+        .sort((a, b) => (a.order ?? 0) - (b.order ?? 0)); // Sort children by order
     };
 
     // Recursive function to flatten the hierarchy into the desired list format
@@ -360,7 +343,7 @@ export const useCategoryStore = defineStore('categories', () => {
     ): HierarchicalCategory[] => {
       return allCategories
         .filter((c) => c.parentId === parentId)
-        .sort((a, b) => a.order - b.order)
+        .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
         .map((c) => ({
           ...c,
           children: buildHierarchy(c.id, allCategories),
@@ -385,7 +368,7 @@ export const useCategoryStore = defineStore('categories', () => {
       ): HierarchicalCategory[] => {
         return familyCategories
           .filter((c) => c.parentId === parentId)
-          .sort((a, b) => a.order - b.order)
+          .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
           .map((c) => ({
             ...c,
             children: buildHierarchy(c.id),
@@ -420,7 +403,7 @@ export const useCategoryStore = defineStore('categories', () => {
   });
 
   const pinnedCategories = computed(() => {
-    return categories.value.filter((c) => c.isPinned).sort((a, b) => a.order - b.order);
+    return categories.value.filter((c) => c.isPinned).sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
   });
 
   const togglePinCategory = async (category: Category) => {
@@ -439,7 +422,7 @@ export const useCategoryStore = defineStore('categories', () => {
         cat.order = newIndex;
       }
     });
-    categories.value.sort((a, b) => a.order - b.order);
+    categories.value.sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
 
     try {
       const operations = orderedIds.map((id, index) => ({

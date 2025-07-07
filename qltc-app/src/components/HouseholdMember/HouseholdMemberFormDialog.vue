@@ -107,8 +107,8 @@ onMounted(() => {
   if (props.editingMember) {
     formData.value = {
       ...(props.editingMember.person?.name !== undefined ? { name: props.editingMember.person.name } : {}),
-      ...(props.editingMember.person?.email !== undefined ? { email: props.editingMember.person.email } : {}),
-      ...(props.editingMember.person?.phone !== undefined ? { phone: props.editingMember.person.phone } : {}),
+      ...(typeof props.editingMember.person?.email === 'string' ? { email: props.editingMember.person.email } : {}),
+      ...(typeof props.editingMember.person?.phone === 'string' ? { phone: props.editingMember.person.phone } : {}),
       isActive: props.editingMember.isActive,
       ...(typeof props.editingMember.order === 'number' ? { order: props.editingMember.order } : {}),
     };

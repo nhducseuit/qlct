@@ -230,7 +230,7 @@ const categoryFilterOptions = computed(() =>
     .map(cat => ({
       label: cat.name,
       value: cat.id,
-    })).sort((a,b) => a.label.localeCompare(b.label))
+    })).sort((a,b) => (a.label ?? '').localeCompare(b.label ?? ''))
 );
 
 const selectedCategoriesDisplayValue = computed(() => {
@@ -251,9 +251,9 @@ const memberFilterOptions = computed(() =>
   householdMemberStore.members
     .filter(m => m.isActive)
     .map(member => ({
-      label: member.person?.name,
+      label: member.person?.name ?? '',
       value: member.id,
-    })).sort((a,b) => a.label.localeCompare(b.label))
+    })).sort((a,b) => (a.label ?? '').localeCompare(b.label ?? ''))
 );
 
 const selectedMembersDisplayValue = computed(() => {

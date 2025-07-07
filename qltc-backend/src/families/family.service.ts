@@ -51,7 +51,7 @@ export class FamilyService {
     return [...parentIds, ...nestedAncestors];
   }
 
-  // Fetch all families for a user (via memberships) and all their descendants/ancestors
+  // Fetch only the user's direct families and their parent(s)
   async findAllForUser(personId: string) {
     // 1. Find all families the person is directly a member of.
     const memberFamilies = await this.prisma.family.findMany({
@@ -68,25 +68,29 @@ export class FamilyService {
       return [];
     }
 
-    const memberFamilyIds = memberFamilies.map(f => f.id);
+    // 2. For each direct family, get its parent (if any)
+    const parentIds = memberFamilies
+      .map(f => f.parentId)
+      .filter((id): id is string => !!id);
 
-    // 2. Find all descendants and ancestors of those families.
-    const descendantIds = await this.getAllDescendantIds(memberFamilyIds);
-    const ancestorIds = await this.getAllAncestorIds(memberFamilyIds);
+    // 3. Fetch parent families
+    let parentFamilies: any[] = [];
+    if (parentIds.length > 0) {
+      parentFamilies = await this.prisma.family.findMany({
+        where: { id: { in: parentIds } },
+      });
+    }
 
-    // 3. Combine and get unique IDs.
-    const allFamilyIds = [...new Set([...memberFamilyIds, ...descendantIds, ...ancestorIds])];
+    // 4. Combine direct families and their parents, dedupe by id
+    const allFamilies = [...memberFamilies, ...parentFamilies];
+    const uniqueFamilies = allFamilies.filter((f, idx, arr) => arr.findIndex(ff => ff.id === f.id) === idx);
 
-    // 4. Fetch all family data for the final list of IDs.
+    // 5. Optionally include memberships if needed by the client
+    // If you want to always include memberships:
+    const familyIds = uniqueFamilies.map(f => f.id);
     return this.prisma.family.findMany({
-      where: {
-        id: {
-          in: allFamilyIds,
-        },
-      },
-      include: {
-        memberships: true, // Include memberships if needed by the client
-      },
+      where: { id: { in: familyIds } },
+      include: { memberships: true },
     });
   }
 

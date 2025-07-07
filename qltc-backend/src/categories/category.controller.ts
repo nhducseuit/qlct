@@ -33,24 +33,25 @@ export class CategoryController {
   @ApiResponse({ status: 400, description: 'Bad Request.' })
   @ApiResponse({ status: 401, description: 'Unauthorized.' })
   create(@Body() createCategoryDto: CreateCategoryDto, @Req() req: AuthenticatedRequest) {
-    const { id: userId } = req.user;
-    // The familyId from the DTO is now the source of truth.
-    // The FamilyGuard should ensure that the user has access to this family.
-    return this.categoryService.create(createCategoryDto, createCategoryDto.familyId, userId);
+    // Debug: print req.user
+    // eslint-disable-next-line no-console
+    console.log('[DEBUG] req.user in CategoryController.create', req.user);
+    const { id: userId, familyId } = req.user;
+    // Always use the authenticated user's familyId, never the DTO's familyId
+    return this.categoryService.create(createCategoryDto, familyId, userId);
   }
 
   @Get()
-  @ApiOperation({ summary: 'Get all categories for the family' })
-  @ApiResponse({ status: 200, description: 'List of categories for the family.', type: [CreateCategoryDto] })
+  @ApiOperation({ summary: 'Get all categories accessible to the current user (family and parent)' })
+  @ApiResponse({ status: 200, description: 'List of categories for the user family and parent.', type: [CreateCategoryDto] })
   @ApiResponse({ status: 401, description: 'Unauthorized.' })
   findAll(@Req() req: AuthenticatedRequest) {
-    // The FamilyGuard ensures that the user has access to the familyId in the query
-    // The familyId from the query is the source of truth.
-    const { familyId } = req.query;
-    if (typeof familyId !== 'string') {
-      throw new BadRequestException('familyId query parameter is required and must be a string.');
-    }
-    return this.categoryService.findAll(familyId);
+    // Debug: print req.user
+    // eslint-disable-next-line no-console
+    console.log('[DEBUG] req.user in CategoryController.findAll', req.user);
+    // Use the user's familyId from the session/auth
+    const { familyId } = req.user;
+    return this.categoryService.findAllLimitedToFamilyAndParent(familyId);
   }
 
   @Get(':id')
@@ -61,6 +62,9 @@ export class CategoryController {
   @ApiResponse({ status: 403, description: 'Forbidden.' })
   @ApiResponse({ status: 404, description: 'Category not found.' })
   findOne(@Param('id') id: string, @Req() req: AuthenticatedRequest) {
+    // Debug: print req.user
+    // eslint-disable-next-line no-console
+    console.log('[DEBUG] req.user in CategoryController.findOne', req.user);
     const { familyId } = req.user;
     return this.categoryService.findOne(id, familyId);
   }
@@ -78,6 +82,9 @@ export class CategoryController {
     @Body() updateCategoryDto: UpdateCategoryDto,
     @Req() req: AuthenticatedRequest,
   ) {
+    // Debug: print req.user
+    // eslint-disable-next-line no-console
+    console.log('[DEBUG] req.user in CategoryController.update', req.user);
     const { familyId, id: userId } = req.user;
     return this.categoryService.update(id, updateCategoryDto, familyId, userId);
   }
@@ -90,6 +97,9 @@ export class CategoryController {
   @ApiResponse({ status: 403, description: 'Forbidden.' })
   @ApiResponse({ status: 404, description: 'Category not found.' })
   remove(@Param('id') id: string, @Req() req: AuthenticatedRequest) {
+    // Debug: print req.user
+    // eslint-disable-next-line no-console
+    console.log('[DEBUG] req.user in CategoryController.remove', req.user);
     const { familyId, id: userId } = req.user;
     return this.categoryService.remove(id, familyId, userId);
   }
@@ -99,6 +109,9 @@ export class CategoryController {
   @ApiOperation({ summary: 'Reorder categories' })
   @ApiResponse({ status: 200, description: 'Categories reordered successfully.' })
   reorder(@Req() req: AuthenticatedRequest, @Body() reorderDto: ReorderCategoriesDto) {
+    // Debug: print req.user
+    // eslint-disable-next-line no-console
+    console.log('[DEBUG] req.user in CategoryController.reorder', req.user);
     const { familyId, id: userId } = req.user;
     return this.categoryService.reorder(familyId, userId, reorderDto);
   }

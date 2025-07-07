@@ -63,7 +63,9 @@ export class HouseholdMemberService {
     if (!member) {
       throw new NotFoundException(`Household member with ID "${id}" not found.`);
     }
-    if (member.familyId !== familyId) {
+    // Allow access if the member's familyId is in the user's family tree (self or ancestor)
+    const allowedFamilyIds = await this.familyService.getFamilyTreeIds(familyId);
+    if (!allowedFamilyIds.includes(member.familyId)) {
       throw new ForbiddenException('You do not have permission to view this household member.');
     }
 

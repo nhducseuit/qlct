@@ -32,14 +32,16 @@ export class AuthService {
 
     const person = await this.prisma.person.findUnique({
       where: { email: user.email },
-      include: { memberships: true }, // Corrected relation name
+      include: { memberships: true },
     });
 
     if (!person || person.memberships.length === 0) {
       throw new UnauthorizedException('User is not associated with any family.');
     }
 
-    const familyId = person.memberships[0].familyId;
+    // Only use a valid familyId from memberships, never the user/person id
+    const validMembership = person.memberships.find(m => m.familyId && m.familyId !== person.id);
+    const familyId = validMembership ? validMembership.familyId : person.memberships[0].familyId;
 
     const payload: UserPayload = {
       id: user.id,

@@ -50,7 +50,6 @@ export const usePredefinedSplitRatioStore = defineStore('predefinedSplitRatios',
       predefinedRatios.value = [];
       return;
     }
-    // familyId is not passed to the API, but this check ensures we don't load if no family is selected
     const familyId = familyStore.selectedFamilyId;
     if (!familyId) {
       console.warn('[PredefinedSplitRatioStore] No family selected, skipping ratio load.');
@@ -58,10 +57,10 @@ export const usePredefinedSplitRatioStore = defineStore('predefinedSplitRatios',
       return;
     }
     try {
-      console.log('[PredefinedSplitRatioStore] Loading predefined split ratios from API for the current family.');
-      const fetchedRatios = await fetchPredefinedSplitRatiosAPI();
-      predefinedRatios.value = fetchedRatios;
-      console.log('[PredefinedSplitRatioStore] Predefined split ratios loaded:', predefinedRatios.value.length);
+      // Fetch for both selected family and its parent (if any)
+      // Only one API call, backend returns all accessible ratios (user's family and parent)
+      const allRatios = await fetchPredefinedSplitRatiosAPI();
+      predefinedRatios.value = allRatios;
     } catch (error) {
       console.error('Failed to load predefined split ratios:', error);
       $q.notify({

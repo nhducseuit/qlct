@@ -1,15 +1,17 @@
-import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException, Inject, forwardRef } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreatePredefinedSplitRatioDto } from './dto/create-predefined-split-ratio.dto';
 import { UpdatePredefinedSplitRatioDto } from './dto/update-predefined-split-ratio.dto';
 import { PredefinedSplitRatio, Prisma } from '@prisma/client';
 import { NotificationsGateway } from '../notifications/notifications.gateway';
+import { FamilyService } from '../families/family.service';
 
 @Injectable()
 export class PredefinedSplitRatioService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly notificationsGateway: NotificationsGateway,
+    @Inject(forwardRef(() => FamilyService)) private readonly familyService: FamilyService,
   ) {}
 
   async create(
@@ -34,8 +36,12 @@ export class PredefinedSplitRatioService {
   }
 
   async findAll(familyId: string): Promise<PredefinedSplitRatio[]> {
+    // Get both the user's family and its parent
+    const familyIds = await this.familyService.getFamilyTreeIds(familyId);
+    // Only include the user's family and its parent (not all ancestors)
+    const limitedFamilyIds = familyIds.slice(0, 2);
     return this.prisma.predefinedSplitRatio.findMany({
-      where: { familyId: familyId },
+      where: { familyId: { in: limitedFamilyIds } },
       orderBy: { name: 'asc' },
     });
   }

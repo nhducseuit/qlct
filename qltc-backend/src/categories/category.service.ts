@@ -44,11 +44,13 @@ export class CategoryService {
     return newCategory;
   }
 
-  async findAll(familyId: string): Promise<Category[]> {
-    const familyIds = await this.familyService.getFamilyTreeIds(familyId);
 
+  async findAllLimitedToFamilyAndParent(familyId: string): Promise<Category[]> {
+    // Only return categories for the user's family and its parent
+    const familyIds = await this.familyService.getFamilyTreeIds(familyId);
+    const limitedFamilyIds = familyIds.slice(0, 2);
     return this.prisma.category.findMany({
-      where: { familyId: { in: familyIds } },
+      where: { familyId: { in: limitedFamilyIds } },
       orderBy: { order: 'asc' },
     });
   }
@@ -58,11 +60,28 @@ export class CategoryService {
       where: { id },
     });
 
+    // Debug log for category and familyId check
+    // eslint-disable-next-line no-console
+    console.log('[DEBUG] findOne category', {
+      id,
+      familyId,
+      categoryFound: !!category,
+      categoryFamilyId: category?.familyId,
+    });
+
     if (!category) {
       throw new NotFoundException(`Category with ID "${id}" not found.`);
     }
 
-    if (category.familyId !== familyId) {
+    // Allow access if the category's familyId is in the user's family tree (self or ancestor)
+    const allowedFamilyIds = await this.familyService.getFamilyTreeIds(familyId);
+    if (!allowedFamilyIds.includes(category.familyId)) {
+      // eslint-disable-next-line no-console
+      console.log('[DEBUG] Forbidden: category.familyId not in allowedFamilyIds', {
+        categoryFamilyId: category.familyId,
+        allowedFamilyIds,
+        requestFamilyId: familyId,
+      });
       throw new ForbiddenException('You do not have permission to view this category.');
     }
 

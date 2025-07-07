@@ -27,9 +27,9 @@ export interface Category extends CreateCategoryPayload {
 export type UpdateCategoryPayload = Partial<CreateCategoryPayload>;
 
 
-export const fetchCategoriesAPI = async (familyId: string): Promise<CategoryModel[]> => {
-  console.log('[CategoryApiService] fetchCategoriesAPI called for familyId:', familyId);
-  const response = await apiClient.get<CategoryModel[]>('/categories', { params: { familyId } });
+export const fetchCategoriesAPI = async (): Promise<CategoryModel[]> => {
+  // No familyId param, backend returns all accessible categories (user's family and parent)
+  const response = await apiClient.get<CategoryModel[]>('/categories');
   return response.data;
 };
 

@@ -56,15 +56,17 @@ export class CreateTransactionDto {
     example: 'a1b2c3d4-e5f6-7890-1234-567890abcdef',
   })
   @IsNotEmpty()
-  @IsUUID()
+  // @IsUUID() // DISABLED: categoryId may not be a UUID in all environments
+  @IsString()
   categoryId!: string;
 
   @ApiPropertyOptional({
     description:
-      'The ID of the household member who paid for this transaction. Required for non-shared expenses.',
-    example: 'b1c2d3e4-f5g6-7890-1234-567890abcdef',
+      'The ID of the household member (membershipId, string) who paid for this transaction. Required for non-shared expenses.',
+    example: 'membership-duc-my-family',
   })
-  @IsUUID()
+  // @IsUUID() // DISABLED: membershipId is not a UUID, it's a string
+  @IsString()
   @IsOptional()
   payer?: string | null;
 

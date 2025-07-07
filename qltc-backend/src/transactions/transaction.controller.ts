@@ -39,7 +39,8 @@ export class TransactionController {
     @Req() req: AuthenticatedRequest,
   ): Promise<TransactionModel> {
     // The FamilyGuard has already validated that the user is part of this family.
-    return this.transactionService.create(createTransactionDto, req.user.id);
+    // FIX: Use familyId from req.user, not user id
+    return this.transactionService.create(createTransactionDto, req.user.familyId);
   }
 
   @Get()
@@ -63,7 +64,8 @@ export class TransactionController {
   @ApiResponse({ status: 401, description: 'Unauthorized.' })
   @ApiResponse({ status: 403, description: 'Forbidden.' })
   @ApiResponse({ status: 404, description: 'Transaction not found.' })
-  findOne(@Param('id', ParseUUIDPipe) id: string, @Body() body: { familyId: string }): Promise<TransactionModel | null> {
+  findOne(@Param('id', ParseUUIDPipe) id: string, @Body() body: { familyId: string }, @Req() req: AuthenticatedRequest): Promise<TransactionModel | null> {
+    // TODO: Refactor to use req.user.familyId, not body.familyId (see Sprint 5 backlog)
     // The FamilyGuard has already validated the familyId in the body.
     return this.transactionService.findOne(id, body.familyId);
   }
@@ -81,6 +83,7 @@ export class TransactionController {
     @Body() updateTransactionDto: UpdateTransactionDto,
     @Req() req: AuthenticatedRequest,
   ): Promise<TransactionModel | null> {
+    // TODO: Refactor to use req.user.familyId, not user id (see Sprint 5 backlog)
     // The FamilyGuard has already validated the familyId in the body.
     return this.transactionService.update(id, updateTransactionDto, req.user.id);
   }
@@ -93,6 +96,7 @@ export class TransactionController {
   @ApiResponse({ status: 403, description: 'Forbidden.' })
   @ApiResponse({ status: 404, description: 'Transaction not found.' })
   remove(@Param('id', ParseUUIDPipe) id: string, @Body() body: { familyId: string }): Promise<{ message: string }> {
+    // TODO: Refactor to use req.user.familyId, not body.familyId (see Sprint 5 backlog)
     // The FamilyGuard has already validated the familyId in the body.
     return this.transactionService.remove(id, body.familyId);
   }

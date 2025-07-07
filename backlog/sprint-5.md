@@ -35,6 +35,49 @@
 
 **Note:**
 This refactor will greatly improve data integrity, security, and scalability, and will make person-level reporting and permissions robust and future-proof.
+# Sprint 5: Multi-Family, Real-Time, and State Retention Fixes (2025-07-08)
+
+## Major Functional Changes & Fixes
+
+### 1. Real-Time Updates & WebSocket Event Routing
+- Diagnosed and fixed issue where the transactions page stopped receiving real-time updates. Root cause: backend was emitting to personId rooms, but clients joined userId rooms. Solution: backend now maps person.email to userId and emits transaction events to userId rooms.
+- Ensured categories and household members pages continue to work by keeping their backend event emission logic consistent (emit to userId rooms).
+- Added logging to backend transaction service to confirm correct userId emission for WebSocket events.
+
+### 2. DTO & Validation Changes
+- Removed/disarmed UUID validation for `categoryId` and `payer` in `CreateTransactionDto` to support new ID formats (string, not just UUID).
+- Updated backend and frontend logic to support new ID mapping and access rules (family tree access, not just direct family match).
+
+### 3. Access Control & Family Tree Logic
+- Updated category and household member service access logic to allow access if the resource's familyId is in the user's family tree (self or ancestor), not just a direct match.
+- Added technical note: Never trust client-supplied values for sensitive identifiers such as `familyId`, `userId`, etc. Always use the authenticated user's/session's value from the server context in all controller and service logic.
+
+### 4. Frontend State Retention & Pinia Store
+- Add Transaction page now retains last selected family, payer, and date using Pinia store (`transactionStore`).
+- Added `lastSelectedFamilyId`, `lastSelectedPayer`, `lastSelectedDate` to `transactionStore` and wired up watchers and initialization logic in `QuickEntryForm.vue`.
+- Watchers only update last selected values if the value is not null/empty and has changed, to avoid unnecessary state churn.
+- Exported `loadTransactions` and `loadTransactionsForCategoryPeriod` from `transactionStore` to resolve missing method errors in components.
+
+### 5. Debugging & Lessons Learned
+- Diagnosed and explained why payer was showing as ID instead of name (frontend not refreshing household members or mismatch in IDs).
+- Identified and explained missing method errors in transactionStore and provided solution to export them from the store.
+- Documented all changes and lessons in this file and in the technical highlights for future reference.
+
+---
+
+## Regression Prevention Checklist
+- [x] All real-time update logic for transactions, categories, and household members tested and verified.
+- [x] All DTO and validation changes tested for both old and new ID formats.
+- [x] Access control and family tree logic tested for direct and ancestor family access.
+- [x] State retention for add transaction page tested across navigation and reloads.
+- [x] All Pinia store methods used in components are exported and type-safe.
+- [x] All changes and lessons documented in backlog and technical highlights.
+
+---
+
+**Key Principle:**
+- Every time a bug is fixed or a feature is changed, document the root cause, the solution, and the impact on other features. Test all related features to prevent regressions. Never assume a change is isolated—always verify and document.
+
 # Sprint 5: Foundational Data Model Refactor
 
 **Sprint Goal:** Refactor the core data model to support a hierarchical "Family" structure. This will enable multiple "Small Families" (sub-groups) to exist within a "Big Family" (the main household), allowing for more granular data ownership, permissions, and reporting. This is a foundational change to support future multi-family features.
@@ -50,6 +93,7 @@ This refactor will greatly improve data integrity, security, and scalability, an
 ---
 
 ## Technical Backlog
+
 
 ### Backend
 
@@ -68,6 +112,19 @@ This refactor will greatly improve data integrity, security, and scalability, an
     - [ ] Update all `POST`/`PATCH`/`DELETE` endpoints to validate ownership via `familyId`.
 - [ ] **Seed Script:**
     - [x] Update `seed.ts` to create a default "Big Family" and a "Small Family" and associate the test user and all seeded data with them.
+
+---
+
+## ⚠️ TODO: FamilyId vs UserId Authorization Bugs (Sprint 5)
+
+**Known technical debt (to revisit):**
+
+- [ ] TransactionController: `findOne` still uses `body.familyId` (from client) instead of `req.user.familyId`.
+- [ ] TransactionController: `update` still uses `req.user.id` (userId) instead of `req.user.familyId`.
+- [ ] TransactionController: `remove` still uses `body.familyId` (from client) instead of `req.user.familyId`.
+- [ ] Review all controllers for any place where userId is used as familyId or for access control (see grep_search results and TODOs in code).
+
+> These are marked with TODOs in the code. See also the lessons learned in `.github/instructions` and `prompt-baseline.md`.
 
 ### Frontend
 
