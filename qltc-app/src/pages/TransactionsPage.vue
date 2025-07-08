@@ -50,7 +50,9 @@
               <q-item-label :lines="1">{{ getCategoryName(transaction.categoryId) || 'Không có danh mục' }}</q-item-label>
               <q-item-label caption :lines="1">{{ transaction.note || 'Không có ghi chú' }}</q-item-label>
               <q-item-label caption :lines="1">
-                Người chi/nhận: {{ getMemberName(transaction.payer) || 'N/A' }}
+                <span v-if="getFamilyName(transaction.familyId)" class="text-weight-medium">{{ getFamilyName(transaction.familyId) }}</span>
+                <span v-if="getFamilyName(transaction.familyId) && getMemberName(transaction.payer)"> - </span>
+                <span v-if="getMemberName(transaction.payer)">{{ getMemberName(transaction.payer) }}</span>
                 <q-badge v-if="transaction.isShared" color="info" label="Chi chung" class="q-ml-sm" />
               </q-item-label>
             </q-item-section>
@@ -85,6 +87,7 @@ import { useRouter } from 'vue-router';
 import { useTransactionStore } from 'src/stores/transactionStore';
 import { useCategoryStore } from 'src/stores/categoryStore';
 import { useHouseholdMemberStore } from 'src/stores/householdMemberStore';
+import { useFamilyStore } from 'src/stores/familyStore';
 import type { Transaction } from 'src/models';
 import { dayjs } from 'src/boot/dayjs';
 import { formatCurrency } from 'src/utils/formatters'; // Assuming you have or will create this
@@ -96,6 +99,7 @@ const $q = useQuasar();
 const transactionStore = useTransactionStore();
 const categoryStore = useCategoryStore();
 const householdMemberStore = useHouseholdMemberStore();
+const familyStore = useFamilyStore();
 
 const loading = ref(false);
 const allTransactions = computed(() => transactionStore.transactions); // Keep original sorted list
@@ -110,6 +114,7 @@ const openEditTransactionDialog = (transactionToEdit: Transaction) => {
     componentProps: {
       editingTransaction: transactionToEdit,
     },
+    persistent: false, // Explicitly allow closing via backdrop/esc
   }).onOk((formData) => {
     // formData will have the structure of the form in TransactionFormDialog
     // We need to ensure it matches UpdateTransactionPayload
@@ -143,18 +148,26 @@ const confirmDeleteTransaction = (transactionId: string, transactionNote?: strin
   });
 };
 
-const getCategoryName = (categoryId: string | null | undefined): string => {
-  if (!categoryId) return 'Không xác định';
-  return categoryStore.getCategoryById(categoryId)?.name || categoryId;
+const getCategoryName = (categoryId: string | null) => {
+  if (!categoryId) return '';
+  const category = categoryStore.getCategoryById(categoryId);
+  return category ? category.name : '';
 };
 
-const getMemberName = (memberId: string | null | undefined): string => {
-  if (!memberId) return 'Không xác định';
-   return householdMemberStore.getMemberById(memberId)?.person?.name || memberId;
+const getMemberName = (memberId: string | null | undefined) => {
+  if (!memberId) return '';
+  const member = householdMemberStore.members.find(m => m.id === memberId);
+  return member?.person?.name ?? '';
 };
 
-const formatDate = (dateString: string, format = 'DD/MM/YYYY'): string => {
-  return dayjs(dateString).format(format);
+const getFamilyName = (familyId: string | null | undefined) => {
+  if (!familyId) return '';
+  const family = familyStore.families.find(f => f.id === familyId);
+  return family?.name;
+};
+
+const formatDate = (date: string | Date, format = 'YYYY/MM/DD') => {
+  return dayjs(date).format(format);
 };
 
 interface GroupedTransaction {

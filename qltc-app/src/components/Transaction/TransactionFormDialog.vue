@@ -1,5 +1,5 @@
 <template>
-  <q-dialog ref="dialogRef" @hide="onDialogHide" persistent>
+  <q-dialog ref="dialogRef" @hide="onDialogHide">
     <q-card class="q-dialog-plugin" style="width: 600px; max-width: 95vw;">
       <q-form @submit.prevent="onSubmit" ref="entryForm" class="q-gutter-md">
         <q-card-section class="bg-primary text-white">
@@ -148,6 +148,8 @@ import { formatNumberWithThousandsSeparator, parseNumberFromThousandsSeparator }
 
 interface Props {
   editingTransaction?: Transaction | null;
+  // Add familyId to props to make the dialog context-aware for new transactions
+  familyId?: string;
 }
 
 const props = defineProps<Props>();
@@ -164,6 +166,17 @@ const categoryStore = useCategoryStore();
 const householdMemberStore = useHouseholdMemberStore();
 
 const entryForm = ref<QForm | null>(null);
+
+// Determine the family context for the form
+const formFamilyId = computed(() => {
+  // For an existing transaction, the family is fixed.
+  if (props.editingTransaction) {
+    return props.editingTransaction.familyId;
+  }
+  // For a new transaction, use the passed familyId prop.
+  return props.familyId;
+});
+
 const form = ref({
   categoryId: null as string | null,
   date: dayjs().format('YYYY/MM/DD'),
@@ -174,6 +187,8 @@ const form = ref({
   splitRatio: null as SplitRatioItem[] | null,
   type: 'expense' as 'income' | 'expense',
 });
+
+const splitRatioSafe = computed<SplitRatioItem[]>(() => Array.isArray(form.value.splitRatio) ? form.value.splitRatio : []);
 
 const formattedAmount = computed<string>({
   get() {
@@ -189,26 +204,53 @@ const formattedAmount = computed<string>({
   }
 });
 
-const categoryOptions = computed(() =>
-  categoryStore.flatSortedCategoriesForSelect.map(cat => ({
+const categoryOptions = computed(() => {
+  if (!formFamilyId.value) return [];
+  // Filter categories for the specific family context
+  const familyCategories = categoryStore.categories.filter(c => c.familyId === formFamilyId.value);
+
+  // Build a hierarchical list for the dropdown
+  function buildHierarchy(categories: typeof familyCategories, parentId: string | null = null, depth = 0): { id: string; name: string; depth: number }[] {
+    const children = categories.filter(c => c.parentId === parentId);
+    if (children.length === 0) return [];
+
+    let result: { id: string; name: string; depth: number }[] = [];
+    children.forEach(child => {
+      result.push({ ...child, depth });
+      result = result.concat(buildHierarchy(categories, child.id, depth + 1));
+    });
+    return result;
+  }
+
+  return buildHierarchy(familyCategories).map(cat => ({
     id: cat.id,
-    name: `${'\xA0\xA0\xA0\xA0'.repeat(cat.depth)}${cat.depth > 0 ? '↳ ' : ''}${cat.name}`, // Indent with non-breaking spaces
-  }))
-);
+    name: `${'\xA0\xA0\xA0\xA0'.repeat(cat.depth)}${cat.depth > 0 ? '↳ ' : ''}${cat.name}`,
+  }));
+});
 
-const payerOptions = computed(() =>
-  householdMemberStore.members.filter(member => member.isActive).map(member => ({
-    label: member.person?.name,
-    value: member.id,
-  }))
-);
+const payerOptions = computed(() => {
+  if (!formFamilyId.value) return [];
+  // Filter members by the transaction's family and active status
+  return householdMemberStore.members
+    .filter(member => member.familyId === formFamilyId.value && member.isActive)
+    .map(member => ({
+      label: member.person?.name,
+      value: member.id,
+    }));
+});
 
-const activeMembers = computed(() =>
-  householdMemberStore.members.filter(member => member.isActive)
-);
+const activeMembers = computed(() => {
+  if (!formFamilyId.value) return [];
+  // Filter members by the transaction's family and active status
+  return householdMemberStore.members.filter(member => member.familyId === formFamilyId.value && member.isActive);
+});
 
 // For managing individual percentage inputs in the UI
 const memberSplitPercentages = ref<Record<string, number | null>>({});
+
+const totalPercentage = computed(() => {
+  return splitRatioSafe.value.reduce((sum, item) => sum + (Number(item.percentage) || 0), 0);
+});
 
 const onCategorySelected = (categoryId: string | null) => {
   if (form.value.isShared) { // Only attempt to apply default split if shared
@@ -277,7 +319,7 @@ const onSharedChange = (isShared: boolean) => {
 const updateMemberSplitPercentagesFromForm = () => {
   const newPercentages: Record<string, number | null> = {};
   activeMembers.value.forEach(member => {
-    const existingSplit = form.value.splitRatio?.find(sr => sr.memberId === member.id);
+    const existingSplit = splitRatioSafe.value.find(sr => sr.memberId === member.id);
     newPercentages[member.id] = existingSplit ? existingSplit.percentage : null;
   });
   memberSplitPercentages.value = newPercentages;
@@ -301,11 +343,6 @@ const updateSplitRatio = (memberId: string, percentage: number | string | null) 
     memberSplitPercentages.value[memberId] = null; // Clear UI input
   }
 };
-
-const totalPercentage = computed(() => {
-  if (!form.value.isShared || !form.value.splitRatio) return 0;
-  return form.value.splitRatio.reduce((sum, item) => sum + (item.percentage || 0), 0);
-});
 
 const distributeEqually = () => {
   if (!form.value.isShared || activeMembers.value.length === 0) return;

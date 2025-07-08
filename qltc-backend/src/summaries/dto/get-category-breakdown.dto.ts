@@ -62,7 +62,7 @@ export class GetCategoryBreakdownQueryDto {
     example: 'a1b2c3d4-e5f6-7890-1234-567890abcdef',
   })
   @IsOptional()
-  @IsUUID()
+  // @IsUUID()
   parentCategoryId?: string;
 
   @ApiPropertyOptional({
@@ -90,7 +90,7 @@ export class GetCategoryBreakdownQueryDto {
     return value; // Fallback, though typically it would be string or array
   })
   @IsArray()
-  @IsUUID('all', { each: true, message: 'Each categoryId must be a valid UUID.' })
+  // @IsUUID('all', { each: true, message: 'Each categoryId must be a valid UUID.' })
   categoryIds?: string[];
 
   @ApiPropertyOptional({
@@ -111,7 +111,7 @@ export class GetCategoryBreakdownQueryDto {
     return value;
   })
   @IsArray()
-  @IsUUID('all', { each: true, message: 'Each memberId must be a valid UUID.' })
+  // @IsUUID('all', { each: true, message: 'Each memberId must be a valid UUID.' })
   memberIds?: string[];
 
   @ApiPropertyOptional({

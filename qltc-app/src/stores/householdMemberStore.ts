@@ -83,6 +83,19 @@ export const useHouseholdMemberStore = defineStore('householdMembers', () => {
       const groups = await fetchAllMyMembersGroupedByFamilyAPI();
       // The computed property `allMembersWithFamily` will now handle adding the familyId,
       // so we don't need to mutate the response data here.
+
+      // Sort to ensure the current family always appears before the parent family.
+      const currentFamilyId = familyStore.selectedFamilyId;
+      groups.sort((a, b) => {
+        const aIsSubFamily = a.id !== currentFamilyId;
+        const bIsSubFamily = b.id !== currentFamilyId;
+
+        if (aIsSubFamily === bIsSubFamily) {
+          return a.name.localeCompare(b.name); // Optional: sort by name if sub-family status is the same
+        }
+        return aIsSubFamily ? 1 : -1; // Non-sub-family (current) comes first
+      });
+
       familyGroups.value = groups;
     } catch {
       $q.notify({

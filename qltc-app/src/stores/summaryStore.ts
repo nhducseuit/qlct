@@ -89,6 +89,7 @@ export const useSummaryStore = defineStore('summaries', () => {
   };
 
   const loadCategoryBreakdown = async (
+    _familyId: string, // Unused, for compatibility only
     periodType: PeriodType,
     year?: number,
     month?: number,
@@ -230,7 +231,7 @@ export const useSummaryStore = defineStore('summaries', () => {
     quarter?: number,
     memberIds?: string[], // Added for global member filter
     transactionType?: 'expense' | 'all', // Added transactionType
-    isStrictMode?: boolean // Added for strict member filtering
+    categoryIds?: string[], // Added for category filter
   ) => {
     if (!authStore.isAuthenticated) {
       memberBreakdownError.value = 'Người dùng chưa được xác thực.';
@@ -241,21 +242,16 @@ export const useSummaryStore = defineStore('summaries', () => {
     memberBreakdownLoading.value = true;
     memberBreakdownError.value = null;
     try {
-      const query: GetMemberBreakdownQueryDto = {
+      const query: GetMemberBreakdownQueryDto & { categoryIds?: string[] } = {
         periodType,
         year: year || dayjs().year(),
+        ...(month !== undefined ? { month } : {}),
+        ...(quarter !== undefined ? { quarter } : {}),
+        ...(memberIds && memberIds.length > 0 ? { memberIds } : {}),
+        ...(transactionType ? { transactionType } : {}),
+        ...(categoryIds && categoryIds.length > 0 ? { categoryIds } : {}),
+        // isStrictMode is deprecated/removed, do not include
       };
-      if (month !== undefined) query.month = month;
-      if (quarter !== undefined) query.quarter = quarter;
-      if (memberIds && memberIds.length > 0) { // Add memberIds to query
-        query.memberIds = memberIds;
-      }
-      if (transactionType) {
-        query.transactionType = transactionType;
-      }
-      if (isStrictMode !== undefined) { // Pass strict mode flag
-        query.isStrictMode = isStrictMode;
-      }
 
       console.log('[SummaryStore] Fetching member breakdown with query:', query);
       const data = await fetchMemberBreakdownAPI(query);

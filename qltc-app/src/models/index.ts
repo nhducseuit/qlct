@@ -14,6 +14,7 @@ export interface Transaction {
   userId: string; // Foreign key to User, set by backend (assuming it's always present on fetched Transaction)
   createdAt: string | Date; // ISO 8601 string or Date object
   updatedAt: string | Date; // ISO 8601 string or Date object
+  familyId: string; // Added to match backend data model
 }
 
 // In src/stores/transactionStore.ts

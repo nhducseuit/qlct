@@ -8,6 +8,19 @@
         <div class="text-h6">Bộ lọc chung</div>
       </q-card-section>
       <q-card-section class="row q-col-gutter-md items-end">
+        <!-- Family Selector -->
+        <div class="col-12 col-md-3 col-sm-6 col-xs-12">
+          <q-select
+            filled
+            dense
+            v-model="selectedFamilyId"
+            :options="familyOptions"
+            label="Gia đình"
+            emit-value
+            map-options
+            @update:model-value="onFamilyChange"
+          />
+        </div>
         <!-- Year Selector -->
         <div class="col-12 col-md-2 col-sm-6 col-xs-12">
           <q-select
@@ -95,13 +108,6 @@
               label="Loại trừ thu nhập"
               dense
             />
-            <q-checkbox
-              v-model="isStrictModeActive"
-              label="Chế độ nghiêm ngặt"
-              dense
-            >
-              <q-tooltip max-width="250px">Chỉ tính các khoản chi có sự tham gia của TẤT CẢ thành viên đã chọn, và chỉ tính phần tiền của họ.</q-tooltip>
-            </q-checkbox>
           </div>
           <div class="col row q-gutter-sm items-center justify-end">
             <!-- Apply Button -->
@@ -147,7 +153,6 @@
         :error="summaryStore.categoryBreakdownError"
         :selected-member-ids-global="selectedMemberIdsGlobal"
         :exclude-income-filter="excludeIncomeFilter"
-        :is-strict-mode-active="isStrictModeActive"
         :period-label="categoryBreakdownPeriodLabel"
       />
 
@@ -203,10 +208,31 @@ import html2canvas from 'html2canvas';
 import MemberBreakdownReport from 'src/components/Reports/MemberBreakdownReport.vue'; // Import new component
 import { dayjs } from 'src/boot/dayjs';
 
+import { useFamilyStore } from 'src/stores/familyStore';
 const summaryStore = useSummaryStore();
 const categoryStore = useCategoryStore();
-const householdMemberStore = useHouseholdMemberStore(); // Use member store
+const householdMemberStore = useHouseholdMemberStore();
+const familyStore = useFamilyStore();
 const $q = useQuasar();
+// Family filter state
+const selectedFamilyId = ref<string | null>(familyStore.selectedFamilyId || null);
+const familyOptions = computed(() =>
+  familyStore.families.map(f => ({ label: f.name, value: f.id }))
+);
+
+function onFamilyChange(newFamilyId: string | null) {
+  if (newFamilyId) {
+    familyStore.selectedFamilyId = newFamilyId;
+    // Reload categories and members for the new family
+    void categoryStore.loadCategories();
+    void householdMemberStore.loadMembers();
+    // Clear filters that depend on family
+    selectedCategoryIdsGlobal.value = [];
+    selectedMemberIdsGlobal.value = [];
+    // Reload reports
+    void applyFiltersAndLoadReports();
+  }
+}
 
 const pdfExportLoading = ref(false);
 
@@ -225,13 +251,21 @@ const selectedMonthForDetail = ref<number | undefined>(currentMonth); // Driven 
 const selectedYearForDetail = ref<number>(currentYear); // Primarily driven by global year filter
 
 const categoryFilterOptions = computed(() =>
-  // Sort by name for consistent display
   categoryStore.visibleCategories
+    .filter(cat => cat.familyId === selectedFamilyId.value)
     .map(cat => ({
       label: cat.name,
       value: cat.id,
     })).sort((a,b) => (a.label ?? '').localeCompare(b.label ?? ''))
 );
+
+// Helper: Only use categoryIds belonging to the selected family
+function getSelectedCategoryIdsForFamily() {
+  const validCategoryIds = categoryStore.visibleCategories
+    .filter(cat => cat.familyId === selectedFamilyId.value)
+    .map(cat => cat.id);
+  return selectedCategoryIdsGlobal.value.filter(id => validCategoryIds.includes(id));
+}
 
 const selectedCategoriesDisplayValue = computed(() => {
   if (!selectedCategoryIdsGlobal.value || selectedCategoryIdsGlobal.value.length === 0) {
@@ -249,7 +283,7 @@ const selectedCategoriesDisplayValue = computed(() => {
 
 const memberFilterOptions = computed(() =>
   householdMemberStore.members
-    .filter(m => m.isActive)
+    .filter(m => m.isActive && m.familyId === selectedFamilyId.value)
     .map(member => ({
       label: member.person?.name ?? '',
       value: member.id,
@@ -301,29 +335,36 @@ const memberBreakdownPeriodLabel = computed(() => { // Label for the new report
 });
 
 const excludeIncomeFilter = ref<boolean>(true); // Default to excluding income
-const isStrictModeActive = ref<boolean>(false); // New filter for strict mode
+
 
 const loadDetailReports = async (year: number, month?: number, quarter?: number) => {
-  const periodType = PeriodType.Monthly; // Assuming details are always monthly for now
-
+  const periodType = PeriodType.Monthly;
+  const allMemberIds = householdMemberStore.members
+    .filter(m => m.isActive && m.familyId === selectedFamilyId.value)
+    .map(m => m.id);
+  const memberIdsToSend = selectedMemberIdsGlobal.value && selectedMemberIdsGlobal.value.length > 0
+    ? selectedMemberIdsGlobal.value
+    : allMemberIds;
   const promises = [
     summaryStore.loadCategoryBreakdown(
+      '',
       periodType,
       year,
       month,
       quarter,
-      undefined, // parentCategoryId
-      selectedCategoryIdsGlobal.value && selectedCategoryIdsGlobal.value.length > 0 ? selectedCategoryIdsGlobal.value : undefined,
-      selectedMemberIdsGlobal.value && selectedMemberIdsGlobal.value.length > 0 ? selectedMemberIdsGlobal.value : undefined // Pass selected members
-      , excludeIncomeFilter.value ? 'expense' : 'all', // Pass transaction type filter
-      isStrictModeActive.value // Pass strict mode flag
+      undefined,
+      getSelectedCategoryIdsForFamily().length > 0 ? getSelectedCategoryIdsForFamily() : undefined,
+      memberIdsToSend,
+      excludeIncomeFilter.value ? 'expense' : 'all',
     ),
     summaryStore.loadMemberBreakdown(
-        periodType, year, month, quarter,
-        selectedMemberIdsGlobal.value && selectedMemberIdsGlobal.value.length > 0 ? selectedMemberIdsGlobal.value : undefined,
-        excludeIncomeFilter.value ? 'expense' : 'all', // Pass transaction type filter
-        isStrictModeActive.value // Pass strict mode flag
-      ),
+      periodType,
+      year,
+      month,
+      quarter,
+      memberIdsToSend,
+      excludeIncomeFilter.value ? 'expense' : 'all',
+    ),
   ];
   await Promise.all(promises);
 };
@@ -355,7 +396,7 @@ const onGlobalMonthChange = (newMonth: number | undefined | null) => {
 };
 
 const applyFiltersAndLoadReports = async () => {
-  console.log('[ReportsPage DEBUG] applyFiltersAndLoadReports called. Filters to be sent -> isStrictMode:', isStrictModeActive.value, 'memberIds:', selectedMemberIdsGlobal.value, 'categoryIds:', selectedCategoryIdsGlobal.value, 'transactionType:', excludeIncomeFilter.value ? 'expense' : 'all');
+  console.log('[ReportsPage DEBUG] applyFiltersAndLoadReports called. Filters to be sent -> memberIds:', selectedMemberIdsGlobal.value, 'categoryIds:', selectedCategoryIdsGlobal.value, 'transactionType:', excludeIncomeFilter.value ? 'expense' : 'all');
   selectedYearForDetail.value = selectedYear.value; // Sync detail year with global year
   // If global month is not set, but detail month was (e.g. from trend click), keep detail month.
   // Otherwise, if global month is cleared, detail month should also be cleared or defaulted.
@@ -369,10 +410,13 @@ const applyFiltersAndLoadReports = async () => {
     summaryStore.loadBudgetTrend(
       PeriodType.Monthly,
       selectedYear.value,
-      selectedCategoryIdsGlobal.value && selectedCategoryIdsGlobal.value.length > 0 ? selectedCategoryIdsGlobal.value : undefined,
-      selectedMemberIdsGlobal.value && selectedMemberIdsGlobal.value.length > 0 ? selectedMemberIdsGlobal.value : undefined, // Pass selected members
-      excludeIncomeFilter.value ? 'expense' : 'all', // Pass transaction type filter
-      isStrictModeActive.value // Pass strict mode flag
+      getSelectedCategoryIdsForFamily().length > 0 ? getSelectedCategoryIdsForFamily() : undefined,
+      (selectedMemberIdsGlobal.value && selectedMemberIdsGlobal.value.length > 0)
+        ? selectedMemberIdsGlobal.value
+        : householdMemberStore.members
+            .filter(m => m.isActive && m.familyId === selectedFamilyId.value)
+            .map(m => m.id),
+      excludeIncomeFilter.value ? 'expense' : 'all',
     )
   ];
   await Promise.all(promises);
@@ -464,28 +508,14 @@ const exportReportToPdf = async () => { // Make async
   }
 };
 
-onMounted(() => {
-  const initialLoadPromises = [];
-  if (categoryStore.categories.length === 0) {
-    initialLoadPromises.push(categoryStore.loadCategories());
+onMounted(async () => {
+  // Load families first
+  await familyStore.loadFamilies();
+  if (!selectedFamilyId.value && familyStore.selectedFamilyId) {
+    selectedFamilyId.value = familyStore.selectedFamilyId;
   }
-  if (householdMemberStore.members.length === 0) {
-    initialLoadPromises.push(householdMemberStore.loadMembers());
-  }
-
-  Promise.all(initialLoadPromises)
-    .catch(error => {
-      // Individual store actions usually have their own $q.notify for errors.
-      // This catch is for any unhandled rejection from Promise.all itself.
-      console.error('Error during initial data loading for reports page:', error);
-      // Optionally, show a general error notification if needed:
-      // $q.notify({ type: 'negative', message: 'Lỗi tải dữ liệu ban đầu cho trang báo cáo.' });
-    })
-    .finally(() => {
-      void applyFiltersAndLoadReports(); // Explicitly ignore the promise
-    });
+  void categoryStore.loadCategories();
+  void householdMemberStore.loadMembers();
+  void applyFiltersAndLoadReports();
 });
-
-// Initial load on component creation
-onMounted(() => applyFiltersAndLoadReports());
 </script>

@@ -47,7 +47,7 @@ export class GetBudgetTrendQueryDto {
     return value;
   })
   @IsArray()
-  @IsUUID('all', { each: true, message: 'Each categoryId must be a valid UUID.' })
+  // @IsUUID('all', { each: true, message: 'Each categoryId must be a valid UUID.' })
   categoryIds?: string[];
 
   @ApiPropertyOptional({
@@ -68,7 +68,7 @@ export class GetBudgetTrendQueryDto {
     return value;
   })
   @IsArray()
-  @IsUUID('all', { each: true, message: 'Each memberId must be a valid UUID.' })
+  // @IsUUID('all', { each: true, message: 'Each memberId must be a valid UUID.' })
   memberIds?: string[];
 
   @ApiPropertyOptional({

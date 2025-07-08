@@ -73,7 +73,7 @@ export class GetMemberBreakdownQueryDto {
     return value;
   })
   @IsArray()
-  @IsUUID('all', { each: true, message: 'Each memberId must be a valid UUID.' })
+  // @IsUUID('all', { each: true, message: 'Each memberId must be a valid UUID.' })
   memberIds?: string[];
 
   @ApiPropertyOptional({

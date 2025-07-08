@@ -354,7 +354,9 @@ export const useCategoryStore = defineStore('categories', () => {
 
   const categoriesByFamily = computed(() => {
     const result: {
+      familyId: string;
       familyName: string;
+      isSubFamily: boolean;
       categories: HierarchicalCategory[];
     }[] = [];
 
@@ -373,22 +375,34 @@ export const useCategoryStore = defineStore('categories', () => {
             ...c,
             children: buildHierarchy(c.id),
           }));
-      };
+    };
       return buildHierarchy(null);
     };
 
     if (currentFamily) {
       result.push({
-        familyName: `${currentFamily.name} (Gia đình hiện tại)`,
+        familyId: currentFamily.id,
+        familyName: currentFamily.name,
+        isSubFamily: false,
         categories: buildHierarchyForFamily(currentFamily.id),
       });
     }
     if (parentFamily) {
       result.push({
-        familyName: `${parentFamily.name} (Gia đình cha)`,
+        familyId: parentFamily.id,
+        familyName: parentFamily.name,
+        isSubFamily: true,
         categories: buildHierarchyForFamily(parentFamily.id),
       });
     }
+
+    // Sort to ensure the current family always appears before the parent family.
+    result.sort((a, b) => {
+      if (a.isSubFamily === b.isSubFamily) {
+        return a.familyName.localeCompare(b.familyName); // Optional: sort by name if sub-family status is the same
+      }
+      return a.isSubFamily ? 1 : -1; // Non-sub-family (current) comes first
+    });
 
     return result;
   });

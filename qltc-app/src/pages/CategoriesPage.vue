@@ -21,10 +21,15 @@
       <p>Hãy bắt đầu bằng cách thêm một danh mục cha.</p>
     </div>
 
-    <div v-else>
-      <div v-for="familyGroup in categoriesByFamily" :key="familyGroup.familyName" class="q-mb-xl">
-        <div class="text-h6 q-mb-sm text-primary">{{ familyGroup.familyName }}</div>
-        <q-list bordered separator v-if="familyGroup.categories.length > 0">
+    <q-list bordered separator v-else>
+      <template v-for="familyGroup in categoriesByFamily" :key="familyGroup.familyId">
+        <q-item class="bg-grey-2">
+          <q-item-section>
+            <q-item-label class="text-bold">{{ familyGroup.familyName }}</q-item-label>
+          </q-item-section>
+        </q-item>
+
+        <template v-if="familyGroup.categories.length > 0">
           <template v-for="parentCategory in familyGroup.categories" :key="parentCategory.id">
             <q-expansion-item
               v-if="parentCategory.children && parentCategory.children.length > 0"
@@ -72,13 +77,15 @@
               @move-down="moveCategoryDown"
             />
           </template>
-        </q-list>
-        <div v-else class="text-center text-grey-6 q-pa-md">
-          <q-icon name="sym_o_inbox" size="2em" />
-          <p>Không có danh mục nào trong gia đình này.</p>
-        </div>
-      </div>
-    </div>
+        </template>
+        <q-item v-else>
+          <q-item-section class="text-center text-grey-6 q-pa-md">
+            <q-icon name="sym_o_inbox" size="2em" />
+            <p>Không có danh mục nào trong gia đình này.</p>
+          </q-item-section>
+        </q-item>
+      </template>
+    </q-list>
 
     <!-- Dialogs will be handled by other functions -->
   </q-page>

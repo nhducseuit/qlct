@@ -156,9 +156,8 @@ interface Props {
   loading: boolean;
   error: string | null;
   periodLabel: string;
-  selectedMemberIdsGlobal: string[]; // New prop
-  excludeIncomeFilter: boolean; // New prop
-  isStrictModeActive: boolean; // New prop
+  selectedMemberIdsGlobal: string[];
+  excludeIncomeFilter: boolean;
 }
 
 const props = defineProps<Props>();
@@ -228,7 +227,6 @@ const onCategoryRowClick = (categoryRow: CategoryBreakdownItemDto) => {
       undefined, // quarter
       props.selectedMemberIdsGlobal, // Pass selected members
       props.excludeIncomeFilter ? 'expense' : 'all', // Pass transaction type filter
-      props.isStrictModeActive, // Pass strict mode flag
     );
   }
 };

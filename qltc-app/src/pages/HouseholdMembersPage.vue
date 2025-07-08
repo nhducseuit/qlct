@@ -23,7 +23,6 @@
         <q-item class="bg-grey-2">
           <q-item-section>
             <q-item-label class="text-bold">{{ family.name }}</q-item-label>
-            <q-item-label caption v-if="family.parentId">(Nhóm con)</q-item-label>
           </q-item-section>
         </q-item>
         <q-item v-for="member in family.members" :key="member.id" :class="{ 'bg-grey-3 text-grey-6': !member.isActive }">
