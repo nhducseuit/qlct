@@ -72,6 +72,26 @@ export interface MemberBreakdownItemDto {
 
 export type MemberBreakdownResponseDto = MemberBreakdownItemDto[];
 
+
+// Matches GetPersonBreakdownQueryDto from backend
+export interface GetPersonBreakdownQueryDto {
+  periodType: PeriodType;
+  year?: number;
+  month?: number;
+  quarter?: number;
+  transactionType?: 'expense' | 'all';
+}
+
+// Matches PersonBreakdownItemDto from backend
+export interface PersonBreakdownItemDto {
+  personId: string;
+  personName: string;
+  totalIncome: number;
+  totalExpense: number;
+}
+
+export type PersonBreakdownResponseDto = PersonBreakdownItemDto[];
+
 // Matches GetAverageExpensesQueryDto from backend
 export interface GetAverageExpensesQueryDto {
   periodType: PeriodType;
@@ -138,3 +158,12 @@ export interface BudgetTrendItemDto {
 }
 
 export type BudgetTrendResponseDto = BudgetTrendItemDto[];
+
+// Matches PersonCategoryBudgetCompareItemDto from backend
+export interface PersonCategoryBudgetCompareItemDto {
+  categoryName: string;
+  totalExpense: number;
+  budgetLimit: number;
+}
+
+export type PersonCategoryBudgetCompareResponseDto = PersonCategoryBudgetCompareItemDto[];

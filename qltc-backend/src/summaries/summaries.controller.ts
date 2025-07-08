@@ -3,7 +3,12 @@ import { ApiTags, ApiBearerAuth, ApiOperation, ApiResponse } from '@nestjs/swagg
 import { SummariesService } from './summaries.service';
 import { GetTotalsSummaryQueryDto } from './dto/get-totals-summary.dto';
 import { GetCategoryBreakdownQueryDto } from './dto/get-category-breakdown.dto';
+
 import { CategoryBreakdownItemDto, CategoryBreakdownResponseDto } from './dto/category-breakdown-response.dto';
+import { GetPersonBreakdownQueryDto } from './dto/get-person-breakdown-query.dto';
+import { PersonBreakdownItemDto } from './dto/person-breakdown-item.dto';
+
+
 import { AuthenticatedRequest } from '../auth/interfaces/authenticated-request.interface';
 import { GetMemberBreakdownQueryDto } from './dto/get-member-breakdown.dto';
 import { MemberBreakdownItemDto, MemberBreakdownResponseDto } from './dto/member-breakdown-response.dto';
@@ -15,6 +20,8 @@ import { GetBudgetTrendQueryDto } from './dto/get-budget-trend.dto';
 import { BudgetTrendItemDto, BudgetTrendResponseDto } from './dto/budget-trend-response.dto';
 import { PeriodSummaryDto, TotalsSummaryResponseDto } from './dto/totals-summary-response.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { PersonCategoryBudgetCompareItemDto } from './dto/person-category-budget-compare-item.dto';
+
 
 @ApiTags('Summaries')
 @ApiBearerAuth()
@@ -22,6 +29,27 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 @Controller('summaries')
 export class SummariesController {
   constructor(private readonly summariesService: SummariesService) {}
+
+  @Get('person-breakdown')
+  @ApiOperation({ summary: "Get expense breakdown by person for user's own family" })
+  @ApiResponse({
+    status: 200,
+    description: 'Successfully retrieved person breakdown.',
+    type: [PersonBreakdownItemDto],
+  })
+  @ApiResponse({ status: 400, description: 'Bad Request. Invalid query parameters.' })
+  @ApiResponse({ status: 401, description: 'Unauthorized.' })
+  async getPersonBreakdown(
+    @Req() req: AuthenticatedRequest,
+    @Query() query: GetPersonBreakdownQueryDto,
+  ): Promise<PersonBreakdownItemDto[]> {
+    // Only allow for user's own family (enforced here)
+    const { user } = req;
+    if (!user.familyId) {
+      throw new Error('No family context');
+    }
+    return this.summariesService.getPersonBreakdown(user.id, user.familyId, query);
+  }
 
   @Get('totals')
   @ApiOperation({ summary: 'Get total income/expense summaries by period' })
@@ -123,5 +151,25 @@ export class SummariesController {
   ): Promise<BudgetTrendResponseDto> {
     const { familyId } = req.user;
     return this.summariesService.getBudgetTrend(familyId, query);
+  }
+
+  @Get('person-category-budget-compare')
+  @ApiOperation({ summary: "Get aggregated category expense vs. budget for user's own family (categories grouped by name)" })
+  @ApiResponse({
+    status: 200,
+    description: 'Successfully retrieved category budget comparison.',
+    type: [PersonCategoryBudgetCompareItemDto],
+  })
+  @ApiResponse({ status: 400, description: 'Bad Request. Invalid query parameters.' })
+  @ApiResponse({ status: 401, description: 'Unauthorized.' })
+  async getPersonCategoryBudgetCompare(
+    @Req() req: AuthenticatedRequest,
+    @Query() query: GetPersonBreakdownQueryDto,
+  ): Promise<PersonCategoryBudgetCompareItemDto[]> {
+    const { user } = req;
+    if (!user.familyId) {
+      throw new Error('No family context');
+    }
+    return this.summariesService.getPersonCategoryBudgetCompare(user.id, user.familyId, query);
   }
 }

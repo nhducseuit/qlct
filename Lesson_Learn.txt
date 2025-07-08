@@ -1,4 +1,5 @@
-# Lessons Learned - Sprint 2: Multi-User Synchronization & Cloud Backend
+
+# Progress: sprint-5.md
 
 ## API Payload Consistency & Layered Data Contracts (Sprint 8+)
 
@@ -12,11 +13,34 @@
 - This aligned the frontend contract with the backend's expectations and eliminated the error.
 
 ### Lessons Learned (Technical)
+
 1. **Respect Data Contracts at Each Layer:** UI, store, and API service must all agree on the payload shape. Never inject or mutate fields in the service layer unless explicitly required by the backend contract.
 2. **Centralize Payload Shaping:** The component or store should be the single source of truth for what is sent to the backend. The API service should only forward, not transform, unless absolutely necessary.
 3. **Trace the Data Flow End-to-End:** When a field appears unexpectedly in the backend, check every layer (component, store, service) for places it might be added or mutated.
 4. **Defensive Programming:** Add final defensive checks (e.g., deleting unwanted fields) before sending data, but the best solution is to avoid adding them in the first place.
 5. **Test the Actual Network Payload:** Use browser dev tools or logging to inspect the real request body, not just the code.
+
+---
+
+## Sprint 5–7: Person Breakdown Report, Access Control, and Robust State Management (2025-07-09)
+
+### Feature Implementation & Debugging
+- Implemented the Person Breakdown report with strict backend access control: only the user's own family can view the report, enforced at both controller and service layers.
+- Refactored frontend logic to use a single `<template>` and `<script setup>` in `ReportsPage.vue`, with a computed property (`isUserFamily`) controlling feature visibility.
+- Fixed all TypeScript, ESLint, and prop type errors, and resolved malformed template/script block issues.
+- Validated that the Person Breakdown report is only shown for the user's own family, never for families the user does not have full access to.
+
+### Lessons Learned (Technical)
+1. **Strict Backend Access Control:** Always source sensitive IDs (e.g., `familyId`, `userId`) from the authenticated session, never from client input. This prevents privilege escalation and data leaks. See `.github/instructions/general.instructions` for the permanent directive.
+2. **Frontend Feature Visibility:** Use robust computed properties to control feature visibility based on user context, not just route or param checks.
+3. **Vue SFC Hygiene:** Avoid duplicate or malformed `<template>`/`<script>` blocks. Use a single `<template>` and `<script setup>` for maintainability and to prevent parsing errors.
+4. **Contract Discipline:** Keep frontend models, stores, and API services in sync with backend DTOs. Validate all changes with TypeScript and runtime checks.
+5. **State Management:** Use Pinia stores for all shared state, and ensure all state transitions are robust and type-safe.
+6. **Documentation:** Document root causes, solutions, and impacts for all bugs and features. Update `Lesson_Learn.txt` and `technical-highlights.md` after each sprint.
+
+---
+
+This sprint reinforced the importance of access control, contract discipline, and documentation for maintainable, secure, and robust multi-user applications.
 
 ### Lessons Learned (Process)
 1. **Root Cause Analysis:** When a bug persists despite apparent fixes, always check for hidden or duplicated logic in lower layers (services, stores).
@@ -120,5 +144,38 @@
 
 By following this end-to-end process, I would have immediately identified that `hierarchicalCategories` was being derived from a pre-filtered `visibleCategories` list in the `categoryStore`, saving significant time and effort.
 
+## The Principle of Minimal, Localized Changes
+
+**Scenario:** A bug was identified on the `ReportsPage.vue` where components were not reacting to changes in the global family filter. The initial approach involved a broad refactoring of several Pinia stores (`familyStore`, `categoryStore`, `summaryStore`) and services to enforce a strict "single source of truth" pattern.
+
+**Problem with the Approach:** While the intention was to improve architectural purity, this solution was fundamentally flawed because it violated a more important principle: **making the smallest, most localized change necessary to fix a bug.** The wide-ranging edits were disruptive, difficult to review, and went against the user's explicit request to confine the fix to the affected page. It introduced unnecessary risk to previously stable parts of the application.
+
+**Corrective Action & Lesson Learned:**
+1.  **Revert Immediately:** All broad, cross-cutting changes were reverted to restore the application to its last known stable state.
+2.  **Implement a Targeted Fix:** The issue was resolved by adding a `watch` effect *only* within `ReportsPage.vue`. This watcher observes the `familyStore.selectedFamilyId` and synchronizes the component's local state, fixing the reactivity bug without any changes to other files.
+
+**The key lesson is:** When addressing a localized bug, the primary goal is to create a minimal, targeted, and non-disruptive fix. Avoid the temptation to perform "drive-by" refactoring of the surrounding architecture. A solution that is "architecturally perfect" but touches many files is often inferior to a simpler, localized fix that respects the existing codebase and minimizes risk. Always prioritize stability and the principle of least astonishment.
+
 ---
-This sprint was a significant leap, and these lessons will be very helpful for future development!
+
+# Sprint 5.md: Person Breakdown Report – Lessons Learned
+
+## Feature Implementation & Access Control
+- Implemented a robust "Person Breakdown" report, aggregating expenses and income by person, crossing categories, and only visible for the user's own family.
+- Ensured all backend logic sources `familyId` and `userId` from the authenticated session, never from client-supplied values, following security best practices.
+- Used DTOs and type-safe models to keep frontend and backend contracts in sync.
+- Refactored frontend logic to use a computed property for visibility, ensuring the report is only shown for the user's own family.
+
+## Debugging & Refactoring
+- Fixed multiple issues with Vue SFC structure (duplicate `<template>`/`<script>` blocks, prop type errors, and logic bugs).
+- Used Pinia store and Quasar best practices for state management and UI consistency.
+- Validated all changes with TypeScript and ESLint, ensuring maintainable and error-free code.
+
+## Lessons Learned (Technical)
+1. **Strict Access Control:** Always enforce access rules on the backend, never trust client-supplied IDs for sensitive data. Use session context for all access checks.
+2. **Frontend-Backend Contract Discipline:** Keep DTOs and models in sync; update both sides together to avoid type and logic mismatches.
+3. **Vue SFC Hygiene:** Avoid duplicate or malformed template/script blocks; always validate file structure after merges or large refactors.
+4. **Test Visibility Logic:** When a feature should only be visible in certain contexts (e.g., user's own family), encapsulate the logic in a computed property and test thoroughly.
+5. **Document as You Go:** Summarize root causes, solutions, and impacts for every bug fix or feature change to prevent regressions and speed up onboarding.
+
+This sprint reinforced the importance of access control, type safety, and disciplined documentation for multi-user, multi-family finance apps.

@@ -17,7 +17,7 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { SplitRatioItemDto } from '../../categories/dto/split-ratio-item.dto'; // Reusing from categories
 import { IsSplitRatioSum100Constraint } from '../../categories/dto/validators/is-split-ratio-sum-100.validator'; // Reusing
 
-enum TransactionType {
+export enum TransactionType {
   INCOME = 'income',
   EXPENSE = 'expense',
 }

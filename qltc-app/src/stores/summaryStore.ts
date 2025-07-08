@@ -7,7 +7,8 @@ import {
   fetchCategoryBreakdownAPI,
   fetchBudgetTrendAPI,
   fetchMemberBreakdownAPI,
-
+  fetchPersonBreakdownAPI,
+  fetchPersonCategoryBudgetCompareAPI,
 } from 'src/services/summaryApiService';
 import type {
   TotalsSummaryResponseDto,
@@ -19,6 +20,9 @@ import type {
   GetBudgetTrendQueryDto,
   MemberBreakdownResponseDto,
   GetMemberBreakdownQueryDto,
+  PersonBreakdownResponseDto,
+  GetPersonBreakdownQueryDto,
+  PersonCategoryBudgetCompareResponseDto,
 } from 'src/models/summary';
 import { dayjs } from 'src/boot/dayjs';
 import { AxiosError } from 'axios';
@@ -42,6 +46,16 @@ export const useSummaryStore = defineStore('summaries', () => {
   const memberBreakdown = ref<MemberBreakdownResponseDto | null>(null);
   const memberBreakdownLoading = ref(false);
   const memberBreakdownError = ref<string | null>(null);
+
+  // Person Breakdown State
+  const personBreakdown = ref<PersonBreakdownResponseDto | null>(null);
+  const personBreakdownLoading = ref(false);
+  const personBreakdownError = ref<string | null>(null);
+
+  // Person Category Budget Compare State
+  const personCategoryBudgetCompare = ref<PersonCategoryBudgetCompareResponseDto | null>(null);
+  const personCategoryBudgetCompareLoading = ref(false);
+  const personCategoryBudgetCompareError = ref<string | null>(null);
 
   const loadTotalsSummary = async (
     periodType: PeriodType,
@@ -277,6 +291,86 @@ export const useSummaryStore = defineStore('summaries', () => {
     }
   };
 
+  const loadPersonBreakdown = async (
+    periodType: PeriodType,
+    year?: number,
+    month?: number,
+    quarter?: number,
+    transactionType?: 'expense' | 'all',
+  ) => {
+    if (!authStore.isAuthenticated) {
+      personBreakdownError.value = 'Người dùng chưa được xác thực.';
+      personBreakdown.value = null;
+      return;
+    }
+    personBreakdownLoading.value = true;
+    personBreakdownError.value = null;
+    try {
+      const query: GetPersonBreakdownQueryDto = {
+        periodType,
+        year: year || dayjs().year(),
+        ...(month !== undefined ? { month } : {}),
+        ...(quarter !== undefined ? { quarter } : {}),
+        ...(transactionType ? { transactionType } : {}),
+      };
+      const data = await fetchPersonBreakdownAPI(query);
+      personBreakdown.value = data;
+    } catch (error: unknown) {
+      if (error instanceof AxiosError && error.response?.data?.message) {
+        personBreakdownError.value = String(error.response.data.message);
+      } else if (error instanceof Error) {
+        personBreakdownError.value = error.message;
+      } else {
+        personBreakdownError.value = 'Không thể tải phân tích theo người.';
+      }
+      personBreakdown.value = null;
+      // $q.notify({
+      //   color: 'negative',
+      //   message: personBreakdownError.value || 'Đã có lỗi xảy ra khi tải phân tích theo người.',
+      //   icon: 'report_problem',
+      // });
+    } finally {
+      personBreakdownLoading.value = false;
+    }
+  };
+
+  const loadPersonCategoryBudgetCompare = async (
+    periodType: PeriodType,
+    year?: number,
+    month?: number,
+    quarter?: number,
+    transactionType?: 'expense' | 'all',
+  ) => {
+    if (!authStore.isAuthenticated) {
+      personCategoryBudgetCompareError.value = 'Người dùng chưa được xác thực.';
+      personCategoryBudgetCompare.value = null;
+      return;
+    }
+    personCategoryBudgetCompareLoading.value = true;
+    personCategoryBudgetCompareError.value = null;
+    try {
+      const query: GetPersonBreakdownQueryDto = {
+        periodType,
+        year: year || dayjs().year(),
+        ...(month !== undefined ? { month } : {}),
+        ...(quarter !== undefined ? { quarter } : {}),
+        ...(transactionType ? { transactionType } : {}),
+      };
+      const data = await fetchPersonCategoryBudgetCompareAPI(query);
+      personCategoryBudgetCompare.value = data;
+    } catch (error: unknown) {
+      if (error instanceof AxiosError && error.response?.data?.message) {
+        personCategoryBudgetCompareError.value = String(error.response.data.message);
+      } else if (error instanceof Error) {
+        personCategoryBudgetCompareError.value = error.message;
+      } else {
+        personCategoryBudgetCompareError.value = 'Không thể tải biểu đồ ngân sách theo danh mục.';
+      }
+      personCategoryBudgetCompare.value = null;
+    } finally {
+      personCategoryBudgetCompareLoading.value = false;
+    }
+  };
 
   return {
     totalsSummary,
@@ -298,5 +392,15 @@ export const useSummaryStore = defineStore('summaries', () => {
     memberBreakdownLoading,
     memberBreakdownError,
     loadMemberBreakdown,
+
+    personBreakdown,
+    personBreakdownLoading,
+    personBreakdownError,
+    loadPersonBreakdown,
+
+    personCategoryBudgetCompare,
+    personCategoryBudgetCompareLoading,
+    personCategoryBudgetCompareError,
+    loadPersonCategoryBudgetCompare,
   };
 });

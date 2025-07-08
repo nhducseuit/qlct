@@ -156,7 +156,7 @@
         :period-label="categoryBreakdownPeriodLabel"
       />
 
-      <!-- New Report: Member Breakdown -->
+      <!-- Member Breakdown Report -->
       <q-expansion-item
         icon="sym_o_groups"
         label="Phân tích theo Thành viên"
@@ -172,50 +172,57 @@
           :period-label="memberBreakdownPeriodLabel"
         />
       </q-expansion-item>
-      <!-- Collapsible Overall Totals Summary - REMOVED for now as per feedback to simplify -->
-      <!--
+      <!-- Person Breakdown Report (only for user's own family, below member breakdown) -->
       <q-expansion-item
-        icon="sym_o_summarize"
-        label="Tổng hợp Thu Chi Chung (Theo Năm)"
-        class="q-mt-lg"
-        header-class="bg-grey-2 text-primary text-weight-medium"
+        v-if="isUserFamily"
+        icon="sym_o_person"
+        :label="`Tổng hợp của ${familyStore.selectedFamily?.name || 'gia đình bạn'}`"
+        caption="Xem tổng chi tiêu"
+        class="q-mt-lg shadow-1"
+        header-class="bg-grey-2 text-primary text-weight-medium rounded-borders"
         default-closed
       >
-        <TotalsSummaryReport
-          :summary-data="summaryStore.totalsSummary"
-          :loading="summaryStore.totalsSummaryLoading"
-          :error="summaryStore.totalsSummaryError"
-          :period-label="`Năm ${selectedYear}`"
+        <PersonBreakdownReport
+          :breakdown-data="summaryStore.personBreakdown"
+          :loading="summaryStore.personBreakdownLoading"
+          :error="summaryStore.personBreakdownError"
+          :period-label="memberBreakdownPeriodLabel"
+          :period-type="PeriodType.Monthly"
+          :year="selectedYearForDetail"
+          v-bind="selectedMonthForDetail !== undefined ? { month: selectedMonthForDetail } : {}"
         />
       </q-expansion-item>
-      -->
+      <!-- Collapsible Overall Totals Summary - REMOVED for now as per feedback to simplify -->
     </div>
   </q-page>
 </template>
-
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, watch } from 'vue';
 import { useQuasar } from 'quasar';
 import { useSummaryStore } from 'src/stores/summaryStore';
 import { useCategoryStore } from 'src/stores/categoryStore';
-import { useHouseholdMemberStore } from 'src/stores/householdMemberStore'; // Import member store
+import { useHouseholdMemberStore } from 'src/stores/householdMemberStore';
 import { PeriodType } from 'src/models/summary';
-// import TotalsSummaryReport from 'src/components/Reports/TotalsSummaryReport.vue'; // Removed for now
 import CategoryBreakdownReport from 'src/components/Reports/CategoryBreakdownReport.vue';
 import MonthlyBudgetExpenseTrendChart from 'src/components/Reports/MonthlyBudgetExpenseTrendChart.vue';
-import jsPDF from 'jspdf'; // Import HTMLOptions for better typing
+import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
-import MemberBreakdownReport from 'src/components/Reports/MemberBreakdownReport.vue'; // Import new component
+import MemberBreakdownReport from 'src/components/Reports/MemberBreakdownReport.vue';
 import { dayjs } from 'src/boot/dayjs';
-
+import PersonBreakdownReport from 'src/components/Reports/PersonBreakdownReport.vue';
 import { useFamilyStore } from 'src/stores/familyStore';
+import { useAuthStore } from 'src/stores/authStore';
+
 const summaryStore = useSummaryStore();
 const categoryStore = useCategoryStore();
 const householdMemberStore = useHouseholdMemberStore();
 const familyStore = useFamilyStore();
 const $q = useQuasar();
+const authStore = useAuthStore();
+
 // Family filter state
 const selectedFamilyId = ref<string | null>(familyStore.selectedFamilyId || null);
+
 const familyOptions = computed(() =>
   familyStore.families.map(f => ({ label: f.name, value: f.id }))
 );
@@ -223,13 +230,10 @@ const familyOptions = computed(() =>
 function onFamilyChange(newFamilyId: string | null) {
   if (newFamilyId) {
     familyStore.selectedFamilyId = newFamilyId;
-    // Reload categories and members for the new family
     void categoryStore.loadCategories();
     void householdMemberStore.loadMembers();
-    // Clear filters that depend on family
     selectedCategoryIdsGlobal.value = [];
     selectedMemberIdsGlobal.value = [];
-    // Reload reports
     void applyFiltersAndLoadReports();
   }
 }
@@ -237,18 +241,16 @@ function onFamilyChange(newFamilyId: string | null) {
 const pdfExportLoading = ref(false);
 
 const currentYear = dayjs().year();
-const currentMonth = dayjs().month() + 1; // 1-12
+const currentMonth = dayjs().month() + 1;
 
 const yearOptions = Array.from({ length: 10 }, (_, i) => currentYear - 5 + i).map(year => ({ label: String(year), value: year }));
 const monthOptions = Array.from({ length: 12 }, (_, i) => i + 1).map(m => ({ label: `Tháng ${m}`, value: m }));
 
 const selectedYear = ref<number>(currentYear);
-const selectedCategoryIdsGlobal = ref<string[]>([]); // Global category filter
-const selectedMemberIdsGlobal = ref<string[]>([]);   // Global member filter
-
-// State for the CategoryBreakdownReport (Chart 2 and its table)
-const selectedMonthForDetail = ref<number | undefined>(currentMonth); // Driven by global month filter or trend chart click
-const selectedYearForDetail = ref<number>(currentYear); // Primarily driven by global year filter
+const selectedCategoryIdsGlobal = ref<string[]>([]);
+const selectedMemberIdsGlobal = ref<string[]>([]);
+const selectedMonthForDetail = ref<number | undefined>(currentMonth);
+const selectedYearForDetail = ref<number>(currentYear);
 
 const categoryFilterOptions = computed(() =>
   categoryStore.visibleCategories
@@ -259,7 +261,6 @@ const categoryFilterOptions = computed(() =>
     })).sort((a,b) => (a.label ?? '').localeCompare(b.label ?? ''))
 );
 
-// Helper: Only use categoryIds belonging to the selected family
 function getSelectedCategoryIdsForFamily() {
   const validCategoryIds = categoryStore.visibleCategories
     .filter(cat => cat.familyId === selectedFamilyId.value)
@@ -301,11 +302,10 @@ const selectedMembersDisplayValue = computed(() => {
 });
 
 const isLoadingAnyReport = computed(() =>
-  // summaryStore.totalsSummaryLoading || // TotalsSummaryReport removed for now
   summaryStore.categoryBreakdownLoading ||
   summaryStore.budgetTrendLoading ||
   summaryStore.memberBreakdownLoading ||
-  pdfExportLoading.value); // Include PDF export loading state
+  pdfExportLoading.value);
 
 const categoryBreakdownPeriodLabel = computed(() => {
   if (!selectedMonthForDetail.value || !selectedYearForDetail.value) return 'Vui lòng chọn một tháng';
@@ -317,7 +317,6 @@ const budgetTrendSubTitle = computed(() => {
   const trendCategories = selectedCategoryIdsGlobal.value || [];
   const trendMembers = selectedMemberIdsGlobal.value || [];
   const filterOptionsCount = categoryFilterOptions.value.length;
-
   if (trendCategories.length > 0 && trendCategories.length < filterOptionsCount) {
     sub += ` (Lọc theo ${trendCategories.length} danh mục)`;
     if (trendMembers.length > 0 && trendMembers.length < memberFilterOptions.value.length) {
@@ -329,13 +328,16 @@ const budgetTrendSubTitle = computed(() => {
   return sub;
 });
 
-const memberBreakdownPeriodLabel = computed(() => { // Label for the new report
+const memberBreakdownPeriodLabel = computed(() => {
   if (!selectedMonthForDetail.value || !selectedYearForDetail.value) return 'Vui lòng chọn một tháng';
   return `Phân tích thành viên cho Tháng ${selectedMonthForDetail.value}/${selectedYearForDetail.value}`;
 });
 
-const excludeIncomeFilter = ref<boolean>(true); // Default to excluding income
+const excludeIncomeFilter = ref<boolean>(true);
 
+const isUserFamily = computed(() => {
+  return !!(selectedFamilyId.value && authStore.user?.familyId && selectedFamilyId.value === authStore.user.familyId);
+});
 
 const loadDetailReports = async (year: number, month?: number, quarter?: number) => {
   const periodType = PeriodType.Monthly;
@@ -365,48 +367,46 @@ const loadDetailReports = async (year: number, month?: number, quarter?: number)
       memberIdsToSend,
       excludeIncomeFilter.value ? 'expense' : 'all',
     ),
+    (selectedFamilyId.value && familyStore.selectedFamilyId && selectedFamilyId.value === familyStore.selectedFamilyId)
+      ? summaryStore.loadPersonBreakdown(
+          periodType,
+          year,
+          month,
+          quarter,
+          excludeIncomeFilter.value ? 'expense' : 'all',
+        )
+      : Promise.resolve(),
   ];
   await Promise.all(promises);
 };
 
 const handleMonthSelectedFromTrend = async (periodYYYYMM: string) => {
-  console.log('Month selected from trend:', periodYYYYMM);
   const [yearStr, monthStr] = periodYYYYMM.split('-');
-  const year = yearStr ? parseInt(yearStr, 10) : selectedYear.value; // Fallback to global year
+  const year = yearStr ? parseInt(yearStr, 10) : selectedYear.value;
   const month = monthStr ? parseInt(monthStr, 10) : undefined;
-
   selectedYearForDetail.value = year;
-  selectedMonthForDetail.value = month; // Update the global month filter as well
-
+  selectedMonthForDetail.value = month;
   await loadDetailReports(year, month);
   $q.notify({ type: 'info', message: `Đang hiển thị chi tiết cho ${periodYYYYMM}`, position: 'top', timeout: 1500 });
 };
 
-// When global month filter changes, update detail year and reload detail reports
 const onGlobalMonthChange = (newMonth: number | undefined | null) => {
-  // newMonth can be null if q-select is cleared
   selectedMonthForDetail.value = newMonth === null ? undefined : newMonth;
-  selectedYearForDetail.value = selectedYear.value; // Ensure detail year matches global year
-  if (selectedMonthForDetail.value) { // Only load if a month is actually selected
+  selectedYearForDetail.value = selectedYear.value;
+  if (selectedMonthForDetail.value) {
     void loadDetailReports(selectedYearForDetail.value, selectedMonthForDetail.value);
   } else {
-    // Optionally clear or show a placeholder for category breakdown if month is cleared
     summaryStore.categoryBreakdown = null;
   }
 };
 
 const applyFiltersAndLoadReports = async () => {
-  console.log('[ReportsPage DEBUG] applyFiltersAndLoadReports called. Filters to be sent -> memberIds:', selectedMemberIdsGlobal.value, 'categoryIds:', selectedCategoryIdsGlobal.value, 'transactionType:', excludeIncomeFilter.value ? 'expense' : 'all');
-  selectedYearForDetail.value = selectedYear.value; // Sync detail year with global year
-  // If global month is not set, but detail month was (e.g. from trend click), keep detail month.
-  // Otherwise, if global month is cleared, detail month should also be cleared or defaulted.
+  selectedYearForDetail.value = selectedYear.value;
   if (selectedMonthForDetail.value === undefined) {
-      selectedMonthForDetail.value = currentMonth; // Default to current month if nothing is set
+      selectedMonthForDetail.value = currentMonth;
   }
-
   const promises = [
-    // summaryStore.loadTotalsSummary(PeriodType.Yearly, selectedYear.value), // Removed for now
-    loadDetailReports(selectedYearForDetail.value, selectedMonthForDetail.value, undefined), // Pass undefined for quarter
+    loadDetailReports(selectedYearForDetail.value, selectedMonthForDetail.value, undefined),
     summaryStore.loadBudgetTrend(
       PeriodType.Monthly,
       selectedYear.value,
@@ -422,60 +422,36 @@ const applyFiltersAndLoadReports = async () => {
   await Promise.all(promises);
 };
 
-const exportReportToPdf = async () => { // Make async
+const exportReportToPdf = async () => {
   const reportContentElement = document.getElementById('report-content-to-export');
   if (!reportContentElement) {
     $q.notify({ type: 'negative', message: 'Không tìm thấy nội dung báo cáo để xuất.' });
     return;
   }
-
-  // Add a class to apply print-friendly styles
   reportContentElement.classList.add('pdf-export-mode');
-
-
   pdfExportLoading.value = true;
-  $q.loading.show({
-    message: 'Đang tạo file PDF...',
-  });
-
+  $q.loading.show({ message: 'Đang tạo file PDF...' });
   try {
-    // Allow DOM to update with the new class
-    await new Promise(resolve => setTimeout(resolve, 100)); // Small delay for re-render
-
+    await new Promise(resolve => setTimeout(resolve, 100));
     const canvas = await html2canvas(reportContentElement, {
-      scale: 1.5, // REDUCED scale for smaller file size, adjust as needed (1 or 1.5)
-      useCORS: true, // If you have external images/resources
-      logging: true, // For debugging
-      // windowWidth: 800, // Experiment with forcing a width if layout is still too wide
+      scale: 1.5,
+      useCORS: true,
+      logging: true,
     });
-
     const imgData = canvas.toDataURL('image/png');
-    // const imgData = canvas.toDataURL('image/jpeg', 0.7); // ALTERNATIVE: JPEG for smaller size but lossy
-
-    const pdf = new jsPDF({
-      orientation: 'p', // portrait
-      unit: 'pt', // points
-      format: 'a4', // A4 paper
-    });
-
-    const pageMargin = 40; // Points
+    const pdf = new jsPDF({ orientation: 'p', unit: 'pt', format: 'a4' });
+    const pageMargin = 40;
     const pdfWidth = pdf.internal.pageSize.getWidth() - (pageMargin * 2);
     const pdfHeight = pdf.internal.pageSize.getHeight() - (pageMargin * 2);
-
     const imgProps = pdf.getImageProperties(imgData);
     const aspectRatio = imgProps.width / imgProps.height;
-
     const imgRenderHeight = pdfWidth / aspectRatio;
     const currentPosition = pageMargin;
-
     if (imgRenderHeight <= pdfHeight) {
-      // Image fits on one page (or less)
       pdf.addImage(imgData, 'PNG', pageMargin, currentPosition, pdfWidth, imgRenderHeight);
     } else {
-      // Image is taller than one page, needs pagination
       let remainingImgHeight = imgProps.height;
-      let srcY = 0; // Y-coordinate in the source canvas
-
+      let srcY = 0;
       while (remainingImgHeight > 0) {
         const pageChunkHeight = Math.min(remainingImgHeight, (pdfHeight / pdfWidth) * imgProps.width);
         const pageCanvas = document.createElement('canvas');
@@ -483,10 +459,8 @@ const exportReportToPdf = async () => { // Make async
         pageCanvas.height = pageChunkHeight;
         const ctx = pageCanvas.getContext('2d');
         ctx?.drawImage(canvas, 0, srcY, imgProps.width, pageChunkHeight, 0, 0, imgProps.width, pageChunkHeight);
-
         const pageImgData = pageCanvas.toDataURL('image/png');
-        pdf.addImage(pageImgData, 'PNG', pageMargin, pageMargin, pdfWidth, pdfHeight * (pageChunkHeight / ((pdfHeight / pdfWidth) * imgProps.width)) ); // Scale to fit page height if chunk is smaller
-
+        pdf.addImage(pageImgData, 'PNG', pageMargin, pageMargin, pdfWidth, pdfHeight * (pageChunkHeight / ((pdfHeight / pdfWidth) * imgProps.width)) );
         remainingImgHeight -= pageChunkHeight;
         srcY += pageChunkHeight;
         if (remainingImgHeight > 0) {
@@ -494,7 +468,6 @@ const exportReportToPdf = async () => { // Make async
         }
       }
     }
-
     const filename = `BaoCao_${selectedYear.value}${selectedMonthForDetail.value ? `_T${selectedMonthForDetail.value}` : ''}_${dayjs().format('YYYYMMDDHHmmss')}.pdf`;
     pdf.save(filename);
     $q.notify({ type: 'positive', message: 'Đã xuất báo cáo thành công!' });
@@ -502,20 +475,31 @@ const exportReportToPdf = async () => { // Make async
     console.error('Lỗi khi xuất PDF:', error);
     $q.notify({ type: 'negative', message: 'Có lỗi xảy ra khi xuất PDF.' });
   } finally {
-    reportContentElement.classList.remove('pdf-export-mode'); // Clean up class
+    reportContentElement.classList.remove('pdf-export-mode');
     pdfExportLoading.value = false;
     $q.loading.hide();
   }
 };
 
-onMounted(async () => {
-  // Load families first
-  await familyStore.loadFamilies();
-  if (!selectedFamilyId.value && familyStore.selectedFamilyId) {
-    selectedFamilyId.value = familyStore.selectedFamilyId;
-  }
-  void categoryStore.loadCategories();
-  void householdMemberStore.loadMembers();
-  void applyFiltersAndLoadReports();
-});
+let lastLoadedFamilyId: string | null = null;
+watch(
+  () => familyStore.selectedFamilyId,
+  async (newVal) => {
+    if (newVal && newVal !== lastLoadedFamilyId) {
+      selectedFamilyId.value = newVal;
+      await Promise.all([
+        categoryStore.loadCategories(),
+        householdMemberStore.loadMembers()
+      ]);
+      selectedCategoryIdsGlobal.value = [];
+      selectedMemberIdsGlobal.value = [];
+      void applyFiltersAndLoadReports();
+      lastLoadedFamilyId = newVal;
+    }
+  },
+  { immediate: true }
+);
 </script>
+
+
+

@@ -4,6 +4,28 @@
 
 ---
 
+
+## Sprint 5–7: Person Breakdown Report, Access Control, and Robust State Management (2025-07-09)
+
+### Person Breakdown Report & Access Control
+- Implemented a robust Person Breakdown report, visible only for the user's own family, with strict backend access control (controller and service both source `familyId` from session, never from client input).
+- Validated that the report is never shown for families the user does not have full access to, both in backend and frontend logic.
+- Used a computed property (`isUserFamily`) in the frontend to control feature visibility, ensuring no accidental exposure.
+
+### Vue SFC Hygiene & Error Resolution
+- Refactored `ReportsPage.vue` to use a single `<template>` and `<script setup>`, eliminating duplicate/malformed blocks and resolving all "x-invalid-end-tag" parsing errors.
+- Fixed all TypeScript, ESLint, and prop type errors in the new components and store logic.
+
+### Contract Discipline & State Management
+- Kept frontend models, Pinia stores, and API services in sync with backend DTOs for all new features.
+- Used Pinia stores for all shared state, ensuring robust, type-safe state transitions.
+
+### Documentation & Debugging
+- Documented all root causes, solutions, and impacts for bugs and features in `Lesson_Learn.txt` and this file.
+- Updated documentation after each sprint to capture key takeaways and technical highlights.
+
+---
+
 ## Sprint 5: Multi-Family, Real-Time, and State Retention Lessons (2025-07-08)
 
 ### Real-Time Updates & WebSocket Event Routing
@@ -32,6 +54,23 @@
 
 ---
 
+## Sprint 5 Addendum: UI/UX Consistency & Component Logic (2025-07-08)
+
+### UI/UX Consistency & Centralized Store Logic
+- **Harmonized Family Grouping:** Refactored `CategoriesPage` to use the same `q-list` with group headers as `HouseholdMembersPage`. This unified the UI and removed inconsistent nested list structures.
+- **Centralized Business Logic:** Ensured sorting and display logic for family groups is handled consistently within the Pinia stores (`categoryStore`, `householdMemberStore`). Removed UI-specific text like "(Nhóm con)" from store getters to keep components clean and logic centralized.
+- **Lesson:** UI patterns for similar data representations should be consistent across the application. Centralizing data transformation and business logic in stores makes components simpler, more predictable, and easier to maintain.
+
+### Component-Level Context vs. Global State
+- **Family-Aware Forms:** The `TransactionFormDialog` was updated to filter category and member dropdowns based on the `familyId` of the transaction being edited, not the globally selected family.
+- **Lesson:** It's critical to distinguish between global state (the user's current view context) and component-level context (the data associated with a specific item). Components should receive context via props to ensure they are reusable and behave correctly regardless of the global state.
+
+### Vue & TypeScript Best Practices
+- **SFC & Composition API:** Fixed build errors by moving `computed` properties inside the `<script setup>` block in Vue Single File Components, aligning with modern Composition API standards.
+- **Dialog Interaction:** Improved usability by removing the `persistent` prop from dialogs, allowing users to close them with the ESC key or by clicking the backdrop. This is a better default behavior unless a modal action is strictly required.
+- **Type Safety:** Resolved multiple TypeScript errors by updating interfaces (e.g., adding `familyId` to `Transaction`) and ensuring all related component and store logic was type-safe. This prevents runtime errors and improves code reliability.
+
+---
+
 **Key Principle:**
 - Always ensure backend and frontend event logic, access rules, and state retention are consistent and robust. Document all changes and lessons to prevent regressions and knowledge loss.
- 

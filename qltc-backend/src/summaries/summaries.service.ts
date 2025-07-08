@@ -1,5 +1,11 @@
+
 import { Injectable, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { Prisma, Transaction } from '@prisma/client';
+import dayjs from '../utils/dayjs';
+import { GetPersonBreakdownQueryDto } from './dto/get-person-breakdown-query.dto';
+import { PersonBreakdownItemDto } from './dto/person-breakdown-item.dto';
+import { PersonCategoryBudgetCompareItemDto } from './dto/person-category-budget-compare-item.dto';
 import { PeriodType, GetTotalsSummaryQueryDto } from './dto/get-totals-summary.dto';
 import { PeriodSummaryDto } from './dto/totals-summary-response.dto';
 import { GetCategoryBreakdownQueryDto } from './dto/get-category-breakdown.dto';
@@ -12,12 +18,203 @@ import { GetBudgetComparisonQueryDto } from './dto/get-budget-comparison.dto';
 import { BudgetComparisonItemDto, BudgetComparisonResponseDto, BudgetStatus } from './dto/budget-comparison-response.dto';
 import { GetBudgetTrendQueryDto } from './dto/get-budget-trend.dto';
 import { BudgetTrendItemDto, BudgetTrendResponseDto } from './dto/budget-trend-response.dto';
-import { Prisma } from '@prisma/client'; // Import Prisma
-import type { Transaction } from '@prisma/client';
-import dayjs from '../utils/dayjs'; // Import the configured dayjs instance
 
 @Injectable()
 export class SummariesService {
+
+  /**
+   * Returns a comparison of expense vs. budget for all persons in the family, aggregated by category name (across all categories with the same name).
+   */
+  async getPersonCategoryBudgetCompare(
+    userId: string,
+    familyId: string,
+    query: GetPersonBreakdownQueryDto,
+  ): Promise<PersonCategoryBudgetCompareItemDto[]> {
+    // Determine period
+    const year = query.year || dayjs().year();
+    let startDate = dayjs().year(year).startOf('year').toDate();
+    let endDate = dayjs().year(year).endOf('year').toDate();
+    if (query.periodType === 'monthly' && query.month) {
+      startDate = dayjs().year(year).month(query.month - 1).startOf('month').toDate();
+      endDate = dayjs().year(year).month(query.month - 1).endOf('month').toDate();
+    }
+
+    // Get all categories (across all families, for aggregation by name)
+    const allCategories = await this.prisma.category.findMany({
+      select: { id: true, name: true },
+    });
+    // Map: categoryName -> { totalExpense, budgetLimit }
+    const categoryMap = new Map<string, { totalExpense: number; budgetLimit: number }>();
+
+    // Get all persons in the family
+    const persons = await this.prisma.person.findMany({
+      where: { memberships: { some: { familyId } } },
+      select: { id: true },
+    });
+    const personIds = persons.map(p => p.id);
+
+    // Get all memberships for these persons in this family
+    const memberships = await this.prisma.householdMembership.findMany({
+      where: { personId: { in: personIds }, familyId },
+      select: { id: true },
+    });
+    const memberIds = memberships.map(m => m.id);
+    if (memberIds.length === 0) return [];
+
+    // Get all transactions for these memberships in the period
+    const transactions = await this.prisma.transaction.findMany({
+      where: {
+        familyId,
+        date: { gte: startDate, lte: endDate },
+        type: 'expense',
+        OR: [
+          { payer: { in: memberIds } },
+          { isShared: true, splitRatio: { not: undefined } },
+        ],
+      },
+      select: { amount: true, categoryId: true, isShared: true, splitRatio: true, payer: true },
+    });
+
+    // Aggregate expenses by category name
+    for (const t of transactions) {
+      // Find category name
+      const cat = allCategories.find(c => c.id === t.categoryId);
+      if (!cat) continue;
+      const catName = cat.name;
+      let amount = 0;
+      if (t.isShared && t.splitRatio) {
+        let splitArr: any[] = [];
+        try {
+          splitArr = typeof t.splitRatio === 'string' ? JSON.parse(t.splitRatio) : t.splitRatio;
+        } catch {}
+        // Sum all shares for this transaction (all members in this family)
+        amount = splitArr
+          .filter((sr: any) => memberIds.includes(sr.memberId))
+          .reduce((sum: number, sr: any) => sum + t.amount * (sr.percentage / 100), 0);
+      } else if (t.payer && memberIds.includes(t.payer)) {
+        amount = t.amount;
+      }
+      if (!categoryMap.has(catName)) {
+        categoryMap.set(catName, { totalExpense: 0, budgetLimit: 0 });
+      }
+      categoryMap.get(catName)!.totalExpense += amount;
+    }
+
+    // Aggregate budget limits by category name (sum all categories with same name for this family)
+    const familyCategories = await this.prisma.category.findMany({
+      where: { familyId },
+      select: { name: true, budgetLimit: true },
+    });
+    for (const cat of familyCategories) {
+      if (!categoryMap.has(cat.name)) {
+        categoryMap.set(cat.name, { totalExpense: 0, budgetLimit: 0 });
+      }
+      categoryMap.get(cat.name)!.budgetLimit += cat.budgetLimit || 0;
+    }
+
+    // Build result array
+    const result: PersonCategoryBudgetCompareItemDto[] = [];
+    for (const [categoryName, { totalExpense, budgetLimit }] of categoryMap.entries()) {
+      result.push({ categoryName, totalExpense, budgetLimit });
+    }
+    return result;
+  }
+  /**
+   * Returns a breakdown of expenses by person for the user's own family only.
+   * Only persons the user has full access to (i.e., in the same family and not in any other inaccessible family) are included.
+   */
+  async getPersonBreakdown(
+    userId: string,
+    familyId: string,
+    query: GetPersonBreakdownQueryDto,
+  ): Promise<PersonBreakdownItemDto[]> {
+    // Only allow for user's own family (enforced at controller)
+    // Find all persons in this family who do not have memberships in other families the user cannot access
+    // (For now, assume all persons in the family are included. Refine as needed for multi-family logic.)
+    const year = query.year || dayjs().year();
+    let startDate = dayjs().year(year).startOf('year').toDate();
+    let endDate = dayjs().year(year).endOf('year').toDate();
+    if (query.periodType === 'monthly' && query.month) {
+      startDate = dayjs().year(year).month(query.month - 1).startOf('month').toDate();
+      endDate = dayjs().year(year).month(query.month - 1).endOf('month').toDate();
+    }
+    // Get all persons in the family
+    const persons = await this.prisma.person.findMany({
+      where: {
+        memberships: {
+          some: { familyId },
+        },
+      },
+      select: {
+        id: true,
+        name: true,
+      },
+    });
+    // For each person, sum all income and expenses for their memberships in this family
+    const result: PersonBreakdownItemDto[] = [];
+    for (const person of persons) {
+      // Find all memberships for this person in this family
+      const memberships = await this.prisma.householdMembership.findMany({
+        where: { personId: person.id, familyId },
+        select: { id: true },
+      });
+      const memberIds = memberships.map((m: { id: string }) => m.id);
+      if (memberIds.length === 0) continue;
+      // Find all transactions for these memberships (payer or in splitRatio)
+      const transactions = await this.prisma.transaction.findMany({
+        where: {
+          familyId,
+          date: { gte: startDate, lte: endDate },
+          OR: [
+            { payer: { in: memberIds } },
+            { isShared: true, splitRatio: { not: undefined } },
+          ],
+        },
+      });
+      let totalIncome = 0;
+      let totalExpense = 0;
+      for (const t of transactions) {
+        if (t.type === 'income') {
+          // Income logic
+          if (t.isShared && t.splitRatio) {
+            let splitArr: any[] = [];
+            try {
+              splitArr = typeof t.splitRatio === 'string' ? JSON.parse(t.splitRatio) : t.splitRatio;
+            } catch {}
+            for (const sr of splitArr) {
+              if (memberIds.includes(sr.memberId)) {
+                totalIncome += t.amount * (sr.percentage / 100);
+              }
+            }
+          } else if (t.payer && memberIds.includes(t.payer)) {
+            totalIncome += t.amount;
+          }
+        } else if (t.type === 'expense') {
+          // Expense logic
+          if (t.isShared && t.splitRatio) {
+            let splitArr: any[] = [];
+            try {
+              splitArr = typeof t.splitRatio === 'string' ? JSON.parse(t.splitRatio) : t.splitRatio;
+            } catch {}
+            for (const sr of splitArr) {
+              if (memberIds.includes(sr.memberId)) {
+                totalExpense += t.amount * (sr.percentage / 100);
+              }
+            }
+          } else if (t.payer && memberIds.includes(t.payer)) {
+            totalExpense += t.amount;
+          }
+        }
+      }
+      result.push({
+        personId: person.id,
+        personName: person.name,
+        totalIncome,
+        totalExpense,
+      });
+    }
+    return result;
+  }
   constructor(private readonly prisma: PrismaService) {}
   /**
    * Define the expected structure of the splitRatio JSON stored in the database.

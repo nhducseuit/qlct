@@ -9,7 +9,10 @@ import type {
   BudgetComparisonResponseDto,
   GetBudgetComparisonQueryDto,
   BudgetTrendResponseDto,
+  PersonCategoryBudgetCompareResponseDto, // Import the new response DTO
+  GetPersonBreakdownQueryDto,
   PeriodType, // Assuming PeriodType is exported from models/summary or similar
+  PersonBreakdownResponseDto, // <-- Add this import
 } from 'src/models/summary'; // We'll create this models file next
 import qs from 'qs';
 
@@ -101,6 +104,30 @@ export const fetchBudgetTrendAPI = async (
   query: GetBudgetTrendPayload, // Use the frontend payload type
 ): Promise<BudgetTrendResponseDto> => {
   const response = await apiClient.get<BudgetTrendResponseDto>(`${API_URL}/budget-trend`, {
+    params: query,
+    paramsSerializer: params => {
+      return qs.stringify(params, { arrayFormat: 'repeat' });
+    }
+  });
+  return response.data;
+};
+
+export const fetchPersonCategoryBudgetCompareAPI = async (
+  query: GetPersonBreakdownQueryDto,
+): Promise<PersonCategoryBudgetCompareResponseDto> => {
+  const response = await apiClient.get<PersonCategoryBudgetCompareResponseDto>(`${API_URL}/person-category-budget-compare`, {
+    params: query,
+    paramsSerializer: params => {
+      return qs.stringify(params, { arrayFormat: 'repeat' });
+    }
+  });
+  return response.data;
+};
+
+export const fetchPersonBreakdownAPI = async (
+  query: GetPersonBreakdownQueryDto,
+): Promise<PersonBreakdownResponseDto> => {
+  const response = await apiClient.get<PersonBreakdownResponseDto>(`${API_URL}/person-breakdown`, {
     params: query,
     paramsSerializer: params => {
       return qs.stringify(params, { arrayFormat: 'repeat' });
