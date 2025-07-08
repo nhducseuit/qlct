@@ -3,7 +3,7 @@
   "version": "0.0.1",
   "description": "Quan ly thu chi don gian",
   "productName": "QLTC app",
-  "author": "Duc Nguyen BnK <duc.nguyen3@bnksolution.com>",
+  "author": "",
   "type": "module",
   "private": true,
   "scripts": {
