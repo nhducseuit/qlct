@@ -1,5 +1,6 @@
-import { Controller, Get, Query, UseGuards, Req, Post, Body, HttpStatus } from '@nestjs/common';
+import { Controller, Get, Query, UseGuards, Req, Post, Body } from '@nestjs/common';
 import { SettlementsService } from './settlements.service';
+import { PersonService } from '../person/person.service'; // <-- Add this import
 import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags, ApiCreatedResponse } from '@nestjs/swagger';
 import { BalancesResponseDto } from './dto/balances-response.dto';
 import { CreateSettlementDto } from './dto/create-settlement.dto';
@@ -16,13 +17,20 @@ import { FamilyGuard } from '../auth/guards/family.guard';
 @UseGuards(JwtAuthGuard, FamilyGuard)
 @Controller('settlements')
 export class SettlementsController {
-  constructor(private readonly settlementsService: SettlementsService) {}
+  constructor(
+    private readonly settlementsService: SettlementsService,
+    private readonly personService: PersonService // <-- Inject PersonService
+  ) {}
 
+  /**
+   * GET /settlements/balances
+   * Calculate and retrieve person-to-person balances for a family
+   */
   @Get('balances')
-  @ApiOperation({ summary: 'Calculate and retrieve member balances' })
+  @ApiOperation({ summary: 'Calculate and retrieve person-to-person balances' })
   @ApiResponse({
     status: 200,
-    description: 'Successfully retrieved member balances.',
+    description: 'Successfully retrieved balances.',
     type: BalancesResponseDto,
   })
   async getBalances(
@@ -33,8 +41,12 @@ export class SettlementsController {
     return this.settlementsService.calculateBalances(familyId, query);
   }
 
+  /**
+   * POST /settlements
+   * Record a new person-to-person settlement
+   */
   @Post()
-  @ApiOperation({ summary: 'Record a new settlement between members' })
+  @ApiOperation({ summary: 'Record a new settlement between persons' })
   @ApiCreatedResponse({
     description: 'The settlement has been successfully recorded.',
     type: SettlementDto,
@@ -47,6 +59,10 @@ export class SettlementsController {
     return this.settlementsService.createSettlement(familyId, userId, createSettlementDto);
   }
 
+  /**
+   * GET /settlements
+   * Retrieve a paginated list of person-to-person settlements
+   */
   @Get()
   @ApiOperation({ summary: 'Retrieve a paginated list of settlements' })
   @ApiResponse({
@@ -58,7 +74,15 @@ export class SettlementsController {
     @Req() req: AuthenticatedRequest,
     @Query() query: GetSettlementsQueryDto,
   ): Promise<PaginatedSettlementsResponseDto> {
-    const { familyId } = req.user;
-    return this.settlementsService.getSettlements(familyId, query);
+    // Use the same logic as get persons API
+    const userId = req.user.id;
+    const memberships = await this.personService.getMembershipsByUserId(userId);
+    const familyIds = memberships.map((m: { familyId: string }) => m.familyId);
+    let accessiblePersonIds: string[] = [];
+    if (familyIds.length > 0) {
+      const persons = await this.personService.findByFamilyIds(familyIds);
+      accessiblePersonIds = persons.map((p: { id: string }) => p.id);
+    }
+    return this.settlementsService.getSettlementsAccessible(query, accessiblePersonIds);
   }
 }

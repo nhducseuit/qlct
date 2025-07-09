@@ -1,12 +1,13 @@
-// src/settlements/dto/get-balances-query.dto.ts
-// No query parameters for now, can be extended later (e.g., date filters)
+import { ApiPropertyOptional } from '@nestjs/swagger';
+import { IsOptional, IsUUID } from 'class-validator';
+
 export class GetBalancesQueryDto {
-  // @ApiPropertyOptional({ description: 'Start date for transactions to consider (ISO 8601)' })
-  // @IsOptional()
-  // @IsISO8601()
-  // startDate?: string;
-  // @ApiPropertyOptional({ description: 'End date for transactions to consider (ISO 8601)' })
-  // @IsOptional()
-  // @IsISO8601()
-  // endDate?: string;
+  @ApiPropertyOptional({
+    description: 'Person ID to get balances for (required for person-centric balances)',
+    type: String,
+    format: 'uuid',
+  })
+  @IsOptional()
+  @IsUUID()
+  personId?: string;
 }

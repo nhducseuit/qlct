@@ -18,16 +18,16 @@ model Family {
   updatedAt DateTime @updatedAt
 
   // Self-relation for Big Family / Small Family structure
-  parentId  String?
-  parent    Family?  @relation("SubFamilies", fields: [parentId], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  children  Family[] @relation("SubFamilies")
+  parentId String?
+  parent   Family?  @relation("SubFamilies", fields: [parentId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  children Family[] @relation("SubFamilies")
 
   users                 User[]
   categories            Category[]
   transactions          Transaction[]
   memberships           HouseholdMembership[]
   predefinedSplitRatios PredefinedSplitRatio[]
-  settlements           Settlement[]
+  // settlements           Settlement[]  // Removed: now person-centric
 }
 
 model User {
@@ -44,7 +44,7 @@ model User {
 
 model Category {
   id                String   @id @default(uuid())
-  key               String?   @unique
+  key               String?  @unique
   name              String
   parentId          String?
   icon              String?
@@ -60,8 +60,8 @@ model Category {
   familyId String
   family   Family @relation(fields: [familyId], references: [id], onDelete: Cascade)
 
-  parent        Category?  @relation("SubCategories", fields: [parentId], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  subCategories Category[] @relation("SubCategories")
+  parent        Category?     @relation("SubCategories", fields: [parentId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  subCategories Category[]    @relation("SubCategories")
   transactions  Transaction[]
 }
 
@@ -77,8 +77,8 @@ model Transaction {
   updatedAt  DateTime @updatedAt
   splitRatio Json?
 
-  familyId   String
-  family     Family   @relation(fields: [familyId], references: [id], onDelete: Cascade)
+  familyId String
+  family   Family @relation(fields: [familyId], references: [id], onDelete: Cascade)
 
   categoryId String
   category   Category @relation(fields: [categoryId], references: [id], onDelete: Restrict)
@@ -86,16 +86,17 @@ model Transaction {
   payerMembership HouseholdMembership? @relation("PayerTransactions", fields: [payer], references: [id], onDelete: SetNull, onUpdate: Cascade)
 }
 
-
 model Person {
-  id          String                @id @default(uuid())
-  name        String
-  email       String?               @unique
-  phone       String?
-  socialId    String?               @unique
-  createdAt   DateTime              @default(now())
-  updatedAt   DateTime              @updatedAt
-  memberships HouseholdMembership[]
+  id                 String                @id @default(uuid())
+  name               String
+  email              String?               @unique
+  phone              String?
+  socialId           String?               @unique
+  createdAt          DateTime              @default(now())
+  updatedAt          DateTime              @updatedAt
+  memberships        HouseholdMembership[]
+  settlementsAsPayer Settlement[]          @relation("SettlementPayer")
+  settlementsAsPayee Settlement[]          @relation("SettlementPayee")
 }
 
 model HouseholdMembership {
@@ -107,11 +108,11 @@ model HouseholdMembership {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  person   Person @relation(fields: [personId], references: [id], onDelete: Cascade)
-  family   Family @relation(fields: [familyId], references: [id], onDelete: Cascade)
+  person Person @relation(fields: [personId], references: [id], onDelete: Cascade)
+  family Family @relation(fields: [familyId], references: [id], onDelete: Cascade)
 
-  paidSettlements     Settlement[] @relation("PaidSettlements")
-  receivedSettlements Settlement[] @relation("ReceivedSettlements")
+  // paidSettlements     Settlement[] @relation("PaidSettlements") // Removed: now person-centric
+  // receivedSettlements Settlement[] @relation("ReceivedSettlements") // Removed: now person-centric
   transactionsAsPayer Transaction[] @relation("PayerTransactions")
 
   @@unique([personId, familyId])
@@ -124,7 +125,7 @@ model PredefinedSplitRatio {
   name       String
   splitRatio Json
   familyId   String
-  family     Family   @relation(fields: [familyId], references: [id], onDelete: Cascade)
+  family     Family @relation(fields: [familyId], references: [id], onDelete: Cascade)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -135,22 +136,17 @@ model PredefinedSplitRatio {
 
 model Settlement {
   id        String   @id @default(uuid())
-  amount    Float
-  date      DateTime @db.Timestamptz(3)
+  payerId   String
+  payeeId   String
+  amount    Decimal
   note      String?
   createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdBy String
 
-  payerMembershipId String
-  payer   HouseholdMembership @relation("PaidSettlements", fields: [payerMembershipId], references: [id])
+  payer Person @relation("SettlementPayer", fields: [payerId], references: [id])
+  payee Person @relation("SettlementPayee", fields: [payeeId], references: [id])
 
-  payeeMembershipId String
-  payee   HouseholdMembership @relation("ReceivedSettlements", fields: [payeeMembershipId], references: [id])
-
-  familyId String
-  family   Family @relation(fields: [familyId], references: [id], onDelete: Cascade)
-
-  @@index([payerMembershipId])
-  @@index([payeeMembershipId])
-  @@index([familyId])
+  @@index([payerId])
+  @@index([payeeId])
+  @@index([createdBy])
 }

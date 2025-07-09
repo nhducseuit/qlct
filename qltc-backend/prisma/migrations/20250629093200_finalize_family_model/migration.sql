@@ -34,12 +34,6 @@ ALTER TABLE "PredefinedSplitRatio" DROP CONSTRAINT "PredefinedSplitRatio_familyI
 ALTER TABLE "PredefinedSplitRatio" DROP CONSTRAINT "PredefinedSplitRatio_userId_fkey";
 
 -- DropForeignKey
-ALTER TABLE "Settlement" DROP CONSTRAINT "Settlement_familyId_fkey";
-
--- DropForeignKey
-ALTER TABLE "Settlement" DROP CONSTRAINT "Settlement_userId_fkey";
-
--- DropForeignKey
 ALTER TABLE "Transaction" DROP CONSTRAINT "Transaction_familyId_fkey";
 
 -- DropForeignKey
@@ -54,9 +48,6 @@ DROP INDEX "PredefinedSplitRatio_userId_idx";
 -- DropIndex
 DROP INDEX "PredefinedSplitRatio_userId_name_key";
 
--- DropIndex
-DROP INDEX "Settlement_userId_idx";
-
 -- AlterTable
 ALTER TABLE "Category" DROP COLUMN "userId",
 ALTER COLUMN "familyId" SET NOT NULL;
@@ -67,10 +58,6 @@ ALTER COLUMN "familyId" SET NOT NULL;
 
 -- AlterTable
 ALTER TABLE "PredefinedSplitRatio" DROP COLUMN "userId",
-ALTER COLUMN "familyId" SET NOT NULL;
-
--- AlterTable
-ALTER TABLE "Settlement" DROP COLUMN "userId",
 ALTER COLUMN "familyId" SET NOT NULL;
 
 -- AlterTable
@@ -86,9 +73,6 @@ CREATE INDEX "PredefinedSplitRatio_familyId_idx" ON "PredefinedSplitRatio"("fami
 -- CreateIndex
 CREATE UNIQUE INDEX "PredefinedSplitRatio_familyId_name_key" ON "PredefinedSplitRatio"("familyId", "name");
 
--- CreateIndex
-CREATE INDEX "Settlement_familyId_idx" ON "Settlement"("familyId");
-
 -- AddForeignKey
 ALTER TABLE "User" ADD CONSTRAINT "User_familyId_fkey" FOREIGN KEY ("familyId") REFERENCES "Family"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
@@ -103,6 +87,3 @@ ALTER TABLE "HouseholdMember" ADD CONSTRAINT "HouseholdMember_familyId_fkey" FOR
 
 -- AddForeignKey
 ALTER TABLE "PredefinedSplitRatio" ADD CONSTRAINT "PredefinedSplitRatio_familyId_fkey" FOREIGN KEY ("familyId") REFERENCES "Family"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "Settlement" ADD CONSTRAINT "Settlement_familyId_fkey" FOREIGN KEY ("familyId") REFERENCES "Family"("id") ON DELETE CASCADE ON UPDATE CASCADE;

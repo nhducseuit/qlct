@@ -1,44 +1,19 @@
 // src/settlements/dto/settlement.dto.ts
-import { ApiProperty } from '@nestjs/swagger';
-
-export class SettlementMemberDto {
-  @ApiProperty()
-  id!: string;
-
-  @ApiProperty({ description: 'Person details' })
-  person!: { id: string; name: string };
+// DTOs for person-centric settlements
+export class CreateSettlementDto {
+  payerId!: string;   // Person who paid
+  payeeId!: string;   // Person who received
+  amount!: number;    // Amount settled
+  note?: string;
 }
+
 export class SettlementDto {
-  @ApiProperty()
   id!: string;
-
-  @ApiProperty()
+  payerId!: string;
+  payeeId!: string;
   amount!: number;
-
-  @ApiProperty()
-  date!: string; // ISO Date string
-
-  @ApiProperty({ nullable: true })
-  note?: string | null;
-
-  @ApiProperty()
-  payerMembershipId!: string;
-
-  @ApiProperty({ type: SettlementMemberDto, description: 'Details of the payer membership' })
-  payer!: SettlementMemberDto;
-
-  @ApiProperty()
-  payeeMembershipId!: string;
-
-  @ApiProperty({ type: SettlementMemberDto, description: 'Details of the payee membership' })
-  payee!: SettlementMemberDto;
-
-  @ApiProperty()
-  familyId!: string;
-
-  @ApiProperty()
-  createdAt!: string; // ISO Date string
-
-  @ApiProperty()
-  updatedAt!: string; // ISO Date string
+  note?: string;
+  createdAt!: string;
+  createdBy!: string;
 }
+// removed stray bracket

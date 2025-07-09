@@ -27,37 +27,7 @@ export class GetSettlementsQueryDto {
   @Max(100) // Max limit to prevent abuse
   limit?: number = 10;
 
-  @ApiPropertyOptional({
-    description: 'Filter by payer household membership ID.',
-    type: String,
-    format: 'uuid',
-  })
-  @IsOptional()
-  @IsUUID()
-  payerMembershipId?: string;
 
-  @ApiPropertyOptional({
-    description: 'Filter by payee household membership ID.',
-    type: String,
-    format: 'uuid',
-  })
-  @IsOptional()
-  @IsUUID()
-  payeeMembershipId?: string;
+  // payerId and payeeId filters removed: settlements are now filtered by accessible persons automatically
 
-  @ApiPropertyOptional({
-    description: 'Filter by start date (ISO 8601 format).',
-    example: '2023-01-01T00:00:00.000Z',
-  })
-  @IsOptional()
-  @IsDateString()
-  startDate?: string;
-
-  @ApiPropertyOptional({
-    description: 'Filter by end date (ISO 8601 format).',
-    example: '2023-12-31T23:59:59.999Z',
-  })
-  @IsOptional()
-  @IsDateString()
-  endDate?: string;
 }

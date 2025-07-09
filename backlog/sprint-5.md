@@ -79,10 +79,56 @@
 
 ## 🔥 Most Important Unfinished Work (Work on These Next)
 
-### 1. Update and Test Settlement Page for Family Model
-- [ ] Refactor the Settlement page and backend logic to work with the new family/membership structure.
-- [ ] Ensure all settlement calculations, balances, and UI reflect the correct family context.
-- [ ] Test all settlement flows for both legacy and new data.
+
+
+
+### 1. Person-Centric Settlement Page Refactor (Clarified July 2025)
+#### Backend Tasks
+- [ ] Refactor Settlement Data Model: Ensure settlements are stored and queried at the person-to-person level, not by membership or family.
+- [ ] API: List Historical Settlements (`GET /settlements`): Returns all settlements between two persons the user can access.
+- [ ] API: List All Accessible Persons (`GET /persons?accessible=true`): Returns all persons the user can interact with (via family membership).
+- [ ] API: Get Current Balances for a Person (`GET /settlements/balances?personId={id}`): Returns a list of net balances between the selected person and all other accessible persons (exclude 0 balances).
+- [ ] API: Record New Settlement (`POST /settlements`): Payload: `{ payerId, payeeId, amount, note }`. Validates both persons are accessible to the user.
+- [ ] Access Control: Ensure all endpoints only return data for persons the user can access (via family membership).
+- [ ] Tests: Add/Update tests for all new/updated endpoints and edge cases (multiple memberships, persons leaving/joining families, etc.).
+
+#### Frontend Tasks
+
+- [x] **Balances View:**  
+  - User must select a person (from accessible persons) before balances are shown.
+  - On selection, fetch `/settlements/balances?personId={id}` and display net balances with all other accessible persons.
+  - If no person is selected, prompt the user to select one.
+
+- [x] **Settlement History:**  
+  - Show all settlements the user can access (not just between two persons).
+  - Columns: Payer, Payee, Amount, Date, Note.
+  - Optionally allow filtering/searching by payer/payee (using accessible persons).
+
+- [ ] **Settlement Creation:**  
+  - User can create a new settlement.
+  - User must select payer and payee (from accessible persons), enter amount and note.
+  - Validate both payer and payee are accessible.
+  - On submit, call `POST /settlements` with `{ payerId, payeeId, amount, note }`.
+  - Refresh balances and settlement history after creation.
+
+- [x] **Access Control:**  
+  - Only show persons/settlements the user can access.
+
+- [ ] Validation & Error Handling: Add/Update validation and error handling for all settlement actions.
+- [ ] Tests: Add/Update frontend tests for all settlement flows and edge cases.
+
+#### Calculation Approach (Approved)
+For a given person, calculate their net balance with every other accessible person, aggregating across all memberships and families:
+1. Gather all transactions involving the selected person (as payer, payee, or participant in split ratio), across all families the user can access.
+2. For each transaction, determine the share of each person (using split ratios). For each pair (A, B), calculate: Amount A paid on behalf of B (A is payer, B is in split ratio), Amount B paid on behalf of A (B is payer, A is in split ratio).
+3. Fetch all settlements between the selected person and each other person. Subtract the settled amounts from the running balance.
+4. For each other person, net balance = (A paid for B) - (B paid for A) - (settlements). Positive: A is owed by B. Negative: A owes B.
+5. Only show pairs where the net balance is non-zero.
+
+### 2. Transaction Update Issue (To Resolve After Settlement Page Refactor)
+- [ ] Investigate and resolve the current issue where users cannot update a transaction. Ensure this is addressed after the settlement page and logic are updated.
+
+### 3. Production Readiness & Deployment
 
 ### 2. Production Readiness & Deployment
 - [ ] Finalize and test all UI/UX consistency fixes to ensure they are stable and regression-free before deployment.

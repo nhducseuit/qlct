@@ -1,4 +1,4 @@
-import { Controller, Post, Body, Get, Param, Patch, UseGuards } from '@nestjs/common';
+import { Controller, Post, Body, Get, Param, Patch, UseGuards, Query, Req } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { PersonService } from './person.service';
 import { CreatePersonDto } from './dto/create-person.dto';
@@ -20,9 +20,18 @@ export class PersonController {
   }
 
   @Get()
-  @ApiOperation({ summary: 'Get all persons' })
-  async findAll() {
-    return this.personService.findAll();
+  @ApiOperation({ summary: 'Get all persons accessible to the user' })
+  async findAll(@Req() req: any) {
+    if (!req.user || !req.user.id) {
+      throw new Error('User or user id not found in request.');
+    }
+    // Find all family IDs for the user (via their memberships)
+    const memberships = await this.personService.getMembershipsByUserId(req.user.id);
+    const familyIds = memberships.map((m: { familyId: string }) => m.familyId);
+    if (familyIds.length === 0) {
+      return [];
+    }
+    return this.personService.findByFamilyIds(familyIds);
   }
 
   @Get(':id')

@@ -11,24 +11,6 @@
 -- DropForeignKey
 ALTER TABLE "HouseholdMember" DROP CONSTRAINT "HouseholdMember_familyId_fkey";
 
--- DropForeignKey
-ALTER TABLE "Settlement" DROP CONSTRAINT "Settlement_payeeId_fkey";
-
--- DropForeignKey
-ALTER TABLE "Settlement" DROP CONSTRAINT "Settlement_payerId_fkey";
-
--- DropIndex
-DROP INDEX "Settlement_payeeId_idx";
-
--- DropIndex
-DROP INDEX "Settlement_payerId_idx";
-
--- AlterTable
-ALTER TABLE "Settlement" DROP COLUMN "payeeId",
-DROP COLUMN "payerId",
-ADD COLUMN     "payeeMembershipId" TEXT NOT NULL,
-ADD COLUMN     "payerMembershipId" TEXT NOT NULL;
-
 -- DropTable
 DROP TABLE "HouseholdMember";
 
@@ -64,20 +46,8 @@ CREATE INDEX "HouseholdMembership_personId_idx" ON "HouseholdMembership"("person
 -- CreateIndex
 CREATE UNIQUE INDEX "HouseholdMembership_personId_familyId_key" ON "HouseholdMembership"("personId", "familyId");
 
--- CreateIndex
-CREATE INDEX "Settlement_payerMembershipId_idx" ON "Settlement"("payerMembershipId");
-
--- CreateIndex
-CREATE INDEX "Settlement_payeeMembershipId_idx" ON "Settlement"("payeeMembershipId");
-
 -- AddForeignKey
 ALTER TABLE "HouseholdMembership" ADD CONSTRAINT "HouseholdMembership_personId_fkey" FOREIGN KEY ("personId") REFERENCES "Person"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "HouseholdMembership" ADD CONSTRAINT "HouseholdMembership_familyId_fkey" FOREIGN KEY ("familyId") REFERENCES "Family"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "Settlement" ADD CONSTRAINT "Settlement_payerMembershipId_fkey" FOREIGN KEY ("payerMembershipId") REFERENCES "HouseholdMembership"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "Settlement" ADD CONSTRAINT "Settlement_payeeMembershipId_fkey" FOREIGN KEY ("payeeMembershipId") REFERENCES "HouseholdMembership"("id") ON DELETE RESTRICT ON UPDATE CASCADE;

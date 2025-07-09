@@ -1,0 +1,20 @@
+// Person-centric Settlement model (DRAFT)
+model Settlement {
+  id         String   @id @default(uuid())
+  payerId    String
+  payeeId    String
+  amount     Decimal
+  note       String?
+  createdAt  DateTime @default(now())
+  createdBy  String
+
+  payer      Person   @relation("SettlementPayer", fields: [payerId], references: [id])
+  payee      Person   @relation("SettlementPayee", fields: [payeeId], references: [id])
+}
+
+model Person {
+  id         String      @id @default(uuid())
+  // ...existing fields...
+  settlementsAsPayer Settlement[] @relation("SettlementPayer")
+  settlementsAsPayee Settlement[] @relation("SettlementPayee")
+}

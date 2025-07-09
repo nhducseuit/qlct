@@ -8,9 +8,6 @@ ALTER TABLE "HouseholdMember" ADD COLUMN     "familyId" TEXT;
 ALTER TABLE "PredefinedSplitRatio" ADD COLUMN     "familyId" TEXT;
 
 -- AlterTable
-ALTER TABLE "Settlement" ADD COLUMN     "familyId" TEXT;
-
--- AlterTable
 ALTER TABLE "Transaction" ADD COLUMN     "familyId" TEXT;
 
 -- AlterTable
@@ -45,5 +42,3 @@ ALTER TABLE "HouseholdMember" ADD CONSTRAINT "HouseholdMember_familyId_fkey" FOR
 -- AddForeignKey
 ALTER TABLE "PredefinedSplitRatio" ADD CONSTRAINT "PredefinedSplitRatio_familyId_fkey" FOREIGN KEY ("familyId") REFERENCES "Family"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
--- AddForeignKey
-ALTER TABLE "Settlement" ADD CONSTRAINT "Settlement_familyId_fkey" FOREIGN KEY ("familyId") REFERENCES "Family"("id") ON DELETE SET NULL ON UPDATE CASCADE;
