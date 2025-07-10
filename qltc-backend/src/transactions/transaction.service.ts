@@ -267,6 +267,7 @@ export class TransactionService {
     const transaction = await this.prisma.transaction.findUnique({ where: { id } });
     if (!transaction) throw new NotFoundException(`Transaction with ID \"${id}\" not found`);
 
+    // Consistent with findFiltered: allow update if user can see the transaction (familyId in familyTreeIds)
     const familyTreeIds = await this.familyService.getFamilyTreeIds(familyId);
     if (!familyTreeIds.includes(transaction.familyId)) {
       throw new ForbiddenException('You do not have permission to update this transaction.');

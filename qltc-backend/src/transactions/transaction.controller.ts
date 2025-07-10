@@ -72,20 +72,19 @@ export class TransactionController {
 
   @Patch(':id')
   @ApiOperation({ summary: 'Update a transaction by ID' })
-  @ApiParam({ name: 'id', description: 'Transaction ID (UUID)', type: String })
+  @ApiParam({ name: 'id', description: 'Transaction ID', type: String })
   @ApiResponse({ status: 200, description: 'The transaction has been successfully updated.', type: TransactionResponseDto })
   @ApiResponse({ status: 400, description: 'Bad Request.' })
   @ApiResponse({ status: 401, description: 'Unauthorized.' })
   @ApiResponse({ status: 403, description: 'Forbidden.' })
   @ApiResponse({ status: 404, description: 'Transaction not found.' })
   update(
-    @Param('id', ParseUUIDPipe) id: string,
+    @Param('id') id: string,
     @Body() updateTransactionDto: UpdateTransactionDto,
     @Req() req: AuthenticatedRequest,
   ): Promise<TransactionModel | null> {
-    // TODO: Refactor to use req.user.familyId, not user id (see Sprint 5 backlog)
-    // The FamilyGuard has already validated the familyId in the body.
-    return this.transactionService.update(id, updateTransactionDto, req.user.id);
+    // Use req.user.familyId for access control, consistent with findAll
+    return this.transactionService.update(id, updateTransactionDto, req.user.familyId);
   }
 
   @Delete(':id')
