@@ -1,235 +1,101 @@
-// d:\sources\qlct\qltc-app\src\stores\settlementStore.ts
 import { defineStore } from 'pinia';
-import { ref } from 'vue';
-import { useQuasar } from 'quasar';
-import { useAuthStore } from './authStore';
-import { connect } from 'src/services/socketService';
-import type { Socket } from 'socket.io-client';
-import {
-  fetchBalancesAPI,
-  createSettlementAPI,
-  fetchSettlementsAPI,
-} from 'src/services/settlementApiService'; // We'll create this service next
-import type {
-  BalancesResponseDto,
-  CreateSettlementDto,
-  SettlementDto,
-  PaginatedSettlementsResponseDto,
-  GetSettlementsQueryDto,
-} from 'src/models/settlement'; // We'll create this model definitions file next
-import { AxiosError } from 'axios';
+import api from 'src/services/api'; // Adjust this import to your API utility
 
-export const useSettlementStore = defineStore('settlements', () => {
-  const $q = useQuasar();
-  const authStore = useAuthStore();
-
-  // State for balances
-  const balances = ref<BalancesResponseDto | null>(null);
-  const balancesLoading = ref(false);
-  const balancesError = ref<string | null>(null);
-
-  // State for settlement history
-  const settlementHistory = ref<PaginatedSettlementsResponseDto | null>(null);
-  const settlementHistoryLoading = ref(false);
-  const settlementHistoryError = ref<string | null>(null);
-
-  // State for creating a settlement
-  const createSettlementLoading = ref(false);
-  const createSettlementError = ref<string | null>(null);
-  let storeSocket: Socket | null = null;
-
-  // Action to fetch balances
-  const loadBalances = async () => {
-    if (!authStore.isAuthenticated) {
-      balancesError.value = 'Người dùng chưa được xác thực.';
-      balances.value = null;
-      return;
-    }
-    balancesLoading.value = true;
-    balancesError.value = null;
-    try {
-      console.log('[SettlementStore] Fetching balances...');
-      const data = await fetchBalancesAPI(); // No query DTO for now
-      balances.value = data;
-      console.log('[SettlementStore] Balances loaded:', data);
-    } catch (error: unknown) {
-      console.error('Failed to load balances:', error);
-      const errorMessage =
-        error instanceof AxiosError && error.response?.data?.message
-          ? String(error.response.data.message)
-          : error instanceof Error
-          ? error.message
-          : 'Không thể tải thông tin cân đối.';
-      balancesError.value = errorMessage;
-      balances.value = null;
-      $q.notify({
-        color: 'negative',
-        message: errorMessage,
-        icon: 'report_problem',
-      });
-    } finally {
-      balancesLoading.value = false;
-    }
-  };
-
-  // Action to record a new settlement
-  const recordSettlement = async (settlementData: CreateSettlementDto): Promise<SettlementDto | null> => {
-    if (!authStore.isAuthenticated) {
-      createSettlementError.value = 'Người dùng chưa được xác thực.';
-      return null;
-    }
-    createSettlementLoading.value = true;
-    createSettlementError.value = null;
-    try {
-      console.log('[SettlementStore] Recording settlement:', settlementData);
-      const newSettlement = await createSettlementAPI(settlementData);
-      console.log('[SettlementStore] Settlement recorded:', newSettlement);
-      // Optionally, refresh balances or settlement history after recording
-      void loadBalances(); // Refresh balances
-      void loadSettlementHistory(); // Refresh settlement history
-      $q.notify({
-        color: 'positive',
-        message: 'Đã ghi nhận thanh toán thành công!',
-        icon: 'check_circle',
-      });
-      return newSettlement;
-    } catch (error: unknown) {
-      console.error('Failed to record settlement:', error);
-      const errorMessage =
-        error instanceof AxiosError && error.response?.data?.message
-          ? String(error.response.data.message)
-          : error instanceof Error
-          ? error.message
-          : 'Không thể ghi nhận thanh toán.';
-      createSettlementError.value = errorMessage;
-      $q.notify({
-        color: 'negative',
-        message: errorMessage,
-        icon: 'report_problem',
-      });
-      return null;
-    } finally {
-      createSettlementLoading.value = false;
-    }
-  };
-
-  // Action to fetch settlement history
-  const loadSettlementHistory = async (query?: GetSettlementsQueryDto) => {
-    if (!authStore.isAuthenticated) {
-      settlementHistoryError.value = 'Người dùng chưa được xác thực.';
-      settlementHistory.value = null;
-      return;
-    }
-    settlementHistoryLoading.value = true;
-    settlementHistoryError.value = null;
-    try {
-      console.log('[SettlementStore] Fetching settlement history with query:', query);
-      const data = await fetchSettlementsAPI(query || {}); // Pass empty object if query is undefined
-      settlementHistory.value = data;
-      console.log('[SettlementStore] Settlement history loaded:', data);
-    } catch (error: unknown) {
-      console.error('Failed to load settlement history:', error);
-      const errorMessage =
-        error instanceof AxiosError && error.response?.data?.message
-          ? String(error.response.data.message)
-          : error instanceof Error
-          ? error.message
-          : 'Không thể tải lịch sử thanh toán.';
-      settlementHistoryError.value = errorMessage;
-      settlementHistory.value = null;
-      $q.notify({
-        color: 'negative',
-        message: errorMessage,
-        icon: 'report_problem',
-      });
-    } finally {
-      settlementHistoryLoading.value = false;
-    }
-  };
-
-  // --- WebSocket Event Handling ---
-  const handleSettlementsUpdate = (data: { operation: string; item?: SettlementDto; itemId?: string }) => {
-    console.log('[SettlementStore] Received settlements_updated event:', data);
-    // A new settlement was created, the simplest way to ensure data consistency
-    // is to reload both balances and the settlement history.
-    if (data.operation === 'create' && data.item) {
-      $q.notify({
-        type: 'info',
-        message: `Một thanh toán mới đã được ghi nhận.`,
-        icon: 'sym_o_sync',
-        position: 'top-right',
-        timeout: 2500,
-      });
-      void loadBalances();
-      // Check if the new item would be on the currently viewed page of history
-      // For simplicity, just reload if on the first page.
-      if (settlementHistory.value?.meta.currentPage === 1) {
-        void loadSettlementHistory({ page: 1, limit: 10 });
+export const useSettlementStore = defineStore('settlement', {
+  state: () => ({
+    accessiblePersons: [] as Array<{ id: string; name: string }>,
+    balances: [] as Array<{ personId: string; personName: string; amount: number }>,
+    settlements: [] as Array<{
+      id: string;
+      payer: { personName: string };
+      payee: { personName: string };
+      amount: number;
+      note?: string;
+      date: string;
+    }>,
+    settlementsLoading: false as boolean,
+    settlementsError: null as string | null,
+    settlementsMeta: null as any,  //eslint-disable-line @typescript-eslint/no-explicit-any
+  }),
+  actions: {
+    async loadAccessiblePersons() {
+      const response = await api.get('/persons');
+      // Axios returns { data, status, ... }, so use response.data if present
+      this.accessiblePersons = Array.isArray(response) ? response : response.data ?? [];
+    },
+    async loadBalances(personId: string) {
+      if (!personId) {
+        this.balances = [];
+        return;
       }
-    }
-  };
-
-  const setupSocketListeners = async () => {
-    if (authStore.isAuthenticated) {
+      const response = await api.get(`/settlements/balances?personId=${personId}`);
+      // Support both Axios and fetch shapes
+      const data = response?.data ?? response;
+      // Map backend balances to table rows: show both directions for clarity
+      if (Array.isArray(data.balances)) {
+        type BalancePair = {
+          personOneId: string;
+          memberOneName: string;
+          personTwoId: string;
+          memberTwoName: string;
+          netAmountPersonOneOwesPersonTwo: number;
+        };
+        interface BalanceRow {
+          personId: string;
+          personName: string;
+          amount: number;
+          counterpartyId: string;
+          counterpartyName: string;
+        }
+        this.balances = (data.balances as BalancePair[]).flatMap((b): BalanceRow[] => [
+          {
+            personId: b.personOneId,
+            personName: b.memberOneName,
+            amount: b.netAmountPersonOneOwesPersonTwo,
+            counterpartyId: b.personTwoId,
+            counterpartyName: b.memberTwoName,
+          },
+          {
+            personId: b.personTwoId,
+            personName: b.memberTwoName,
+            amount: -b.netAmountPersonOneOwesPersonTwo,
+            counterpartyId: b.personOneId,
+            counterpartyName: b.memberOneName,
+          },
+        ]).filter((row) => row.personId === personId);
+      } else {
+        this.balances = [];
+      }
+    },
+    async loadSettlements(params = {}) {
+      this.settlementsLoading = true;
+      this.settlementsError = null;
       try {
-        const connectedSocketInstance = await connect();
-        if (connectedSocketInstance?.connected) {
-          storeSocket = connectedSocketInstance;
-          console.log(`[SettlementStore] Socket connected (${storeSocket.id}). Setting up listeners for settlements_updated.`);
-          storeSocket.off('settlements_updated', handleSettlementsUpdate); // Remove old listener first
-          storeSocket.on('settlements_updated', handleSettlementsUpdate);
+        const response = await api.get('/settlements', { params });
+        // Support both Axios and fetch shapes
+        const data = response?.data ?? response;
+        if (data && Array.isArray(data.items)) {
+          this.settlements = data.items;
+          // Optionally, expose meta for pagination
+          this.settlementsMeta = data.meta;
+        } else if (Array.isArray(data)) {
+          this.settlements = data;
         } else {
-          console.warn('[SettlementStore] Failed to get a connected socket. Listeners not set up.');
-          if (storeSocket) {
-            storeSocket.off('settlements_updated', handleSettlementsUpdate);
-            storeSocket = null;
-          }
+          this.settlements = [];
         }
-      } catch (error) {
-        console.error('[SettlementStore] Error during socket connection or listener setup:', error);
-        if (storeSocket) {
-          storeSocket.off('settlements_updated', handleSettlementsUpdate);
-          storeSocket = null;
-        }
+      } catch (e: unknown) {
+        const err = e as { message?: string };
+        this.settlementsError = err?.message || 'Không thể tải lịch sử thanh toán.';
+        this.settlements = [];
+      } finally {
+        this.settlementsLoading = false;
       }
-    }
-  };
-
-  const clearSocketListeners = () => {
-    if (storeSocket) {
-      console.log(`[SettlementStore] Clearing WebSocket listeners for settlements_updated from socket ${storeSocket.id}`);
-      storeSocket.off('settlements_updated', handleSettlementsUpdate);
-    }
-    storeSocket = null;
-  };
-
-  const initializeStore = () => {
-    if (authStore.isAuthenticated) {
-      void setupSocketListeners();
-    } else {
-      clearSocketListeners();
-    }
-  };
-
-  authStore.$subscribe(() => {
-    initializeStore();
-  });
-
-    initializeStore();
-
-  return {
-    balances,
-    balancesLoading,
-    balancesError,
-    loadBalances,
-
-    settlementHistory,
-    settlementHistoryLoading,
-    settlementHistoryError,
-    loadSettlementHistory,
-
-    createSettlementLoading,
-    createSettlementError,
-    recordSettlement,
-  };
+    },
+    async createSettlement(payload: { payerId: string; payeeId: string; amount: number; note?: string }) {
+      await api.post('/settlements', payload);
+      // Optionally refresh balances and settlements after creation
+      // await this.loadBalances(payload.payerId);
+      // await this.loadSettlements();
+    },
+  },
 });

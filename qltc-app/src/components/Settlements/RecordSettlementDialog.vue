@@ -9,7 +9,7 @@
         <q-card-section class="q-gutter-md">
           <q-select
             filled
-            v-model="form.payerMembershipId"
+            v-model="form.payerId"
             :options="payerOptions"
             label="Người trả tiền"
             emit-value
@@ -20,14 +20,14 @@
 
           <q-select
             filled
-            v-model="form.payeeMembershipId"
+            v-model="form.payeeId"
             :options="payeeOptions"
             label="Người nhận tiền"
             emit-value
             map-options
             :rules="[
               val => !!val || 'Vui lòng chọn người nhận.',
-              val => val !== form.payerMembershipId || 'Người nhận phải khác người trả.'
+              val => val !== form.payerId || 'Người nhận phải khác người trả.'
             ]"
           />
 
@@ -47,21 +47,7 @@
             </template>
           </q-input>
 
-          <q-input
-            filled
-            v-model="form.date"
-            label="Ngày thanh toán"
-            mask="date"
-            :rules="['date']"
-          >
-            <template v-slot:append>
-              <q-icon name="event" class="cursor-pointer">
-                <q-popup-proxy cover transition-show="scale" transition-hide="scale">
-                  <q-date v-model="form.date" minimal />
-                </q-popup-proxy>
-              </q-icon>
-            </template>
-          </q-input>
+
 
           <q-input
             filled
@@ -74,7 +60,7 @@
 
         <q-card-actions align="right">
           <q-btn flat label="Hủy bỏ" color="grey-8" v-close-popup />
-          <q-btn label="Lưu Thanh toán" type="submit" color="primary" :loading="settlementStore.createSettlementLoading" />
+          <q-btn label="Lưu Thanh toán" type="submit" color="primary" />
         </q-card-actions>
       </q-form>
     </q-card>
@@ -83,11 +69,8 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue';
-import { useDialogPluginComponent, QForm } from 'quasar';
+import { useDialogPluginComponent } from 'quasar';
 import { useSettlementStore } from 'src/stores/settlementStore';
-import { useHouseholdMemberStore } from 'src/stores/householdMemberStore';
-import type { CreateSettlementDto } from 'src/models/settlement';
-import { dayjs } from 'src/boot/dayjs';
 
 defineEmits([
   ...useDialogPluginComponent.emits,
@@ -95,58 +78,50 @@ defineEmits([
 
 const { dialogRef, onDialogHide, onDialogOK } = useDialogPluginComponent();
 const settlementStore = useSettlementStore();
-const householdMemberStore = useHouseholdMemberStore();
 
-// const entryForm = ref<QForm | null>(null); // Not strictly needed for validation if using q-form's submit
-const form = ref<CreateSettlementDto>({
-  payerMembershipId: '',
-  payeeMembershipId: '',
-  amount: null as unknown as number, // Initialize with null for validation
-  date: dayjs().format('YYYY/MM/DD'), // Quasar default date format
+const form = ref({
+  payerId: '',
+  payeeId: '',
+  amount: null as number | null,
   note: '',
 });
 
-const activeMembers = computed(() =>
-  householdMemberStore.members.filter(member => member.isActive)
-);
-
-const memberOptions = computed(() =>
-  activeMembers.value.map(member => ({
-    label: member.person?.name,
-    value: member.id,
+const personOptions = computed(() =>
+  settlementStore.accessiblePersons.map(person => ({
+    label: person.name,
+    value: person.id,
   }))
 );
 
-const payerOptions = computed(() => memberOptions.value);
+const payerOptions = personOptions;
 const payeeOptions = computed(() =>
-  memberOptions.value.filter(member => member.value !== form.value.payerMembershipId)
+  personOptions.value.filter(person => person.value !== form.value.payerId)
 );
 
-// Ensure payee is cleared if payer is selected and they are the same
 const clearPayeeIfSame = (payerId: string) => {
-  if (form.value.payeeMembershipId === payerId) {
-    form.value.payeeMembershipId = '';
+  if (form.value.payeeId === payerId) {
+    form.value.payeeId = '';
   }
 };
+
+// Expose a resetForm method for parent to call
+defineExpose({
+  resetForm: () => {
+    form.value = { payerId: '', payeeId: '', amount: null, note: '' };
+  }
+});
 
 const onSubmit = async () => {
-  // QForm's @submit.prevent handles validation triggering automatically
-  // if rules are set on individual components.
-
-  if (form.value.payerMembershipId === form.value.payeeMembershipId) {
-    settlementStore.createSettlementError = 'Người trả và người nhận không được giống nhau.';
+  if (form.value.payerId === form.value.payeeId) {
+    // Optionally show error
     return;
   }
-
-  const settlementData: CreateSettlementDto = {
-    ...form.value,
-    date: dayjs(form.value.date, 'YYYY/MM/DD').toISOString(), // Convert to ISO string for backend
-  };
-
-  const result = await settlementStore.recordSettlement(settlementData);
-  if (result) {
-    onDialogOK(); // Closes the dialog and signals success
-  }
+  await settlementStore.createSettlement({
+    payerId: form.value.payerId,
+    payeeId: form.value.payeeId,
+    amount: Number(form.value.amount),
+    note: form.value.note,
+  });
+  onDialogOK();
 };
-
 </script>

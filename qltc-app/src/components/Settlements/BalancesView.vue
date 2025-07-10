@@ -1,105 +1,73 @@
 <template>
-  <q-card>
-    <q-card-section>
-      <div class="row justify-between items-center">
-        <div class="text-h5">Cân đối Chi Tiêu Chung</div>
-        <q-btn
-          color="primary"
-          icon="add_circle_outline"
-          label="Ghi nhận Thanh toán"
-          @click="openRecordSettlementDialog"
-          :disabled="!canRecordSettlement"
-        >
-          <q-tooltip v-if="!canRecordSettlement">Cần ít nhất 2 thành viên đang hoạt động để ghi nhận thanh toán.</q-tooltip>
-        </q-btn>
+  <div>
+    <q-select
+      v-model="selectedPersonId"
+      :options="personOptions"
+      label="Chọn người xem số dư"
+      option-label="name"
+      option-value="id"
+      emit-value
+      map-options
+      dense
+      outlined
+      class="q-mb-md"
+      @update:model-value="fetchBalances"
+    />
+    <div v-if="!selectedPersonId" class="text-grey q-mt-md">
+      Vui lòng chọn người để xem số dư.
+    </div>
+    <div v-else>
+      <div v-for="row in balancesTyped" :key="row.counterpartyId" class="q-mb-md">
+        <template v-if="row.amount > 0">
+          <b>{{ row.personName }}</b> cần trả <b>{{ row.counterpartyName }}</b> <b>{{ formatCurrency(row.amount) }}</b>
+        </template>
+        <template v-else-if="row.amount < 0">
+          <b>{{ row.personName }}</b> cho mượn <b>{{ row.counterpartyName }}</b> <b>{{ formatCurrency(Math.abs(row.amount)) }}</b>
+        </template>
+        <template v-else>
+          Đã thanh toán xong giữa <b>{{ row.personName }}</b> và <b>{{ row.counterpartyName }}</b>
+        </template>
       </div>
-    </q-card-section>
-
-    <!-- Loading, Error, Empty States -->
-    <q-card-section v-if="settlementStore.balancesLoading" class="text-center">
-        <q-spinner-dots color="primary" size="40px" />
-        <p>Đang tải thông tin cân đối...</p>
-    </q-card-section>
-
-    <q-card-section v-else-if="settlementStore.balancesError" class="text-center text-negative">
-        <q-icon name="error_outline" size="40px" color="negative" />
-        <p>{{ settlementStore.balancesError }}</p>
-    </q-card-section>
-
-    <q-card-section v-else-if="!settlementStore.balances || settlementStore.balances.balances.length === 0" class="text-center text-grey-7">
-        <q-icon name="info_outline" size="40px" />
-        <p>Hiện tại không có khoản chi tiêu chung nào cần cân đối.</p>
-    </q-card-section>
-
-    <template v-else>
-      <q-list bordered separator>
-        <q-item v-for="balance in settlementStore.balances.balances" :key="`${balance.personOneId}-${balance.personTwoId}`">
-          <q-item-section>
-            <q-item-label>
-              <template v-if="balance.netAmountPersonOneOwesPersonTwo > 0">
-                <span class="text-weight-medium">{{ balance.memberOneName }}</span> <span class="text-negative">cần trả cho</span> <span class="text-weight-medium">{{ balance.memberTwoName }}</span>
-              </template>
-              <template v-else>
-                {{ balance.memberOneName }} <span class="text-positive text-weight-medium">sẽ nhận từ</span> {{ balance.memberTwoName }}
-              </template>
-            </q-item-label>
-            <q-item-label caption>
-              Số tiền: {{ formatCurrency(Math.abs(balance.netAmountPersonOneOwesPersonTwo)) }}
-            </q-item-label>
-          </q-item-section>
-          <q-item-section side>
-            <q-chip
-              :color="balance.netAmountPersonOneOwesPersonTwo > 0 ? 'red' : 'green'"
-              text-color="white"
-              :label="balance.netAmountPersonOneOwesPersonTwo > 0 ? 'Cần trả' : 'Sẽ nhận'"
-            />
-          </q-item-section>
-        </q-item>
-      </q-list>
-    </template>
-  </q-card>
+    </div>
+  </div>
 </template>
 
 <script setup lang="ts">
-import { onMounted, computed } from 'vue';
-import { useQuasar } from 'quasar';
+import { ref, computed, onMounted } from 'vue';
 import { useSettlementStore } from 'src/stores/settlementStore';
-import { useHouseholdMemberStore } from 'src/stores/householdMemberStore';
-import { formatCurrency } from 'src/utils/formatters'; // You might need to create this utility
-import RecordSettlementDialog from './RecordSettlementDialog.vue'; // Import the dialog component
+import { formatCurrency as _formatCurrency } from 'src/utils/formatters';
 
-const $q = useQuasar();
-const settlementStore = useSettlementStore();
-const householdMemberStore = useHouseholdMemberStore();
+const store = useSettlementStore();
+const selectedPersonId = ref<string | null>(null);
 
-const canRecordSettlement = computed(() => {
-  return householdMemberStore.members.filter(m => m.isActive).length >= 2;
-});
+const personOptions = computed(() => store.accessiblePersons ?? []);
+interface BalanceRow {
+  personId: string;
+  personName: string;
+  amount: number;
+  counterpartyId: string;
+  counterpartyName: string;
+}
+const balancesTyped = computed<BalanceRow[]>(() => store.balances as BalanceRow[]);
 
-const openRecordSettlementDialog = () => {
-  if (!canRecordSettlement.value) return;
+// Expose formatCurrency to template
+function formatCurrency(amount: number) {
+  return _formatCurrency(amount);
+}
 
-  $q.dialog({
-    component: RecordSettlementDialog,
-    // componentProps: { /* pass any props to the dialog if needed */ }
-  }).onOk(() => {
-    console.log('Settlement dialog confirmed OK');
-    // Balances are already reloaded by the store after successful settlement
-  }).onCancel(() => {
-    console.log('Settlement dialog cancelled');
-  }).onDismiss(() => {
-    console.log('Settlement dialog dismissed');
-  });
-};
+//eslint-disable-next-line @typescript-eslint/no-unused-vars
+const columns = [
+  { name: 'counterparty', label: 'Đối tác', field: 'counterpartyName' },
+  { name: 'amount', label: 'Số dư', field: 'amount', align: 'right' as const },
+];
 
-onMounted(() => {
-  // Ensure household members are loaded for the dialog's dropdowns
-  if (householdMemberStore.members.length === 0) {
-    void householdMemberStore.loadMembers();
+async function fetchBalances() {
+  if (selectedPersonId.value) {
+    await store.loadBalances(selectedPersonId.value);
   }
-  // Load balances if not already loaded or empty (could be empty due to no transactions)
-  if (!settlementStore.balances) { // Load if balances object itself is null
-    void settlementStore.loadBalances();
-  }
+}
+
+onMounted(async () => {
+  await store.loadAccessiblePersons();
 });
 </script>

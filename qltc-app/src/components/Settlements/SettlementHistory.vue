@@ -6,17 +6,18 @@
 
     <q-separator />
 
-    <q-card-section v-if="settlementStore.settlementHistoryLoading">
+
+    <q-card-section v-if="settlementStore.settlementsLoading">
       <div class="text-center q-pa-md">
         <q-spinner-dots color="primary" size="40px" />
         <p>Đang tải lịch sử thanh toán...</p>
       </div>
     </q-card-section>
 
-    <q-card-section v-else-if="settlementStore.settlementHistoryError">
+    <q-card-section v-else-if="settlementStore.settlementsError">
       <div class="text-center text-negative q-pa-md">
         <q-icon name="error_outline" size="40px" />
-        <p>{{ settlementStore.settlementHistoryError }}</p>
+        <p>{{ settlementStore.settlementsError }}</p>
       </div>
     </q-card-section>
 
@@ -36,9 +37,9 @@
 
           <q-item-section>
             <q-item-label>
-              <span class="text-weight-medium">{{ settlement.payer.personName }}</span>
+              <span class="text-weight-medium">{{ settlement.payerName }}</span>
               đã trả cho
-              <span class="text-weight-medium">{{ settlement.payee.personName }}</span>
+              <span class="text-weight-medium">{{ settlement.payeeName }}</span>
             </q-item-label>
             <q-item-label caption lines="1">
               Ghi chú: {{ settlement.note || 'Không có' }}
@@ -74,23 +75,50 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import { useSettlementStore } from 'src/stores/settlementStore';
-import type { GetSettlementsQueryDto } from 'src/models/settlement';
 import { formatCurrency } from 'src/utils/formatters';
 import { dayjs } from 'src/boot/dayjs';
 
 const settlementStore = useSettlementStore();
 
-const settlements = computed(() => settlementStore.settlementHistory?.items || []);
-const meta = computed(() => settlementStore.settlementHistory?.meta);
+const settlements = computed(() =>
+  Array.isArray(settlementStore.settlements)
+    ? settlementStore.settlements.map(s => {
+        let payerName = 'N/A';
+        let payeeName = 'N/A';
+        // Use s.date if present, else s.createdAt
+        //eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const date = (s as any).date || (s as any).createdAt;
+        if ('payerId' in s && s.payerId) {
+        //eslint-disable-next-line @typescript-eslint/no-explicit-any
+          payerName = settlementStore.accessiblePersons.find(p => p.id === (s as any).payerId)?.name || 'N/A';
+        } else if (s.payer && s.payer.personName) {
+          payerName = s.payer.personName;
+        }
+        if ('payeeId' in s && s.payeeId) {
+        //eslint-disable-next-line @typescript-eslint/no-explicit-any
+          payeeName = settlementStore.accessiblePersons.find(p => p.id === (s as any).payeeId)?.name || 'N/A';
+        } else if (s.payee && s.payee.personName) {
+          payeeName = s.payee.personName;
+        }
+        return {
+          ...s,
+          payerName,
+          payeeName,
+          date,
+        };
+      })
+    : []
+);
+const currentPage = ref(1);
+const totalPages = computed(() => settlementStore.settlementsMeta?.totalPages || 1);
+const itemsPerPage = 10;
 
-const currentPage = ref(meta.value?.currentPage || 1);
-const totalPages = computed(() => meta.value?.totalPages || 1);
-const itemsPerPage = 10; // Or get from store/config if dynamic
 
+// Format as date only (not datetime)
 const formatDate = (dateString: string): string => {
-  return dayjs(dateString).format('DD/MM/YYYY HH:mm');
+  return dayjs(dateString).format('DD/MM/YYYY');
 };
 
 const timeAgo = (dateString: string): string => {
@@ -98,24 +126,15 @@ const timeAgo = (dateString: string): string => {
 };
 
 const fetchSettlementsForPage = async (page: number) => {
-  const query: GetSettlementsQueryDto = {
-    page: page,
-    limit: itemsPerPage,
-  };
-  await settlementStore.loadSettlementHistory(query);
+  await settlementStore.loadSettlements({ page, limit: itemsPerPage });
+  // If your backend returns meta info, update totalPages here
 };
 
 onMounted(() => {
-  if (!settlementStore.settlementHistory || settlementStore.settlementHistory.meta.currentPage !== currentPage.value) {
-    void fetchSettlementsForPage(currentPage.value);
-  }
+  void fetchSettlementsForPage(currentPage.value);
 });
 
-watch(meta, (newMeta) => {
-  if (newMeta) {
-    currentPage.value = newMeta.currentPage;
-  }
-}, { deep: true });
+// If you have meta info, watch and update currentPage/totalPages accordingly
 
 </script>
 

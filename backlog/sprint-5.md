@@ -14,6 +14,22 @@
 - If any out-of-scope changes are made, revert them.
 
 ### Tasks
+---
+
+## Settlements & Balances: Person-Centric Refactor (July 2025)
+
+### ✅ Completed
+- Refactored backend and API to be person-centric, returning paginated settlements and pairwise balances for all relevant persons in the family tree.
+- Pinia store (`settlementStore.ts`) robustly extracts and maps paginated settlements and balances, with type safety and meta handling.
+- `SettlementHistory.vue` and `BalancesView.vue` updated to display settlements and balances using person names, robust to API data shape changes, and user-friendly.
+- Balances view now clearly shows who owes whom, and for how much, in a readable format.
+- All major runtime and type errors in the store and components have been fixed.
+- All calculations and settlement applications are now correct and match business logic.
+
+### ⚠️ Known Issues / Deferred
+- WebSocket real-time updates for settlements and balances are not yet implemented. UI will not auto-update when a new settlement is created by another user. (Manual refresh required.)
+
+---
 - [x] Backend: Add DTOs for person breakdown query/response.
 - [x] Backend: Add service logic to compute person breakdown, respecting access rules.
 - [x] Backend: Add controller endpoint, sourcing family/person context from authenticated user/session only.

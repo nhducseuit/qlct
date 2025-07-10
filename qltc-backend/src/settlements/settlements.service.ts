@@ -28,13 +28,24 @@ export class SettlementsService {
     // If personId is provided, only calculate balances for that person
     const { personId } = query;
     const familyTreeIds = await this.familyService.getFamilyTreeIds(familyId);
-    const activeMembers = await this.prisma.householdMembership.findMany({
+    // Get all unique persons in the family tree (across all memberships)
+    const memberships = await this.prisma.householdMembership.findMany({
       where: { familyId: { in: familyTreeIds }, isActive: true },
       include: { person: true },
     });
-    if (activeMembers.length < 2) {
+    // Map personId to all their memberships (across families)
+    const personMap = new Map<string, { id: string, name: string }>();
+    memberships.forEach(m => {
+      if (m.person && !personMap.has(m.personId)) {
+        personMap.set(m.personId, { id: m.personId, name: m.person.name });
+      }
+    });
+    const allPersonIds = Array.from(personMap.keys());
+    if (allPersonIds.length < 2) {
       return { balances: [] };
     }
+    // For balance calculation, use membershipId for transaction split, but personId for reporting
+    const activeMembers = memberships;
     const sharedTransactions = await this.prisma.transaction.findMany({
       where: {
         familyId: { in: familyTreeIds },
@@ -47,6 +58,8 @@ export class SettlementsService {
         splitRatio: true,
       },
     });
+    // Initialize owed matrix: rawOwedAmounts[memberA][memberB] = how much A owes B
+    // rawOwedAmounts[membershipId][membershipId] = amount
     const rawOwedAmounts: Record<string, Record<string, number>> = {};
     activeMembers.forEach((m1: any) => {
       rawOwedAmounts[m1.id] = {};
@@ -58,23 +71,39 @@ export class SettlementsService {
     });
     for (const tx of sharedTransactions) {
       if (!tx.payer || !tx.splitRatio) continue;
-      const payerId = tx.payer;
-      const totalAmount = tx.amount;
-      const splitRatioItems = tx.splitRatio as unknown as SplitRatioItem[];
-      if (!Array.isArray(splitRatioItems)) continue;
-      for (const item of splitRatioItems) {
-        if (item.memberId === payerId) continue;
-        if (!activeMembers.find((m: any) => m.id === item.memberId) || !activeMembers.find((m: any) => m.id === payerId)) {
+      // Parse splitRatio if it's a string
+      let splitRatioItems: SplitRatioItem[];
+      if (typeof tx.splitRatio === 'string') {
+        try {
+          splitRatioItems = JSON.parse(tx.splitRatio);
+        } catch {
           continue;
         }
-        const amountOwedByThisMember = totalAmount * (item.percentage / 100);
-        rawOwedAmounts[item.memberId][payerId] = (rawOwedAmounts[item.memberId][payerId] || 0) + amountOwedByThisMember;
+      } else {
+        splitRatioItems = tx.splitRatio as unknown as SplitRatioItem[];
+      }
+      if (!Array.isArray(splitRatioItems) || splitRatioItems.length === 0) continue;
+      const payerId = tx.payer;
+      const totalAmount = tx.amount;
+      // Only process if payer and all split members are active
+      if (!activeMembers.find((m: any) => m.id === payerId)) continue;
+      let totalPercent = 0;
+      splitRatioItems.forEach(item => { totalPercent += item.percentage; });
+      for (const item of splitRatioItems) {
+        if (!activeMembers.find((m: any) => m.id === item.memberId)) continue;
+        const memberShare = totalAmount * (item.percentage / totalPercent);
+        if (item.memberId !== payerId) {
+          // Member owes payer
+          rawOwedAmounts[item.memberId][payerId] = (rawOwedAmounts[item.memberId][payerId] || 0) + memberShare;
+        }
+        // Payer's own share is ignored for balances
       }
     }
+    // Settlements: sum all settlements between each person pair (in both directions)
     const settlements = await this.prisma.settlement.findMany({
       where: {
-        payerId: { in: activeMembers.map((m: any) => m.personId) },
-        payeeId: { in: activeMembers.map((m: any) => m.personId) },
+        payerId: { in: allPersonIds },
+        payeeId: { in: allPersonIds },
       },
       select: {
         payerId: true,
@@ -82,49 +111,73 @@ export class SettlementsService {
         amount: true,
       },
     });
-    for (const settlement of settlements) {
-      if (rawOwedAmounts[settlement.payeeId] && rawOwedAmounts[settlement.payeeId][settlement.payerId] !== undefined) {
-        rawOwedAmounts[settlement.payeeId][settlement.payerId] =
-          (rawOwedAmounts[settlement.payeeId][settlement.payerId] || 0) - (typeof settlement.amount === 'object' && typeof settlement.amount.toNumber === 'function' ? settlement.amount.toNumber() : Number(settlement.amount));
+    // Build a settlement matrix: settlementsSum[personA][personB] = total A paid B
+    const settlementsSum: Record<string, Record<string, number>> = {};
+    for (const a of allPersonIds) {
+      settlementsSum[a] = {};
+      for (const b of allPersonIds) {
+        if (a !== b) settlementsSum[a][b] = 0;
       }
     }
+    for (const s of settlements) {
+      const amount = typeof s.amount === 'object' && typeof s.amount.toNumber === 'function' ? s.amount.toNumber() : Number(s.amount);
+      // payerId paid payeeId
+      if (settlementsSum[s.payerId] && settlementsSum[s.payerId][s.payeeId] !== undefined) {
+        settlementsSum[s.payerId][s.payeeId] += Math.round(amount);
+      }
+    }
+    // Calculate balances by personId pairs (not just membership)
     const finalBalances: DetailedMemberBalanceDto[] = [];
-    const memberMap = new Map(activeMembers.map((m: any) => [m.id, m.person.name]));
     if (personId) {
-      // Only calculate balances for the selected person
-      const selectedMember = activeMembers.find((m: any) => m.personId === personId);
-      if (!selectedMember) return { balances: [] };
-      for (const other of activeMembers) {
-        if (other.personId === personId) continue;
-        const amountOwesOther = rawOwedAmounts[selectedMember.id]?.[other.id] || 0;
-        const amountOtherOwes = rawOwedAmounts[other.id]?.[selectedMember.id] || 0;
-        const net = amountOwesOther - amountOtherOwes;
+      for (const otherPersonId of allPersonIds) {
+        if (otherPersonId === personId) continue;
+        // Sum all owed amounts from any of selected person's memberships to any of other's memberships
+        let amountPersonOwesOther = 0;
+        let amountOtherOwesPerson = 0;
+        for (const m1 of activeMembers.filter(m => m.personId === personId)) {
+          for (const m2 of activeMembers.filter(m => m.personId === otherPersonId)) {
+            amountPersonOwesOther += Math.round(rawOwedAmounts[m1.id]?.[m2.id] || 0);
+            amountOtherOwesPerson += Math.round(rawOwedAmounts[m2.id]?.[m1.id] || 0);
+          }
+        }
+        // Apply settlements: what personId has paid to otherPersonId, and vice versa
+        const settlementsPaid = Math.round(settlementsSum[personId]?.[otherPersonId] || 0);
+        const settlementsReceived = Math.round(settlementsSum[otherPersonId]?.[personId] || 0);
+        // Net: what other owes person - what person owes other + settlements paid - settlements received
+        const net = amountOtherOwesPerson - amountPersonOwesOther + settlementsPaid - settlementsReceived;
         if (net !== 0) {
+          // Always return a positive value if personId owes other, negative if other owes personId
           finalBalances.push({
-            personOneId: selectedMember.personId,
-            memberOneName: memberMap.get(selectedMember.id)!,
-            personTwoId: other.personId,
-            memberTwoName: memberMap.get(other.id)!,
-            netAmountPersonOneOwesPersonTwo: parseFloat(net.toFixed(2)),
+            personOneId: personId,
+            memberOneName: personMap.get(personId)?.name || '',
+            personTwoId: otherPersonId,
+            memberTwoName: personMap.get(otherPersonId)?.name || '',
+            netAmountPersonOneOwesPersonTwo: -net,
           });
         }
       }
     } else {
-      // Default: all pairs (legacy, admin, or for future use)
-      for (let i = 0; i < activeMembers.length; i++) {
-        for (let j = i + 1; j < activeMembers.length; j++) {
-          const memberOne = activeMembers[i];
-          const memberTwo = activeMembers[j];
-          const amountM1OwesM2 = rawOwedAmounts[memberOne.id]?.[memberTwo.id] || 0;
-          const amountM2OwesM1 = rawOwedAmounts[memberTwo.id]?.[memberOne.id] || 0;
-          const netAmountM1OwesM2 = amountM1OwesM2 - amountM2OwesM1;
-          if (netAmountM1OwesM2 !== 0) {
+      // All pairs
+      for (let i = 0; i < allPersonIds.length; i++) {
+        for (let j = i + 1; j < allPersonIds.length; j++) {
+          const personA = allPersonIds[i];
+          const personB = allPersonIds[j];
+          let amountAOwesB = 0;
+          let amountBOwesA = 0;
+          for (const mA of activeMembers.filter(m => m.personId === personA)) {
+            for (const mB of activeMembers.filter(m => m.personId === personB)) {
+              amountAOwesB += rawOwedAmounts[mA.id]?.[mB.id] || 0;
+              amountBOwesA += rawOwedAmounts[mB.id]?.[mA.id] || 0;
+            }
+          }
+          const netAmountAOwesB = amountAOwesB - amountBOwesA;
+          if (netAmountAOwesB !== 0) {
             finalBalances.push({
-              personOneId: memberOne.personId,
-              memberOneName: memberMap.get(memberOne.id)!,
-              personTwoId: memberTwo.personId,
-              memberTwoName: memberMap.get(memberTwo.id)!,
-              netAmountPersonOneOwesPersonTwo: parseFloat(netAmountM1OwesM2.toFixed(2)),
+              personOneId: personA,
+              memberOneName: personMap.get(personA)?.name || '',
+              personTwoId: personB,
+              memberTwoName: personMap.get(personB)?.name || '',
+              netAmountPersonOneOwesPersonTwo: parseFloat(netAmountAOwesB.toFixed(2)),
             });
           }
         }
