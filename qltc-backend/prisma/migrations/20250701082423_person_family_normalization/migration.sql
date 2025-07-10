@@ -10,7 +10,10 @@
 */
 -- DropForeignKey
 ALTER TABLE "HouseholdMember" DROP CONSTRAINT "HouseholdMember_familyId_fkey";
+ALTER TABLE "Settlement" DROP CONSTRAINT IF EXISTS "Settlement_payeeId_fkey";
+ALTER TABLE "Settlement" DROP CONSTRAINT IF EXISTS "Settlement_payerId_fkey";
 
+DROP TABLE "HouseholdMember";
 -- DropTable
 DROP TABLE "HouseholdMember";
 

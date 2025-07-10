@@ -7,6 +7,11 @@ import { seedPredefinedSplitRatios } from './seed-data/predefinedSplitRatios';
 import { seedCategories } from './seed-data/categories';
 import { seedTransactions } from './seed-data/transactions';
 
+if (process.env.NODE_ENV === 'production') {
+  console.log('Seeding is disabled in production.');
+  process.exit(0);
+}
+
 const prisma = new PrismaClient();
 
 async function main() {

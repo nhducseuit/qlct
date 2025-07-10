@@ -1,5 +1,5 @@
 -- CreateTable
-CREATE TABLE "Settlement" (
+CREATE OR ALTER TABLE "Settlement" (
     "id" TEXT NOT NULL,
     "payerId" TEXT NOT NULL,
     "payeeId" TEXT NOT NULL,

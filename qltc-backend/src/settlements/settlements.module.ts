@@ -4,7 +4,7 @@ import { SettlementsService } from './settlements.service';
 import { PrismaModule } from '../prisma/prisma.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { FamilyModule } from '../families/family.module';
-import { PersonModule } from 'src/person/person.module';
+import { PersonModule } from '../person/person.module';
 
 @Module({
   imports: [PrismaModule, NotificationsModule, FamilyModule, PersonModule], // Add FamilyModule
