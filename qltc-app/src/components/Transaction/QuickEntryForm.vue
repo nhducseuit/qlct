@@ -364,6 +364,11 @@ watch(() => form.value.familyId, (newVal, oldVal) => {
     form.value.categoryId = null;
     selectedPredefinedRatioId.value = null;
     memberSplitPercentages.value = {};
+    // Reset payer to a valid membershipId for the new family
+    const newActiveMembers = activeMembers.value;
+    // Prefer current user if they are a member of the new family
+    const myMembership = newActiveMembers.find(m => m.person && m.person.id === authStore.userWithMembershipsAndPerson?.person?.id);
+    form.value.payer = myMembership ? myMembership.id : (newActiveMembers[0]?.id ?? null);
   }
 });
 
