@@ -16,8 +16,8 @@ export interface BalancesResponseDto {
 
 // Corresponds to Backend: src/settlements/dto/create-settlement.dto.ts
 export interface CreateSettlementDto {
-  payerMembershipId: string;
-  payeeMembershipId: string;
+  payerId: string;
+  payeeId: string;
   amount: number;
   date: string; // ISO 8601 date string
   note?: string;

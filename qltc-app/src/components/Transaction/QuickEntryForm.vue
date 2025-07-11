@@ -229,6 +229,7 @@ const familyOptions = computed(() => {
 });
 
 // Helper to get selected family and its parent IDs
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function getSelectedFamilyAndParentIds() {
   const selected = familyStore.families.find(f => f.id === form.value.familyId);
   if (!selected) return [];
@@ -309,9 +310,9 @@ const payerOptions = computed(() => {
 
 const pinnedCategories = computed(() => {
   if (!form.value.familyId) return [];
-  const ids = getSelectedFamilyAndParentIds();
+  // Only show pinned categories for the currently selected family (not parent, not mixed)
   return categoryStore.categories
-    .filter((c: Category) => c.isPinned && ids.includes(c.familyId))
+    .filter((c: Category) => c.isPinned && c.familyId === form.value.familyId)
     .sort((a: Category, b: Category) => (a.order ?? 0) - (b.order ?? 0));
 });
 

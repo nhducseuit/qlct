@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia';
 import api from 'src/services/api'; // Adjust this import to your API utility
+import type { CreateSettlementDto } from 'src/models/settlement';
 
 export const useSettlementStore = defineStore('settlement', {
   state: () => ({
@@ -91,11 +92,14 @@ export const useSettlementStore = defineStore('settlement', {
         this.settlementsLoading = false;
       }
     },
-    async createSettlement(payload: { payerId: string; payeeId: string; amount: number; note?: string }) {
-      await api.post('/settlements', payload);
-      // Optionally refresh balances and settlements after creation
-      // await this.loadBalances(payload.payerId);
-      // await this.loadSettlements();
+    async createSettlement(payload: CreateSettlementDto) {
+      // Ensure date is sent as ISO string
+      const date = payload.date ? new Date(payload.date).toISOString() : new Date().toISOString();
+      await api.post('/settlements', { ...payload, date });
+      // Refresh balances and settlements after creation
+      await this.loadBalances(payload.payerId);
+      // Just reload all settlements (no filter by payerMembershipId)
+      await this.loadSettlements();
     },
   },
 });

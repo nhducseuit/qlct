@@ -56,6 +56,14 @@
             type="textarea"
             autogrow
           />
+
+          <q-input
+            filled
+            v-model="form.date"
+            label="Ngày thanh toán"
+            type="date"
+            :rules="[val => !!val || 'Vui lòng chọn ngày thanh toán.']"
+          />
         </q-card-section>
 
         <q-card-actions align="right">
@@ -79,11 +87,13 @@ defineEmits([
 const { dialogRef, onDialogHide, onDialogOK } = useDialogPluginComponent();
 const settlementStore = useSettlementStore();
 
+import dayjs from 'dayjs';
 const form = ref({
   payerId: '',
   payeeId: '',
   amount: null as number | null,
   note: '',
+  date: dayjs().format('YYYY-MM-DD'),
 });
 
 const personOptions = computed(() =>
@@ -107,7 +117,7 @@ const clearPayeeIfSame = (payerId: string) => {
 // Expose a resetForm method for parent to call
 defineExpose({
   resetForm: () => {
-    form.value = { payerId: '', payeeId: '', amount: null, note: '' };
+    form.value = { payerId: '', payeeId: '', amount: null, note: '', date: dayjs().format('YYYY-MM-DD') };
   }
 });
 
@@ -121,6 +131,7 @@ const onSubmit = async () => {
     payeeId: form.value.payeeId,
     amount: Number(form.value.amount),
     note: form.value.note,
+    date: form.value.date,
   });
   onDialogOK();
 };

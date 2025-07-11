@@ -65,5 +65,5 @@ export const formatKiloCurrency = (value: number | null | undefined): string => 
     minimumFractionDigits: 0,
     maximumFractionDigits: 1,
   }).format(kiloValue);
-  return `${formatted}K₫`;
+  return `${formatted}K`;
 };

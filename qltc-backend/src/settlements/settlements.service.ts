@@ -223,6 +223,7 @@ export class SettlementsService {
       note: settlement.note ?? undefined,
       createdAt: settlement.createdAt.toISOString(),
       createdBy: settlement.createdBy,
+      date: settlement.date ? settlement.date.toISOString() : settlement.createdAt.toISOString(),
     };
 
     this.notificationsGateway.sendToUser(userId, 'settlements_updated', {
@@ -267,6 +268,7 @@ export class SettlementsService {
       note: s.note ?? undefined,
       createdAt: s.createdAt.toISOString(),
       createdBy: s.createdBy,
+      date: s.date ? s.date.toISOString() : s.createdAt.toISOString(),
     }));
     const meta: PaginationMetaDto = {
       totalItems,

@@ -19,7 +19,11 @@ export class CreateSettlementDto {
   @Min(0.01, { message: 'Settlement amount must be greater than 0.' })
   amount!: number;
 
-  // No date field in person-centric settlement model
+
+  @ApiPropertyOptional({ description: 'Settlement date (ISO 8601 string)', example: '2025-07-11T00:00:00.000Z' })
+  @IsOptional()
+  @IsDateString()
+  date?: string;
 
   @ApiPropertyOptional({ description: 'Optional note for the settlement.', example: 'Settled for last month dinner' })
   @IsOptional()

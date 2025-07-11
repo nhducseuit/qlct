@@ -11,6 +11,7 @@ import type { Category as CategoryModel, SplitRatioItem } from 'src/models';
 export interface CreateCategoryPayload {
   name: string;
   parentId?: string | null;
+  icon?: string | null;
   color?: string | null;
   isPinned?: boolean;
   isHidden?: boolean;
@@ -24,7 +25,7 @@ export interface Category extends CreateCategoryPayload {
   budgetLimit?: number | null;
 }
 
-export type UpdateCategoryPayload = Partial<CreateCategoryPayload>;
+export type UpdateCategoryPayload = Partial<CreateCategoryPayload> & { budgetLimit?: number | null; order?: number };
 
 
 export const fetchCategoriesAPI = async (): Promise<CategoryModel[]> => {
@@ -55,10 +56,31 @@ export const updateCategoryAPI = async (
   updates: UpdateCategoryPayload,
   familyId: string
 ): Promise<Category> => {
-  console.log(`[CategoryApiService] updateCategoryAPI called for categoryId: ${categoryId}`, updates, 'familyId:', familyId);
-  // Remove familyId from the PATCH body, only send as query param if needed
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any,@typescript-eslint/no-unused-vars
-  const { familyId: _omit, ...safeUpdates } = updates as any;
+  // Only include allowed fields for update
+  const {
+    name,
+    parentId,
+    icon,
+    color,
+    isPinned,
+    order,
+    isHidden,
+    budgetLimit,
+    defaultSplitRatio
+  } = updates;
+
+  const safeUpdates = {
+    ...(name !== undefined && { name }),
+    ...(parentId !== undefined && { parentId }),
+    ...(icon !== undefined && { icon }),
+    ...(color !== undefined && { color }),
+    ...(isPinned !== undefined && { isPinned }),
+    ...(order !== undefined && { order }),
+    ...(isHidden !== undefined && { isHidden }),
+    ...(budgetLimit !== undefined && { budgetLimit }),
+    ...(defaultSplitRatio !== undefined && { defaultSplitRatio }),
+  };
+
   const response = await apiClient.patch<Category>(
     `/categories/${categoryId}`,
     safeUpdates,

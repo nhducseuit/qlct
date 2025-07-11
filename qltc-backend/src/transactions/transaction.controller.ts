@@ -38,9 +38,26 @@ export class TransactionController {
     @Body() createTransactionDto: CreateTransactionDto,
     @Req() req: AuthenticatedRequest,
   ): Promise<TransactionModel> {
-    // The FamilyGuard has already validated that the user is part of this family.
-    // FIX: Use familyId from req.user, not user id
-    return this.transactionService.create(createTransactionDto, req.user.familyId);
+    // Infer familyId from payer's membership
+    // (Assume you have access to Prisma or a MembershipService here)
+    const payerMembershipId = createTransactionDto.payer;
+    if (!payerMembershipId) {
+      throw new Error('Payer membershipId is required to determine familyId');
+    }
+    // You may want to move this to a service for better separation of concerns
+    const prisma = (this.transactionService as any).prisma;
+    if (!prisma) {
+      throw new Error('Prisma client not available in transactionService');
+    }
+    return prisma.householdMembership.findUnique({
+      where: { id: payerMembershipId },
+      select: { familyId: true },
+    }).then((membership: { familyId: string } | null) => {
+      if (!membership) {
+        throw new Error('Payer membership not found');
+      }
+      return this.transactionService.create(createTransactionDto, membership.familyId);
+    });
   }
 
   @Get()
