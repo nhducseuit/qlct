@@ -24,166 +24,186 @@ export class SettlementsService {
     private readonly familyService: FamilyService,
   ) {}
 
-  async calculateBalances(familyId: string, query: GetBalancesQueryDto): Promise<BalancesResponseDto> {
-    // If personId is provided, only calculate balances for that person
-    const { personId } = query;
-    const familyTreeIds = await this.familyService.getFamilyTreeIds(familyId);
-    // Get all unique persons in the family tree (across all memberships)
+  /**
+   * Calculate the balance between two persons for a given year/month.
+   * Returns a single-item balances array, or empty if no balance exists.
+   */
+  async calculatePairBalance(familyId: string | undefined, query: GetBalancesQueryDto): Promise<BalancesResponseDto> {
+    // Final debug log for pairwise sum and net
+    const { personOneId, personTwoId, year, month } = query;
+    // Validate input
+    if (!personOneId || !personTwoId) {
+      throw new BadRequestException('Both personOneId and personTwoId are required.');
+    }
+    if (personOneId === personTwoId) {
+      throw new BadRequestException('personOneId and personTwoId must be different.');
+    }
+    // Always calculate global/cross-family balance, aggregating only over families where both persons have active memberships
+    // 1. Get all families the current user (personOneId) has access to
+    const accessibleFamilyIds = await this.familyService.getAllFamilyIds(personOneId) || [];
+    // 2. Get all memberships for both persons in those families
     const memberships = await this.prisma.householdMembership.findMany({
-      where: { familyId: { in: familyTreeIds }, isActive: true },
+      where: {
+        personId: { in: [personOneId, personTwoId] },
+        familyId: { in: accessibleFamilyIds },
+        isActive: true,
+      },
       include: { person: true },
     });
-    // Map personId to all their memberships (across families)
+    // 3. Find all families where both persons are members
+    const familiesWithBoth = Array.isArray(accessibleFamilyIds) ? accessibleFamilyIds.filter(fid =>
+      memberships.some(m => m.personId === personOneId && m.familyId === fid) &&
+      memberships.some(m => m.personId === personTwoId && m.familyId === fid)
+    ) : [];
+    // Debug: print shared families and memberships
+    console.log('DEBUG: accessibleFamilyIds', accessibleFamilyIds);
+    console.log('DEBUG: memberships', memberships);
+    console.log('DEBUG: familiesWithBoth', familiesWithBoth);
+    // 4. Map personId to name
     const personMap = new Map<string, { id: string, name: string }>();
-    memberships.forEach(m => {
+    memberships.forEach((m: any) => {
       if (m.person && !personMap.has(m.personId)) {
         personMap.set(m.personId, { id: m.personId, name: m.person.name });
       }
     });
-    const allPersonIds = Array.from(personMap.keys());
-    if (allPersonIds.length < 2) {
-      return { balances: [] };
+    // If either person is not a member of any accessible family, throw ForbiddenException
+    const personOneHasMembership = memberships.some(m => m.personId === personOneId);
+    const personTwoHasMembership = memberships.some(m => m.personId === personTwoId);
+    if (!personOneHasMembership || !personTwoHasMembership) {
+      throw new ForbiddenException('One or both persons have no active memberships in this family.');
     }
-    // For balance calculation, use membershipId for transaction split, but personId for reporting
-    const activeMembers = memberships;
-    const sharedTransactions = await this.prisma.transaction.findMany({
+    // If no shared families, return zero balance
+    if (familiesWithBoth.length === 0) {
+      return {
+        balances: [],
+      };
+    }
+    // Filter transactions by year/month if provided
+    let dateFilter: any = {};
+    if (year && month) {
+      const from = new Date(year, month - 1, 1);
+      const to = new Date(year, month, 0, 23, 59, 59, 999);
+      dateFilter = { date: { gte: from, lte: to } };
+    } else if (year) {
+      const from = new Date(year, 0, 1);
+      const to = new Date(year, 11, 31, 23, 59, 59, 999);
+      dateFilter = { date: { gte: from, lte: to } };
+    } else if (month) {
+      const now = new Date();
+      const y = now.getFullYear();
+      const from = new Date(y, month - 1, 1);
+      const to = new Date(y, month, 0, 23, 59, 59, 999);
+      dateFilter = { date: { gte: from, lte: to } };
+    }
+    // Only consider transactions in families where both persons are members
+    const allSharedTransactions = await this.prisma.transaction.findMany({
       where: {
-        familyId: { in: familyTreeIds },
+        familyId: { in: familiesWithBoth },
         isShared: true,
         splitRatio: { not: Prisma.DbNull },
+        ...dateFilter,
       },
       select: {
         amount: true,
         payer: true,
         splitRatio: true,
+        familyId: true,
       },
     });
-    // Initialize owed matrix: rawOwedAmounts[memberA][memberB] = how much A owes B
-    // rawOwedAmounts[membershipId][membershipId] = amount
-    const rawOwedAmounts: Record<string, Record<string, number>> = {};
-    activeMembers.forEach((m1: any) => {
-      rawOwedAmounts[m1.id] = {};
-      activeMembers.forEach((m2: any) => {
-        if (m1.id !== m2.id) {
-          rawOwedAmounts[m1.id][m2.id] = 0;
-        }
-      });
-    });
+    // Defensive: filter transactions to only those in familiesWithBoth (in case mocks or DB return more)
+    const sharedTransactions = allSharedTransactions.filter(tx => familiesWithBoth.includes(tx.familyId));
+    // Debug: print all shared transactions being considered
+    console.log('DEBUG: sharedTransactions', sharedTransactions);
+    // Find the relevant membership for each person in the transaction's family
+    const getMembershipForPersonInFamily = (personId: string, familyId: string) =>
+      memberships.find((m: any) => m.personId === personId && m.familyId === familyId);
+    // Debug logging for real API issues
+    console.log('DEBUG memberships:', memberships);
+    console.log('DEBUG familiesWithBoth:', familiesWithBoth);
+    // No per-family membership checks, only aggregate over families where both are members
+    // ...existing code...
+    let amountOneOwesTwo = 0;
     for (const tx of sharedTransactions) {
       if (!tx.payer || !tx.splitRatio) continue;
-      // Parse splitRatio if it's a string
-      let splitRatioItems: SplitRatioItem[];
+      let splitRatioItems: any[];
       if (typeof tx.splitRatio === 'string') {
-        try {
-          splitRatioItems = JSON.parse(tx.splitRatio);
-        } catch {
-          continue;
-        }
+        try { splitRatioItems = JSON.parse(tx.splitRatio); } catch { continue; }
       } else {
-        splitRatioItems = tx.splitRatio as unknown as SplitRatioItem[];
+        splitRatioItems = tx.splitRatio as any[];
       }
       if (!Array.isArray(splitRatioItems) || splitRatioItems.length === 0) continue;
       const payerId = tx.payer;
       const totalAmount = tx.amount;
-      // Only process if payer and all split members are active
-      if (!activeMembers.find((m: any) => m.id === payerId)) continue;
       let totalPercent = 0;
       splitRatioItems.forEach(item => { totalPercent += item.percentage; });
-      for (const item of splitRatioItems) {
-        if (!activeMembers.find((m: any) => m.id === item.memberId)) continue;
-        const memberShare = totalAmount * (item.percentage / totalPercent);
-        if (item.memberId !== payerId) {
-          // Member owes payer
-          rawOwedAmounts[item.memberId][payerId] = (rawOwedAmounts[item.memberId][payerId] || 0) + memberShare;
+      const membershipOne = getMembershipForPersonInFamily(personOneId, tx.familyId);
+      const membershipTwo = getMembershipForPersonInFamily(personTwoId, tx.familyId);
+      if (!membershipOne || !membershipTwo) {
+        continue;
+      }
+      const itemOne = splitRatioItems.find(item => item.memberId === membershipOne.id);
+      const itemTwo = splitRatioItems.find(item => item.memberId === membershipTwo.id);
+      if (itemOne && itemTwo) {
+        let pairwise = 0;
+        if (payerId === membershipOne.id && membershipTwo.id !== membershipOne.id) {
+          // personOne paid, personTwo owes their share to personOne
+          pairwise = totalAmount * (itemTwo.percentage / totalPercent);
+        } else if (payerId === membershipTwo.id && membershipOne.id !== membershipTwo.id) {
+          // personTwo paid, personOne owes their share to personTwo
+          pairwise = -totalAmount * (itemOne.percentage / totalPercent);
         }
-        // Payer's own share is ignored for balances
+        // Debug: print transaction, shares, and pairwise
+        console.log('DEBUG TX:', {
+          tx,
+          membershipOneId: membershipOne.id,
+          membershipTwoId: membershipTwo.id,
+          itemOne,
+          itemTwo,
+          pairwise
+        });
+        amountOneOwesTwo += pairwise;
       }
     }
-    // Settlements: sum all settlements between each person pair (in both directions)
+    // Settlements between the two persons
     const settlements = await this.prisma.settlement.findMany({
       where: {
-        payerId: { in: allPersonIds },
-        payeeId: { in: allPersonIds },
+        OR: [
+          { payerId: personOneId, payeeId: personTwoId },
+          { payerId: personTwoId, payeeId: personOneId },
+        ],
+        ...dateFilter,
       },
-      select: {
-        payerId: true,
-        payeeId: true,
-        amount: true,
-      },
+      select: { payerId: true, payeeId: true, amount: true },
     });
-    // Build a settlement matrix: settlementsSum[personA][personB] = total A paid B
-    const settlementsSum: Record<string, Record<string, number>> = {};
-    for (const a of allPersonIds) {
-      settlementsSum[a] = {};
-      for (const b of allPersonIds) {
-        if (a !== b) settlementsSum[a][b] = 0;
-      }
-    }
+    let settlementsPaid = 0; // personOne paid personTwo
+    let settlementsReceived = 0; // personTwo paid personOne
     for (const s of settlements) {
       const amount = typeof s.amount === 'object' && typeof s.amount.toNumber === 'function' ? s.amount.toNumber() : Number(s.amount);
-      // payerId paid payeeId
-      if (settlementsSum[s.payerId] && settlementsSum[s.payerId][s.payeeId] !== undefined) {
-        settlementsSum[s.payerId][s.payeeId] += Math.round(amount);
+      if (s.payerId === personOneId && s.payeeId === personTwoId) {
+        settlementsPaid += amount;
+      } else if (s.payerId === personTwoId && s.payeeId === personOneId) {
+        settlementsReceived += amount;
       }
     }
-    // Calculate balances by personId pairs (not just membership)
-    const finalBalances: DetailedMemberBalanceDto[] = [];
-    if (personId) {
-      for (const otherPersonId of allPersonIds) {
-        if (otherPersonId === personId) continue;
-        // Sum all owed amounts from any of selected person's memberships to any of other's memberships
-        let amountPersonOwesOther = 0;
-        let amountOtherOwesPerson = 0;
-        for (const m1 of activeMembers.filter(m => m.personId === personId)) {
-          for (const m2 of activeMembers.filter(m => m.personId === otherPersonId)) {
-            amountPersonOwesOther += Math.round(rawOwedAmounts[m1.id]?.[m2.id] || 0);
-            amountOtherOwesPerson += Math.round(rawOwedAmounts[m2.id]?.[m1.id] || 0);
-          }
-        }
-        // Apply settlements: what personId has paid to otherPersonId, and vice versa
-        const settlementsPaid = Math.round(settlementsSum[personId]?.[otherPersonId] || 0);
-        const settlementsReceived = Math.round(settlementsSum[otherPersonId]?.[personId] || 0);
-        // Net: what other owes person - what person owes other + settlements paid - settlements received
-        const net = amountOtherOwesPerson - amountPersonOwesOther + settlementsPaid - settlementsReceived;
-        if (net !== 0) {
-          // Always return a positive value if personId owes other, negative if other owes personId
-          finalBalances.push({
-            personOneId: personId,
-            memberOneName: personMap.get(personId)?.name || '',
-            personTwoId: otherPersonId,
-            memberTwoName: personMap.get(otherPersonId)?.name || '',
-            netAmountPersonOneOwesPersonTwo: -net,
-          });
-        }
-      }
-    } else {
-      // All pairs
-      for (let i = 0; i < allPersonIds.length; i++) {
-        for (let j = i + 1; j < allPersonIds.length; j++) {
-          const personA = allPersonIds[i];
-          const personB = allPersonIds[j];
-          let amountAOwesB = 0;
-          let amountBOwesA = 0;
-          for (const mA of activeMembers.filter(m => m.personId === personA)) {
-            for (const mB of activeMembers.filter(m => m.personId === personB)) {
-              amountAOwesB += rawOwedAmounts[mA.id]?.[mB.id] || 0;
-              amountBOwesA += rawOwedAmounts[mB.id]?.[mA.id] || 0;
-            }
-          }
-          const netAmountAOwesB = amountAOwesB - amountBOwesA;
-          if (netAmountAOwesB !== 0) {
-            finalBalances.push({
-              personOneId: personA,
-              memberOneName: personMap.get(personA)?.name || '',
-              personTwoId: personB,
-              memberTwoName: personMap.get(personB)?.name || '',
-              netAmountPersonOneOwesPersonTwo: parseFloat(netAmountAOwesB.toFixed(2)),
-            });
-          }
-        }
-      }
+    // Net: what personOne owes personTwo (positive means personOne owes personTwo, negative means personTwo owes personOne)
+    // Fix: Reverse the sign so that if personOne paid more, the result is negative (personTwo owes personOne)
+    const net = -(amountOneOwesTwo + settlementsPaid - settlementsReceived);
+    console.log('DEBUG FINAL: amountOneOwesTwo', amountOneOwesTwo, 'settlementsPaid', settlementsPaid, 'settlementsReceived', settlementsReceived, 'net', net);
+    if (Math.abs(net) < 0.01) {
+      // No balance
+      return { balances: [] };
     }
-    return { balances: finalBalances };
+    return {
+      balances: [
+        {
+          personOneId,
+          memberOneName: personMap.get(personOneId)?.name || '',
+          personTwoId,
+          memberTwoName: personMap.get(personTwoId)?.name || '',
+          netAmountPersonOneOwesPersonTwo: parseFloat(net.toFixed(2)),
+        },
+      ],
+    };
   }
 
   async createSettlement(
@@ -212,6 +232,7 @@ export class SettlementsService {
         amount: createSettlementDto.amount,
         note: createSettlementDto.note,
         createdBy: userId,
+        date: createSettlementDto.date ? new Date(createSettlementDto.date) : undefined,
       },
     });
 

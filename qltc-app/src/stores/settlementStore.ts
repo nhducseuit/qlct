@@ -24,12 +24,14 @@ export const useSettlementStore = defineStore('settlement', {
       // Axios returns { data, status, ... }, so use response.data if present
       this.accessiblePersons = Array.isArray(response) ? response : response.data ?? [];
     },
-    async loadBalances(personId: string) {
+    async loadBalances(personId: string, untilDate?: string) {
       if (!personId) {
         this.balances = [];
         return;
       }
-      const response = await api.get(`/settlements/balances?personId=${personId}`);
+      const params: Record<string, string> = { personId };
+      if (untilDate) params.untilDate = untilDate;
+      const response = await api.get('/settlements/balances', { params });
       // Support both Axios and fetch shapes
       const data = response?.data ?? response;
       // Map backend balances to table rows: show both directions for clarity
@@ -93,9 +95,9 @@ export const useSettlementStore = defineStore('settlement', {
       }
     },
     async createSettlement(payload: CreateSettlementDto) {
-      // Ensure date is sent as ISO string
-      const date = payload.date ? new Date(payload.date).toISOString() : new Date().toISOString();
-      await api.post('/settlements', { ...payload, date });
+      // Send the date as provided by the user (ISO string or YYYY-MM-DD)
+      // If payload.date is already ISO or YYYY-MM-DD, backend should handle it
+      await api.post('/settlements', payload);
       // Refresh balances and settlements after creation
       await this.loadBalances(payload.payerId);
       // Just reload all settlements (no filter by payerMembershipId)

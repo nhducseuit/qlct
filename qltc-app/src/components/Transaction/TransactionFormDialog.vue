@@ -51,6 +51,10 @@
         clearable
         class="q-mt-md"
         @update:model-value="onPayerChange"
+        @popup-show="() => {
+          console.log('[TransactionFormDialog] payerOptions at popup:', payerOptions);
+          console.log('[TransactionFormDialog] form.payer at popup:', form.payer);
+        }"
       />
 
           <!-- Amount -->
@@ -175,6 +179,18 @@ const formFamilyId = computed(() => {
   }
   // For a new transaction, use the passed familyId prop.
   return props.familyId;
+});
+
+// Auto-fetch members if empty when dialog opens
+onMounted(async () => {
+  if (householdMemberStore.members.length === 0 && typeof householdMemberStore.loadMembers === 'function') {
+    try {
+      await householdMemberStore.loadMembers();
+      console.log('[TransactionFormDialog] Members fetched on dialog open:', householdMemberStore.members);
+    } catch (e) {
+      console.error('[TransactionFormDialog] Failed to fetch members:', e);
+    }
+  }
 });
 
 const form = ref({
@@ -387,6 +403,11 @@ onMounted(() => {
   // If it's a new transaction, and we didn't hit the 'editingTransaction' block,
   // call updateMemberSplitPercentagesFromForm to initialize based on any defaults or empty state.
   if (!props.editingTransaction) updateMemberSplitPercentagesFromForm();
+
+  // Logging for debugging payer and options when dialog opens
+  console.log('[TransactionFormDialog] Opened for transaction:', props.editingTransaction);
+  console.log('[TransactionFormDialog] form.payer:', form.value.payer);
+  console.log('[TransactionFormDialog] payerOptions:', payerOptions.value);
 });
 
 const onSubmit = async () => {

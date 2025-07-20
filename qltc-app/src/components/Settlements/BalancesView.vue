@@ -1,3 +1,4 @@
+
 <template>
   <div>
     <q-select
@@ -8,10 +9,19 @@
       option-value="id"
       emit-value
       map-options
-      dense
-      outlined
-      class="q-mb-md"
+      dense outlined class="q-mb-md"
       @update:model-value="fetchBalances"
+    />
+    <q-input
+      v-model="selectedMonth"
+      label="Đến hết tháng"
+      mask="####-##"
+      fill-mask="0"
+      :rules="[val => !val || /^\d{4}-\d{2}$/.test(val) || 'Định dạng tháng không hợp lệ']"
+      @update:model-value="fetchBalances"
+      hint="Chọn tháng (YYYY-MM)"
+      placeholder="YYYY-MM"
+      dense outlined class="q-mb-md"
     />
     <div v-if="!selectedPersonId" class="text-grey q-mt-md">
       Vui lòng chọn người để xem số dư.
@@ -37,8 +47,10 @@ import { ref, computed, onMounted } from 'vue';
 import { useSettlementStore } from 'src/stores/settlementStore';
 import { formatCurrency as _formatCurrency } from 'src/utils/formatters';
 
+
 const store = useSettlementStore();
 const selectedPersonId = ref<string | null>(null);
+const selectedMonth = ref<string | null>(null); // format: 'YYYY-MM'
 
 const personOptions = computed(() => store.accessiblePersons ?? []);
 interface BalanceRow {
@@ -61,9 +73,20 @@ const columns = [
   { name: 'amount', label: 'Số dư', field: 'amount', align: 'right' as const },
 ];
 
+
+function getEndOfMonthISOString(month: string | null): string | undefined {
+  if (!month) return undefined;
+  // month: 'YYYY-MM' => last day of month, 23:59:59.999Z
+  const [year, m] = month.split('-').map(Number);
+  if (!year || !m) return undefined;
+  const date = new Date(Date.UTC(year, m, 0, 23, 59, 59, 999));
+  return date.toISOString();
+}
+
 async function fetchBalances() {
   if (selectedPersonId.value) {
-    await store.loadBalances(selectedPersonId.value);
+    const untilDate = getEndOfMonthISOString(selectedMonth.value);
+    await store.loadBalances(selectedPersonId.value, untilDate);
   }
 }
 

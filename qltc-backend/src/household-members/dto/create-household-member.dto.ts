@@ -2,6 +2,10 @@ import { IsString, IsNotEmpty, IsOptional, IsBoolean, IsNumber } from 'class-val
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class CreateHouseholdMemberDto {
+  @ApiProperty({ description: 'Family ID to add the member to', example: 'uuid-of-family' })
+  @IsString()
+  @IsNotEmpty()
+  familyId!: string;
   @ApiProperty({ description: 'Person ID (required)', example: 'uuid-of-person' })
   @IsString()
   @IsNotEmpty()

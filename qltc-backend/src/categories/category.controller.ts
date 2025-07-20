@@ -33,12 +33,8 @@ export class CategoryController {
   @ApiResponse({ status: 400, description: 'Bad Request.' })
   @ApiResponse({ status: 401, description: 'Unauthorized.' })
   create(@Body() createCategoryDto: CreateCategoryDto, @Req() req: AuthenticatedRequest) {
-    // Debug: print req.user
-    // eslint-disable-next-line no-console
-    console.log('[DEBUG] req.user in CategoryController.create', req.user);
-    const { id: userId, familyId } = req.user;
-    // Always use the authenticated user's familyId, never the DTO's familyId
-    return this.categoryService.create(createCategoryDto, familyId, userId);
+    const { id: userId } = req.user;
+    return this.categoryService.create(createCategoryDto, userId);
   }
 
   @Get()
@@ -82,11 +78,8 @@ export class CategoryController {
     @Body() updateCategoryDto: UpdateCategoryDto,
     @Req() req: AuthenticatedRequest,
   ) {
-    // Debug: print req.user
-    // eslint-disable-next-line no-console
-    console.log('[DEBUG] req.user in CategoryController.update', req.user);
-    const { familyId, id: userId } = req.user;
-    return this.categoryService.update(id, updateCategoryDto, familyId, userId);
+    const { id: userId } = req.user;
+    return this.categoryService.update(id, updateCategoryDto, userId);
   }
 
   @Delete(':id')

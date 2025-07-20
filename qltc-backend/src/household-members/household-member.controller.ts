@@ -30,8 +30,8 @@ export class HouseholdMemberController {
   @ApiResponse({ status: 400, description: 'Bad Request.' })
   @ApiResponse({ status: 401, description: 'Unauthorized.' })
   create(@Body() createHouseholdMemberDto: CreateHouseholdMemberDto, @Req() req: AuthenticatedRequest) {
-    const { familyId, id: userId } = req.user;
-    return this.householdMemberService.create(createHouseholdMemberDto, familyId, userId);
+    const { id: userId } = req.user;
+    return this.householdMemberService.create(createHouseholdMemberDto, userId);
   }
 
   @Get()
@@ -77,8 +77,8 @@ export class HouseholdMemberController {
     @Body() updateHouseholdMemberDto: UpdateHouseholdMemberDto,
     @Req() req: AuthenticatedRequest,
   ) {
-    const { familyId, id: userId } = req.user;
-    return this.householdMemberService.update(id, updateHouseholdMemberDto, familyId, userId);
+    const { id: userId } = req.user;
+    return this.householdMemberService.update(id, updateHouseholdMemberDto, userId);
   }
 
   @Delete(':id')

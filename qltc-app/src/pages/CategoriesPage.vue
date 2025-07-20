@@ -123,6 +123,7 @@ watch(
   { immediate: true }
 );
 
+
 const openAddCategoryDialog = (parentIdProp: string | null = null) => {
   let parentName: string | null = null;
   if (parentIdProp) {
@@ -130,6 +131,7 @@ const openAddCategoryDialog = (parentIdProp: string | null = null) => {
     parentName = parentCategory ? parentCategory.name : null;
   }
 
+  // Only pass parentId and parentCategoryName; dialog manages family selection itself
   $q.dialog({
     component: CategoryFormDialog,
     componentProps: {

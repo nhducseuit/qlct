@@ -52,6 +52,12 @@ export interface GetSettlementsQueryDto {
   endDate?: string; // ISO 8601 date string
 }
 
+// Corresponds to Backend: src/settlements/dto/get-balances-query.dto.ts
+export interface GetBalancesQueryDto {
+  personId?: string;
+  untilDate?: string; // ISO 8601 date string (end-of-month)
+}
+
 // Corresponds to Backend: src/settlements/dto/paginated-settlements-response.dto.ts
 export interface PaginationMetaDto {
   totalItems: number;

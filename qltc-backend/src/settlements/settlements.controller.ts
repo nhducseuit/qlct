@@ -1,4 +1,4 @@
-import { Controller, Get, Query, UseGuards, Req, Post, Body } from '@nestjs/common';
+import { Controller, Get, Query, UseGuards, Req, Post, Body, BadRequestException } from '@nestjs/common';
 import { SettlementsService } from './settlements.service';
 import { PersonService } from '../person/person.service'; // <-- Add this import
 import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags, ApiCreatedResponse } from '@nestjs/swagger';
@@ -38,7 +38,14 @@ export class SettlementsController {
     @Query() query: GetBalancesQueryDto,
   ): Promise<BalancesResponseDto> {
     const { familyId } = req.user;
-    return this.settlementsService.calculateBalances(familyId, query);
+    // Validate both persons are set and different
+    if (!query.personOneId || !query.personTwoId) {
+      throw new BadRequestException('Both personOneId and personTwoId are required.');
+    }
+    if (query.personOneId === query.personTwoId) {
+      throw new BadRequestException('personOneId and personTwoId must be different.');
+    }
+    return this.settlementsService.calculatePairBalance(familyId, query);
   }
 
   /**

@@ -147,6 +147,9 @@ export class FamilyService {
     return this.prisma.family.delete({ where: { id: id } });
   }
 
+  /**
+   * Returns the family tree (ancestors) for the given familyId.
+   */
   async getFamilyTreeIds(familyId: string): Promise<string[]> {
     const familyIds: string[] = [];
     let currentFamilyId: string | null = familyId;
@@ -161,5 +164,16 @@ export class FamilyService {
     }
 
     return familyIds;
+  }
+
+  /**
+   * Returns all family IDs accessible to the user (where the user is a member).
+   */
+  async getAllFamilyIds(personId: string): Promise<string[]> {
+    const families = await this.prisma.family.findMany({
+      where: { memberships: { some: { personId } } },
+      select: { id: true }
+    });
+    return families.map(f => f.id);
   }
 }

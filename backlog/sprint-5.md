@@ -25,6 +25,7 @@
 - Balances view now clearly shows who owes whom, and for how much, in a readable format.
 - All major runtime and type errors in the store and components have been fixed.
 - All calculations and settlement applications are now correct and match business logic.
+- **[July 2025]** Fixed settlement balance sign convention: positive means personOne owes personTwo, negative means personTwo owes personOne. Updated backend logic and unit tests to match. All backend tests now pass and reflect the correct business logic for cross-family, person-to-person balances.
 
 ### ⚠️ Known Issues / Deferred
 - WebSocket real-time updates for settlements and balances are not yet implemented. UI will not auto-update when a new settlement is created by another user. (Manual refresh required.)
@@ -96,39 +97,62 @@
 ## 🔥 Most Important Unfinished Work (Work on These Next)
 
 
+### [Progress Log]
+- **[x] Backend: Settlement logic and unit tests refactored and fixed (July 2025).**
+  - Refactored backend to aggregate balances globally between two persons, across all families the user can access, enforcing access control.
+  - Pairwise calculation logic is now symmetric and applies settlements correctly.
+  - Sign convention clarified and enforced: positive means personOne is owed by personTwo, negative means personOne owes personTwo. All backend tests updated and passing.
+  - Ready to proceed to frontend settlement creation, validation, and error handling tasks as outlined below.
+
+
 
 
 ### 1. Person-Centric Settlement Page Refactor (Clarified July 2025)
-#### Backend Tasks
-- [ ] Refactor Settlement Data Model: Ensure settlements are stored and queried at the person-to-person level, not by membership or family.
-- [ ] API: List Historical Settlements (`GET /settlements`): Returns all settlements between two persons the user can access.
-- [ ] API: List All Accessible Persons (`GET /persons?accessible=true`): Returns all persons the user can interact with (via family membership).
-- [ ] API: Get Current Balances for a Person (`GET /settlements/balances?personId={id}`): Returns a list of net balances between the selected person and all other accessible persons (exclude 0 balances).
-- [ ] API: Record New Settlement (`POST /settlements`): Payload: `{ payerId, payeeId, amount, note }`. Validates both persons are accessible to the user.
-- [ ] Access Control: Ensure all endpoints only return data for persons the user can access (via family membership).
-- [ ] Tests: Add/Update tests for all new/updated endpoints and edge cases (multiple memberships, persons leaving/joining families, etc.).
 
-#### Frontend Tasks
 
-- [x] **Balances View:**  
+#### New Feature: Person-to-Person Balances with Year/Month and Explicit Add (Planned)
+
+##### ✅ Completed
+- **Backend: API Adjustments**
+  - Update balances API to accept `personOneId`, `personTwoId`, `year`, and `month` as query params. If not set, default to current date and require both persons. (Done July 2025)
+  - Return only the balance between the two specified persons for the given period. (Done July 2025)
+  - Ensure the calculation logic and returned sign matches the UI explanation (positive: person 1 lends person 2, negative: person 1 owes person 2). (Done July 2025)
+  - Add clear API documentation and error messages if either person is not set or not accessible. (Done July 2025)
+- **Validation & Guidance**
+  - Add backend validation: both persons must be selected, and they must be different. (Done July 2025)
+  - If no balance exists for the selected period/persons, show a friendly message: "Không có số dư giữa hai người trong thời gian này." (Backend done July 2025)
+- **Testing & Documentation**
+  - Update or add backend tests for the new API and calculation logic. (Done July 2025)
+  - Update user documentation and in-app help to reflect the new balances workflow. (Backend/API docs done July 2025)
+- **Balances View:**
   - User must select a person (from accessible persons) before balances are shown.
   - On selection, fetch `/settlements/balances?personId={id}` and display net balances with all other accessible persons.
   - If no person is selected, prompt the user to select one.
-
-- [x] **Settlement History:**  
+- **Settlement History:**
   - Show all settlements the user can access (not just between two persons).
   - Columns: Payer, Payee, Amount, Date, Note.
   - Optionally allow filtering/searching by payer/payee (using accessible persons).
+- **Access Control:**
+  - Only show persons/settlements the user can access.
 
-- [ ] **Settlement Creation:**  
+##### 🔥 Next Up
+- [ ] **UI/UX: Settlement Balances Redesign**
+  - Replace the single month filter with two dropdowns: **Year** and **Month** (same style as Reports page). If unset, default to current year/month.
+  - Replace the single person filter with two dropdowns: **Person 1** and **Person 2**. User must select both to view a balance.
+  - Add an **"Add"** button. Only when clicked, the balance between the two selected persons (for the selected year/month) is added to the balances list below.
+  - In the balances list, show: "Person 1 cho mượn Person 2 Số tiền" if positive, or "Person 1 nợ Person 2 Số tiền" if negative. Show both persons' names clearly.
+  - Add a clear explanation above the filters: "Chọn hai người và thời gian để xem số dư giữa họ. Số dương: Người 1 cho mượn Người 2. Số âm: Người 1 nợ Người 2."
+  - Make the UI consistent with the Reports page for date selection and dropdowns.
+
+- [ ] **Settlement Creation:**
   - User can create a new settlement.
   - User must select payer and payee (from accessible persons), enter amount and note.
   - Validate both payer and payee are accessible.
   - On submit, call `POST /settlements` with `{ payerId, payeeId, amount, note }`.
   - Refresh balances and settlement history after creation.
 
-- [x] **Access Control:**  
-  - Only show persons/settlements the user can access.
+- [ ] **Transparency & Education**
+  - Add a help/info tooltip or section explaining how balances are calculated, with a link to documentation or FAQ if available.
 
 - [ ] Validation & Error Handling: Add/Update validation and error handling for all settlement actions.
 - [ ] Tests: Add/Update frontend tests for all settlement flows and edge cases.

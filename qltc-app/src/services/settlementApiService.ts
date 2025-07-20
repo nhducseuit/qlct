@@ -15,11 +15,17 @@ const API_URL = '/settlements';
 /**
  * Fetches the current balances between household members.
  */
-export const fetchBalancesAPI = async (): Promise<BalancesResponseDto> => {
-  // Currently, GetBalancesQueryDto is empty on the backend, so no params are sent.
-  // If query params are added later, they would be passed here.
-  // const query: GetBalancesQueryDto = {};
-  const response = await apiClient.get<BalancesResponseDto>(`${API_URL}/balances`);
+
+import type { GetBalancesQueryDto } from 'src/models/settlement';
+
+/**
+ * Fetches the balances between household members, with optional filters.
+ */
+export const fetchBalancesAPI = async (params?: GetBalancesQueryDto): Promise<BalancesResponseDto> => {
+  const response = await apiClient.get<BalancesResponseDto>(`${API_URL}/balances`, {
+    params,
+    paramsSerializer: params => qs.stringify(params, { skipNulls: true }),
+  });
   return response.data;
 };
 

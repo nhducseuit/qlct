@@ -16,14 +16,23 @@ export class HouseholdMemberService {
 
   async create(
     createHouseholdMemberDto: CreateHouseholdMemberDto,
-    familyId: string,
     userId: string, // For notifications
   ): Promise<HouseholdMembership> {
+    const requestedFamilyId = createHouseholdMemberDto.familyId;
+    if (!requestedFamilyId) {
+      throw new ForbiddenException('No familyId provided for household member creation.');
+    }
+    // Get all families the user can act on (e.g., their family tree)
+    // Validate that the requested familyId is in the user's accessible families
+    const allowedFamilyIds = await this.familyService.getFamilyTreeIds(requestedFamilyId);
+    if (!allowedFamilyIds.includes(requestedFamilyId)) {
+      throw new ForbiddenException('You do not have permission to create a member in this family.');
+    }
     try {
       const newMember = await this.prisma.householdMembership.create({
         data: {
           ...createHouseholdMemberDto,
-          familyId,
+          familyId: requestedFamilyId,
         },
         include: { person: true },
       });
@@ -75,11 +84,9 @@ export class HouseholdMemberService {
   async update(
     id: string,
     updateHouseholdMemberDto: UpdateHouseholdMemberDto,
-    familyId: string,
     userId: string, // For notifications
   ): Promise<HouseholdMembership> {
-
-    // For write operations, allow if the user's familyId is in the same family tree as the member's familyId
+    // Fetch the current member
     const memberToUpdate = await this.prisma.householdMembership.findUnique({
       where: { id },
       include: { person: true, family: true },
@@ -87,17 +94,36 @@ export class HouseholdMemberService {
     if (!memberToUpdate) {
       throw new NotFoundException(`Household member with ID "${id}" not found.`);
     }
-    // Get all ancestor familyIds for the user's current family context
-    const userFamilyTreeIds = await this.familyService.getFamilyTreeIds(familyId);
-    // Allow update if the member's familyId is in the user's family tree (same big family or subfamily)
-    if (!userFamilyTreeIds.includes(memberToUpdate.familyId)) {
-      throw new ForbiddenException('You do not have permission to update this household member.');
+
+    // Determine the target familyId (allow moving to another family)
+    const targetFamilyId = updateHouseholdMemberDto.familyId || memberToUpdate.familyId;
+    if (!targetFamilyId) {
+      throw new ForbiddenException('No familyId provided for household member update.');
+    }
+
+    // Validate that the user can act on the target family
+    const allowedFamilyIds = await this.familyService.getFamilyTreeIds(targetFamilyId);
+    if (!allowedFamilyIds.includes(targetFamilyId)) {
+      // Audit log: unauthorized attempt
+      console.warn(`[AUDIT] User ${userId} tried to update member ${id} to inaccessible familyId ${targetFamilyId}`);
+      throw new ForbiddenException('You do not have permission to move this member to the target family.');
+    }
+
+    // Prevent moving to a family where this person is already a member
+    if (targetFamilyId !== memberToUpdate.familyId) {
+      const exists = await this.prisma.householdMembership.findFirst({
+        where: { personId: memberToUpdate.personId, familyId: targetFamilyId },
+      });
+      if (exists) {
+        throw new ForbiddenException('This person is already a member of the target family.');
+      }
     }
 
     const dataToUpdate: Prisma.HouseholdMembershipUpdateInput = {};
     if (updateHouseholdMemberDto.isActive !== undefined) dataToUpdate.isActive = updateHouseholdMemberDto.isActive;
     if (updateHouseholdMemberDto.order !== undefined) dataToUpdate.order = updateHouseholdMemberDto.order;
     if (updateHouseholdMemberDto.personId !== undefined) dataToUpdate.person = { connect: { id: updateHouseholdMemberDto.personId } };
+    if (targetFamilyId !== memberToUpdate.familyId) dataToUpdate.family = { connect: { id: targetFamilyId } };
 
     const updatedMember = await this.prisma.householdMembership.update({
       where: { id },
