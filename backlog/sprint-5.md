@@ -1,3 +1,15 @@
+# Settlement Direction Rule (Permanent Reminder)
+
+**Settlement Direction Rule (ALWAYS REMEMBER):**
+- If A owes B, then A must pay B to settle the debt.
+- If B pays A instead, the debt increases in the wrong direction.
+- The payer/payee direction in settlements must always match the direction of the debt being settled.
+
+**Test/Implementation Reminder (ALWAYS CHECK):**
+- When applying a settlement, ensure the payer is the one who owes, and the payee is the one who is owed.
+- If the settlement direction is reversed, the balance will be incorrect.
+
+This rule must be checked and referenced in every settlement-related implementation and test.
 # Sprint 5: Top Priority Incomplete Work
 
 ## [x] Implement Person Breakdown Report
@@ -136,12 +148,12 @@
   - Only show persons/settlements the user can access.
 
 ##### 🔥 Next Up
-- [ ] **UI/UX: Settlement Balances Redesign**
+- [x] **UI/UX: Settlement Balances Redesign**
   - Replace the single month filter with two dropdowns: **Year** and **Month** (same style as Reports page). If unset, default to current year/month.
   - Replace the single person filter with two dropdowns: **Person 1** and **Person 2**. User must select both to view a balance.
   - Add an **"Add"** button. Only when clicked, the balance between the two selected persons (for the selected year/month) is added to the balances list below.
-  - In the balances list, show: "Person 1 cho mượn Person 2 Số tiền" if positive, or "Person 1 nợ Person 2 Số tiền" if negative. Show both persons' names clearly.
-  - Add a clear explanation above the filters: "Chọn hai người và thời gian để xem số dư giữa họ. Số dương: Người 1 cho mượn Người 2. Số âm: Người 1 nợ Người 2."
+  - In the balances list, show: "Person 1 nợ Person 2 Số tiền" if positive, or "Person 2 nợ Person 1 Số tiền" if negative (the field is netAmountPersonOneOwesPersonTwo). Show both persons' names clearly.
+  - Add a clear explanation above the filters: "Chọn hai người và thời gian để xem số dư giữa họ. Số dương: Người 1 nợ Người 2. Số âm: Người 2 nợ Người 1."
   - Make the UI consistent with the Reports page for date selection and dropdowns.
 
 - [ ] **Settlement Creation:**

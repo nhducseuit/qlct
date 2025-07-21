@@ -55,10 +55,7 @@ export class SettlementsService {
       memberships.some(m => m.personId === personOneId && m.familyId === fid) &&
       memberships.some(m => m.personId === personTwoId && m.familyId === fid)
     ) : [];
-    // Debug: print shared families and memberships
-    console.log('DEBUG: accessibleFamilyIds', accessibleFamilyIds);
-    console.log('DEBUG: memberships', memberships);
-    console.log('DEBUG: familiesWithBoth', familiesWithBoth);
+    // ...
     // 4. Map personId to name
     const personMap = new Map<string, { id: string, name: string }>();
     memberships.forEach((m: any) => {
@@ -81,19 +78,19 @@ export class SettlementsService {
     // Filter transactions by year/month if provided
     let dateFilter: any = {};
     if (year && month) {
-      const from = new Date(year, month - 1, 1);
+      // Cumulative until end of selected month/year
       const to = new Date(year, month, 0, 23, 59, 59, 999);
-      dateFilter = { date: { gte: from, lte: to } };
+      dateFilter = { date: { lte: to } };
     } else if (year) {
-      const from = new Date(year, 0, 1);
+      // Cumulative until end of year
       const to = new Date(year, 11, 31, 23, 59, 59, 999);
-      dateFilter = { date: { gte: from, lte: to } };
+      dateFilter = { date: { lte: to } };
     } else if (month) {
+      // Cumulative until end of selected month in current year
       const now = new Date();
       const y = now.getFullYear();
-      const from = new Date(y, month - 1, 1);
       const to = new Date(y, month, 0, 23, 59, 59, 999);
-      dateFilter = { date: { gte: from, lte: to } };
+      dateFilter = { date: { lte: to } };
     }
     // Only consider transactions in families where both persons are members
     const allSharedTransactions = await this.prisma.transaction.findMany({
@@ -108,18 +105,34 @@ export class SettlementsService {
         payer: true,
         splitRatio: true,
         familyId: true,
+        date: true,
       },
     });
     // Defensive: filter transactions to only those in familiesWithBoth (in case mocks or DB return more)
-    const sharedTransactions = allSharedTransactions.filter(tx => familiesWithBoth.includes(tx.familyId));
-    // Debug: print all shared transactions being considered
-    console.log('DEBUG: sharedTransactions', sharedTransactions);
+    let sharedTransactions = allSharedTransactions.filter(tx => familiesWithBoth.includes(tx.familyId));
+    // Extra: filter by date <= end of selected month/year (in case Prisma mock does not filter)
+    let dateLimit: Date | null = null;
+    if (year && month) {
+      dateLimit = new Date(year, month, 0, 23, 59, 59, 999);
+    } else if (year) {
+      dateLimit = new Date(year, 11, 31, 23, 59, 59, 999);
+    } else if (month) {
+      const now = new Date();
+      const y = now.getFullYear();
+      dateLimit = new Date(y, month, 0, 23, 59, 59, 999);
+    }
+    if (dateLimit) {
+      sharedTransactions = sharedTransactions.filter(tx => {
+        if (tx.date) return new Date(tx.date) <= dateLimit;
+        return true;
+      });
+      // ...
+    }
+    // ...
     // Find the relevant membership for each person in the transaction's family
     const getMembershipForPersonInFamily = (personId: string, familyId: string) =>
       memberships.find((m: any) => m.personId === personId && m.familyId === familyId);
-    // Debug logging for real API issues
-    console.log('DEBUG memberships:', memberships);
-    console.log('DEBUG familiesWithBoth:', familiesWithBoth);
+    // ...
     // No per-family membership checks, only aggregate over families where both are members
     // ...existing code...
     let amountOneOwesTwo = 0;
@@ -144,28 +157,24 @@ export class SettlementsService {
       const itemOne = splitRatioItems.find(item => item.memberId === membershipOne.id);
       const itemTwo = splitRatioItems.find(item => item.memberId === membershipTwo.id);
       if (itemOne && itemTwo) {
+        // Always from personOne's perspective:
+        // - If personOne paid: personTwo owes personOne their share (subtract personTwo's share)
+        // - If personTwo paid: personOne owes personTwo their share (add personOne's share)
+        // - If neither paid, or both are the same, skip
         let pairwise = 0;
         if (payerId === membershipOne.id && membershipTwo.id !== membershipOne.id) {
-          // personOne paid, personTwo owes their share to personOne
-          pairwise = totalAmount * (itemTwo.percentage / totalPercent);
+          pairwise = -totalAmount * (itemTwo.percentage / totalPercent);
         } else if (payerId === membershipTwo.id && membershipOne.id !== membershipTwo.id) {
-          // personTwo paid, personOne owes their share to personTwo
-          pairwise = -totalAmount * (itemOne.percentage / totalPercent);
+          pairwise = totalAmount * (itemOne.percentage / totalPercent);
+        } else if (payerId !== membershipOne.id && payerId !== membershipTwo.id) {
+          // If a third party paid, personOne owes personTwo: add personOne's share, subtract personTwo's share
+          pairwise = totalAmount * (itemOne.percentage / totalPercent) - totalAmount * (itemTwo.percentage / totalPercent);
         }
-        // Debug: print transaction, shares, and pairwise
-        console.log('DEBUG TX:', {
-          tx,
-          membershipOneId: membershipOne.id,
-          membershipTwoId: membershipTwo.id,
-          itemOne,
-          itemTwo,
-          pairwise
-        });
         amountOneOwesTwo += pairwise;
       }
     }
     // Settlements between the two persons
-    const settlements = await this.prisma.settlement.findMany({
+    let settlements = await this.prisma.settlement.findMany({
       where: {
         OR: [
           { payerId: personOneId, payeeId: personTwoId },
@@ -173,8 +182,12 @@ export class SettlementsService {
         ],
         ...dateFilter,
       },
-      select: { payerId: true, payeeId: true, amount: true },
+      select: { payerId: true, payeeId: true, amount: true, date: true },
     });
+    if (dateLimit) {
+      settlements = settlements.filter(s => !s.date || s.date <= dateLimit);
+    }
+    // ...
     let settlementsPaid = 0; // personOne paid personTwo
     let settlementsReceived = 0; // personTwo paid personOne
     for (const s of settlements) {
@@ -187,12 +200,8 @@ export class SettlementsService {
     }
     // Net: what personOne owes personTwo (positive means personOne owes personTwo, negative means personTwo owes personOne)
     // Fix: Reverse the sign so that if personOne paid more, the result is negative (personTwo owes personOne)
-    const net = -(amountOneOwesTwo + settlementsPaid - settlementsReceived);
-    console.log('DEBUG FINAL: amountOneOwesTwo', amountOneOwesTwo, 'settlementsPaid', settlementsPaid, 'settlementsReceived', settlementsReceived, 'net', net);
-    if (Math.abs(net) < 0.01) {
-      // No balance
-      return { balances: [] };
-    }
+    const net = amountOneOwesTwo + settlementsPaid - settlementsReceived;
+    // ...
     return {
       balances: [
         {
@@ -204,7 +213,7 @@ export class SettlementsService {
         },
       ],
     };
-  }
+}
 
   async createSettlement(
     familyId: string,

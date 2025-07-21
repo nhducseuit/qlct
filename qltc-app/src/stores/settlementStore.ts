@@ -103,5 +103,27 @@ export const useSettlementStore = defineStore('settlement', {
       // Just reload all settlements (no filter by payerMembershipId)
       await this.loadSettlements();
     },
+    async fetchPairBalance(personOneId: string, personTwoId: string, year: number, month: number) {
+      // Call the backend API for a single pairwise balance
+      const params = { personOneId, personTwoId, year, month };
+      const response = await api.get('/settlements/balances', { params });
+      const data = response?.data ?? response;
+      // API returns { balances: [ ... ] } or { balances: [] }
+      if (Array.isArray(data.balances) && data.balances.length > 0) {
+        const b = data.balances[0];
+        return {
+          balance: b.netAmountPersonOneOwesPersonTwo,
+          personOneName: b.memberOneName,
+          personTwoName: b.memberTwoName,
+        };
+      } else {
+        // No balance found, treat as settled
+        return {
+          balance: 0,
+          personOneName: '',
+          personTwoName: '',
+        };
+      }
+    },
   },
 });
