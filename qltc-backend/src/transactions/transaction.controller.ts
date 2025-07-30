@@ -111,9 +111,9 @@ export class TransactionController {
   @ApiResponse({ status: 401, description: 'Unauthorized.' })
   @ApiResponse({ status: 403, description: 'Forbidden.' })
   @ApiResponse({ status: 404, description: 'Transaction not found.' })
-  remove(@Param('id', ParseUUIDPipe) id: string, @Body() body: { familyId: string }): Promise<{ message: string }> {
+  remove(@Param('id', ParseUUIDPipe) id: string, @Req() req: AuthenticatedRequest,): Promise<{ message: string }> {
     // TODO: Refactor to use req.user.familyId, not body.familyId (see Sprint 5 backlog)
     // The FamilyGuard has already validated the familyId in the body.
-    return this.transactionService.remove(id, body.familyId);
+    return this.transactionService.remove(id, req.user.familyId);
   }
 }

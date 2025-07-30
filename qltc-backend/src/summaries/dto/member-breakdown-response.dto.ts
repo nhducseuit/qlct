@@ -1,4 +1,3 @@
-// src/summaries/dto/member-breakdown-response.dto.ts
 import { ApiProperty } from '@nestjs/swagger';
 
 export class MemberBreakdownItemDto {
@@ -8,14 +7,11 @@ export class MemberBreakdownItemDto {
   @ApiProperty({ example: 'Chồng', description: 'Household Member Name' })
   memberName!: string;
 
-  @ApiProperty({ example: 1500.00, description: 'Total income attributed to this member in the period' })
-  totalIncome!: number;
+  @ApiProperty({ example: 1500.00, description: 'Tổng số tiền thành viên này đã trực tiếp chi ra trong kỳ' })
+  totalPaidAmount!: number;
 
-  @ApiProperty({ example: 850.25, description: 'Total expense attributed to this member in the period' })
+  @ApiProperty({ example: 850.25, description: 'Tổng chi phí được chia cho thành viên này trong kỳ' })
   totalExpense!: number;
-
-  @ApiProperty({ example: 649.75, description: 'Net change (income - expense) for this member' })
-  netChange!: number;
 }
 
 export type MemberBreakdownResponseDto = MemberBreakdownItemDto[];

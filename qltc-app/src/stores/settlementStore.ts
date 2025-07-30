@@ -98,9 +98,7 @@ export const useSettlementStore = defineStore('settlement', {
       // Send the date as provided by the user (ISO string or YYYY-MM-DD)
       // If payload.date is already ISO or YYYY-MM-DD, backend should handle it
       await api.post('/settlements', payload);
-      // Refresh balances and settlements after creation
-      await this.loadBalances(payload.payerId);
-      // Just reload all settlements (no filter by payerMembershipId)
+      // Only reload settlements list after creation; do not reload balances automatically
       await this.loadSettlements();
     },
     async fetchPairBalance(personOneId: string, personTwoId: string, year: number, month: number) {

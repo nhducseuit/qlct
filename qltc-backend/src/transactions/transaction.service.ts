@@ -339,9 +339,13 @@ export class TransactionService {
   async remove(id: string, familyId: string): Promise<{ message: string }> {
     const transaction = await this.prisma.transaction.findUnique({ where: { id } });
     if (!transaction) throw new NotFoundException(`Transaction with ID "${id}" not found`);
-    if (transaction.familyId !== familyId) {
+
+    // Consistent with findFiltered: allow removal if user can see the transaction (familyId in familyTreeIds)
+    const familyTreeIds = await this.familyService.getFamilyTreeIds(familyId);
+    if (!familyTreeIds.includes(transaction.familyId)) {
       throw new ForbiddenException('You do not have permission to delete this transaction.');
     }
+
     await this.prisma.transaction.delete({
       where: { id },
     });

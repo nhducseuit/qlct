@@ -65,9 +65,8 @@ export interface GetMemberBreakdownQueryDto {
 export interface MemberBreakdownItemDto {
   memberId: string;
   memberName: string;
-  totalIncome: number;
+  totalPaidAmount: number;
   totalExpense: number;
-  netChange: number;
 }
 
 export type MemberBreakdownResponseDto = MemberBreakdownItemDto[];

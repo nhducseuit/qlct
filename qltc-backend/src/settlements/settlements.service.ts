@@ -101,12 +101,14 @@ export class SettlementsService {
         ...dateFilter,
       },
       select: {
+        id: true,
         amount: true,
         payer: true,
         splitRatio: true,
         familyId: true,
         date: true,
       },
+      orderBy: { date: 'desc' },
     });
     // Defensive: filter transactions to only those in familiesWithBoth (in case mocks or DB return more)
     let sharedTransactions = allSharedTransactions.filter(tx => familiesWithBoth.includes(tx.familyId));
@@ -166,10 +168,8 @@ export class SettlementsService {
           pairwise = -totalAmount * (itemTwo.percentage / totalPercent);
         } else if (payerId === membershipTwo.id && membershipOne.id !== membershipTwo.id) {
           pairwise = totalAmount * (itemOne.percentage / totalPercent);
-        } else if (payerId !== membershipOne.id && payerId !== membershipTwo.id) {
-          // If a third party paid, personOne owes personTwo: add personOne's share, subtract personTwo's share
-          pairwise = totalAmount * (itemOne.percentage / totalPercent) - totalAmount * (itemTwo.percentage / totalPercent);
         }
+        console.log(`DEBUG: Transaction ${tx.id} pairwise amount for ${personOneId} owes ${personTwoId}: ${pairwise}`);
         amountOneOwesTwo += pairwise;
       }
     }
@@ -193,14 +193,19 @@ export class SettlementsService {
     for (const s of settlements) {
       const amount = typeof s.amount === 'object' && typeof s.amount.toNumber === 'function' ? s.amount.toNumber() : Number(s.amount);
       if (s.payerId === personOneId && s.payeeId === personTwoId) {
+        console.log(`DEBUG: Settlement paid by ${personOneId} to ${personTwoId}: ${amount}`);
         settlementsPaid += amount;
       } else if (s.payerId === personTwoId && s.payeeId === personOneId) {
+        console.log(`DEBUG: Settlement received by ${personOneId} from ${personTwoId}: ${amount}`);
         settlementsReceived += amount;
       }
     }
     // Net: what personOne owes personTwo (positive means personOne owes personTwo, negative means personTwo owes personOne)
     // Fix: Reverse the sign so that if personOne paid more, the result is negative (personTwo owes personOne)
-    const net = amountOneOwesTwo + settlementsPaid - settlementsReceived;
+    console.log(`DEBUG: Settlements paid by ${personOneId} to ${personTwoId}: ${settlementsPaid}`);
+    console.log(`DEBUG: Settlements received by ${personOneId} from ${personTwoId}: ${settlementsReceived}`);
+    console.log(`DEBUG: Amount ${personOneId} owes ${personTwoId} from transactions: ${amountOneOwesTwo}`);
+    const net = amountOneOwesTwo - settlementsPaid + settlementsReceived;
     // ...
     return {
       balances: [

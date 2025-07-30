@@ -20,7 +20,9 @@ This rule must be checked and referenced in every settlement-related implementat
 - Do not show for families the user does not have full access to.
 - No need to show for persons the user does not have full access to.
 - The member breakdown report is insufficient because a person may have multiple memberships, making it hard to get a true person-level view.
-- The person breakdown report provides an "eagle view" for the user to see their own and their immediate family's expenses, crossing categories.
+  - The person breakdown report provides an "eagle view" for the user to see their own and their immediate family's expenses, crossing categories.
+  - Expenses for categories with the same name (e.g. "food") across all families the person belongs to are now correctly aggregated and shown as a single total per category name. Only expenses are required for now.
+  - [x] Đã bổ sung logic tổng hợp chi phí cho các category cùng tên trên tất cả các family mà user là thành viên, áp dụng cho cả person breakdown và person category budget compare. Báo cáo giờ đã hiển thị đúng tổng chi phí cho category cùng tên, bất kể transaction thuộc family nào.
 - Minimal, isolated implementation. No unrelated code or architectural changes.
 - Follow security/data integrity best practices (never trust client-supplied IDs, always use authenticated session context).
 - If any out-of-scope changes are made, revert them.

@@ -79,9 +79,8 @@ const props = defineProps<Props>();
 
 const columns: QTableColumn[] = [
   { name: 'memberName', required: true, label: 'Thành viên', align: 'left', field: 'memberName', sortable: true, style: 'width: 40%' },
-  { name: 'totalIncome', label: 'Tổng Thu (phần được chia)', field: 'totalIncome', sortable: true, align: 'right', format: val => formatKiloCurrency(val), style: 'width: 20%' },
+  { name: 'totalPaidAmount', label: 'Tổng chi trực tiếp', field: 'totalPaidAmount', sortable: true, align: 'right', format: val => formatKiloCurrency(val), style: 'width: 20%' },
   { name: 'totalExpense', label: 'Tổng Chi (phần được chia)', field: 'totalExpense', sortable: true, align: 'right', format: val => formatKiloCurrency(val), style: 'width: 20%' },
-  { name: 'netChange', label: 'Thay đổi ròng', field: 'netChange', sortable: true, align: 'right', format: val => formatKiloCurrency(val), style: 'width: 20%' },
 ];
 
 const tableRows = computed(() => {
@@ -148,11 +147,11 @@ const memberBarChartOptions = computed((): Highcharts.Options => {
 });
 
 const memberBarChartSeries = computed((): Highcharts.SeriesOptionsType[] => {
-  const incomeData = props.breakdownData?.map(item => item.totalIncome) || [];
+  const paidData = props.breakdownData?.map(item => item.totalPaidAmount) || [];
   const expenseData = props.breakdownData?.map(item => item.totalExpense) || [];
 
   return [
-    { type: 'bar', name: 'Tổng Thu (phần được chia)', data: incomeData, color: '#4CAF50' /* Green */ },
+    { type: 'bar', name: 'Tổng chi trực tiếp', data: paidData, color: '#1976D2' /* Blue */ },
     { type: 'bar', name: 'Tổng Chi (phần được chia)', data: expenseData, color: '#F44336' /* Red */ },
   ];
 });
